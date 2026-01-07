@@ -1,0 +1,184 @@
+// Prisma schema for Swimmingly
+// Database: PostgreSQL with TimescaleDB extension for time-series optimization
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Tide predictions and measurements
+model TideData {
+  id          String   @id @default(cuid())
+  timestamp   DateTime @unique
+  heightFeet  Float
+  type        String   // "high", "low", "normal"
+  source      String   @default("NOAA")
+  createdAt   DateTime @default(now())
+
+  @@index([timestamp])
+  @@map("tide_data")
+}
+
+// Current (water flow) measurements
+model CurrentData {
+  id          String   @id @default(cuid())
+  timestamp   DateTime
+  speedKnots  Float
+  direction   Int      // degrees (0-360)
+  lat         Float
+  lon         Float
+  source      String   @default("NOAA")
+  createdAt   DateTime @default(now())
+
+  @@index([timestamp])
+  @@map("current_data")
+}
+
+// Weather observations and forecasts
+model WeatherData {
+  id              String   @id @default(cuid())
+  timestamp       DateTime @unique
+  tempF           Float
+  windSpeedMph    Float
+  windDirection   Int      // degrees (0-360)
+  windGustMph     Float?
+  visibilityMiles Float?
+  conditions      String   // "clear", "cloudy", "rain", etc.
+  pressure        Float?
+  humidity        Float?
+  source          String   @default("NOAA")
+  createdAt       DateTime @default(now())
+
+  @@index([timestamp])
+  @@map("weather_data")
+}
+
+// Wave and swell measurements
+model WaveData {
+  id              String   @id @default(cuid())
+  timestamp       DateTime @unique
+  waveHeightFeet  Float
+  swellPeriodSec  Float?
+  swellDirection  Int?     // degrees (0-360)
+  dominantPeriod  Float?
+  source          String   @default("NOAA")
+  createdAt       DateTime @default(now())
+
+  @@index([timestamp])
+  @@map("wave_data")
+}
+
+// Water quality measurements
+model WaterQuality {
+  id              String   @id @default(cuid())
+  timestamp       DateTime @unique
+  coliformCount   Int?     // MPN/100ml
+  enterococcus    Int?     // MPN/100ml
+  status          String   // "safe", "advisory", "warning", "closed"
+  notes           String?
+  source          String
+  createdAt       DateTime @default(now())
+
+  @@index([timestamp])
+  @@map("water_quality")
+}
+
+// Sanitary Sewer Overflow events
+model SSOEvent {
+  id          String   @id @default(cuid())
+  reportedAt  DateTime
+  location    String
+  volumeGal   Float?   // gallons
+  resolved    Boolean  @default(false)
+  resolvedAt  DateTime?
+  distanceMi  Float?   // distance from Aquatic Park in miles
+  notes       String?
+  source      String   @default("SFPUC")
+  createdAt   DateTime @default(now())
+
+  @@index([reportedAt])
+  @@index([resolved])
+  @@map("sso_events")
+}
+
+// Predefined swimming routes
+model SwimmingRoute {
+  id          String   @id @default(cuid())
+  routeId     String   @unique // 'beginner-loop', 'hyde-to-muni', etc.
+  name        String
+  description String?
+  distanceMi  Float
+  difficulty  String   // "easy", "moderate", "challenging", "advanced"
+  estTimeMins Int      // estimated time in minutes
+  geojson     Json     // GeoJSON LineString
+  landmarks   Json?    // Array of landmark objects
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("swimming_routes")
+}
+
+// Calculated swim scores
+model SwimScore {
+  id                String   @id @default(cuid())
+  timestamp         DateTime @unique
+  overallScore      Int      // 0-100
+  rating            String   // "excellent", "good", "fair", "poor", "dangerous"
+
+  // Individual factor scores
+  waterQualityScore Int
+  tideCurrentScore  Int
+  waveScore         Int
+  weatherScore      Int
+  visibilityScore   Int
+
+  // Detailed factors stored as JSON
+  factors           Json
+  recommendations   Json     // Array of recommendation strings
+  warnings          Json     // Array of warning strings
+
+  createdAt         DateTime @default(now())
+
+  @@index([timestamp])
+  @@index([overallScore])
+  @@map("swim_scores")
+}
+
+// Hourly aggregates for historical analysis (TimescaleDB continuous aggregate)
+model HourlyAggregate {
+  id                String   @id @default(cuid())
+  hourBucket        DateTime @unique // Truncated to hour
+  avgScore          Float
+  minScore          Int
+  maxScore          Int
+  avgWaveHeight     Float
+  avgWindSpeed      Float
+  avgTideHeight     Float
+  waterQualityStatus String?
+  sampleCount       Int      // Number of data points in this hour
+  createdAt         DateTime @default(now())
+
+  @@index([hourBucket])
+  @@map("hourly_aggregates")
+}
+
+// Daily summary statistics
+model DailySummary {
+  id              String   @id @default(cuid())
+  date            DateTime @unique @db.Date
+  avgScore        Float
+  maxScore        Int
+  minScore        Int
+  bestTimeOfDay   String?  // "morning", "afternoon", "evening"
+  totalSSOs       Int      @default(0)
+  waterQualitySafe Boolean  @default(true)
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  @@index([date])
+  @@map("daily_summaries")
+}
