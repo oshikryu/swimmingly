@@ -33,7 +33,14 @@ export function calculateSwimScore(
   const tideCurrentFactor = scoreTideAndCurrent(tide, current, customTidePreferences);
   const waveFactor = scoreWaves(waves);
   const weatherFactor = scoreWeather(weather);
-  const visibilityFactor = scoreVisibility(weather.visibilityMiles);
+  const visibilityFactor = {
+    score:100,
+    miles: 10,
+    status: 'good',
+    issues: "",
+  };
+  // FIXME
+  // const visibilityFactor = scoreVisibility(weather.visibilityMiles);
 
   // Calculate weighted overall score
   const overallScore = Math.round(

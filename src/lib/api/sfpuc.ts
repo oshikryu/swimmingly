@@ -8,6 +8,8 @@ import type { SSOEvent } from '@/types/conditions';
 import { AQUATIC_PARK_LAT, AQUATIC_PARK_LON } from '@/config/aquatic-park';
 
 const SFPUC_BASE_URL = 'https://data.sfgov.org/resource';
+// NOTE: This dataset ID may need verification - check https://data.sfgov.org for current SSO datasets
+// Known alternatives: 'ssi8-333r' (Sewer System Overflow), 'pr5w-eger' (Wastewater)
 const SSO_DATASET_ID = 'pr5w-eger'; // SF SSO events dataset
 
 /**
@@ -53,7 +55,17 @@ export async function fetchRecentSSOs(daysBack: number = 7): Promise<SSOEvent[]>
       };
     });
   } catch (error) {
-    console.error('Error fetching SSO events:', error);
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 404) {
+        console.warn('SSO dataset not found - dataset ID may be invalid or API endpoint changed');
+        console.warn(`Attempted URL: ${SFPUC_BASE_URL}/${SSO_DATASET_ID}.json`);
+        console.warn('Check https://data.sfgov.org for current SSO datasets');
+      } else {
+        console.error('Error fetching SSO events:', error.message);
+      }
+    } else {
+      console.error('Error fetching SSO events:', error);
+    }
     // Return empty array on error to allow app to continue
     return [];
   }

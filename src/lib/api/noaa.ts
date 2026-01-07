@@ -213,11 +213,24 @@ export async function fetchCurrentWeather(): Promise<WeatherData | null> {
 
     const obs = obsResponse.data.properties;
 
+    // Ensure we have critical weather data
+    const temperature = obs.temperature?.value;
+    const windSpeed = obs.windSpeed?.value;
+
+    if (temperature === null || temperature === undefined ||
+        windSpeed === null || windSpeed === undefined) {
+      console.warn('Missing critical weather data from NOAA');
+      console.warn(`Temperature: ${temperature}, Wind Speed: ${windSpeed}`);
+      console.warn(`Station: ${nearestStation}`);
+      console.warn('This is expected if the observation station has not reported recently');
+      return null;
+    }
+
     return {
       timestamp: new Date(obs.timestamp),
-      temperatureF: celsiusToFahrenheit(obs.temperature.value),
-      windSpeedMph: metersPerSecondToMph(obs.windSpeed.value),
-      windDirection: obs.windDirection.value || 0,
+      temperatureF: celsiusToFahrenheit(temperature),
+      windSpeedMph: metersPerSecondToMph(windSpeed),
+      windDirection: obs.windDirection?.value || 0,
       windGustMph: obs.windGust?.value ? metersPerSecondToMph(obs.windGust.value) : undefined,
       visibilityMiles: metersToMiles(obs.visibility?.value || 16000),
       conditions: obs.textDescription?.toLowerCase() || 'unknown',
@@ -250,13 +263,29 @@ export async function fetchWaveData(buoyId: string = WAVE_BUOY_ID): Promise<Wave
     const dataLine = lines[2].trim().split(/\s+/);
 
     // NDBC standard format: YY MM DD hh mm WDIR WSPD GST WVHT DPD APD MWD PRES ATMP WTMP DEWP VIS TIDE
-    const waveHeight = parseFloat(dataLine[8]); // WVHT in meters
-    const dominantPeriod = parseFloat(dataLine[9]); // DPD in seconds
-    const meanWaveDirection = parseInt(dataLine[11], 10); // MWD in degrees
+    // Parse values, handling "MM" (missing data) from NOAA
+    const parseValue = (value: string): number | undefined => {
+      if (!value || value === 'MM') return undefined;
+      const parsed = parseFloat(value);
+      return isNaN(parsed) ? undefined : parsed;
+    };
+
+    const waveHeightMeters = parseValue(dataLine[8]); // WVHT in meters
+    const dominantPeriod = parseValue(dataLine[9]); // DPD in seconds
+    const meanWaveDirection = parseValue(dataLine[11]); // MWD in degrees
+
+    console.log(`Buoy ${buoyId} raw data - WVHT: ${dataLine[8]}, DPD: ${dataLine[9]}, MWD: ${dataLine[11]}`);
+    console.log(`Parsed wave data - height: ${waveHeightMeters}m, period: ${dominantPeriod}s, direction: ${meanWaveDirection}°`);
+
+    // Only return data if we have at least wave height
+    if (waveHeightMeters === undefined) {
+      console.warn(`No valid wave height data from buoy ${buoyId}`);
+      return null;
+    }
 
     return {
       timestamp: new Date(), // Buoy data is usually within the last hour
-      waveHeightFeet: waveHeight * 3.28084, // Convert meters to feet
+      waveHeightFeet: waveHeightMeters * 3.28084, // Convert meters to feet
       swellPeriodSeconds: dominantPeriod,
       swellDirection: meanWaveDirection,
       dominantPeriod: dominantPeriod,

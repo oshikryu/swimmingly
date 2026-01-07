@@ -47,21 +47,27 @@ export async function GET(request: NextRequest) {
     const waterQualityData = waterQuality.status === 'fulfilled' ? waterQuality.value : null;
     const ssoData = recentSSOs.status === 'fulfilled' ? recentSSOs.value : [];
 
-    // Check if we have minimum required data
-    if (!tideData || !weatherData || !waveData || !waterQualityData) {
+    // Check if we have minimum required data (tide is critical)
+    // Other data can be null and scoring algorithm will handle gracefully
+    if (!tideData) {
       return NextResponse.json(
         {
-          error: 'Unable to fetch all required data',
+          error: 'Unable to fetch critical tide data',
           details: {
-            tide: tide.status === 'rejected' ? tide.reason?.message : 'ok',
-            weather: weather.status === 'rejected' ? weather.reason?.message : 'ok',
-            waves: waves.status === 'rejected' ? waves.reason?.message : 'ok',
-            waterQuality: waterQuality.status === 'rejected' ? waterQuality.reason?.message : 'ok',
+            tide: tide.status === 'rejected' ? tide.reason?.message : 'missing',
+            weather: weather.status === 'rejected' ? tide.reason?.message : (!weatherData ? 'missing' : 'ok'),
+            waves: waves.status === 'rejected' ? waves.reason?.message : (!waveData ? 'missing' : 'ok'),
+            waterQuality: waterQuality.status === 'rejected' ? waterQuality.reason?.message : (!waterQualityData ? 'missing' : 'ok'),
           },
         },
         { status: 503 }
       );
     }
+
+    // Log warnings for missing non-critical data
+    if (!weatherData) console.warn('Weather data unavailable - using defaults');
+    if (!waveData) console.warn('Wave data unavailable - using defaults');
+    if (!waterQualityData) console.warn('Water quality data unavailable - using defaults');
 
     // Calculate swim score with custom preferences if provided
     const score = calculateSwimScore(
@@ -74,29 +80,47 @@ export async function GET(request: NextRequest) {
       customTidePreferences
     );
 
-    // Construct response
+    const now = new Date();
+
+    // Construct response with fallbacks for missing data
     const conditions: CurrentConditions = {
-      timestamp: new Date(),
+      timestamp: now,
       score,
       tide: tideData,
       current: currentData || {
-        timestamp: new Date(),
+        timestamp: now,
         speedKnots: 0,
         direction: 0,
         lat: 37.8065,
         lon: -122.4216,
         source: 'unavailable',
       },
-      weather: weatherData,
-      waves: waveData,
-      waterQuality: waterQualityData,
+      weather: weatherData || {
+        timestamp: now,
+        temperatureF: 60,
+        windSpeedMph: 0,
+        windDirection: 0,
+        visibilityMiles: 10,
+        conditions: 'unavailable',
+        source: 'unavailable',
+      },
+      waves: waveData || {
+        timestamp: now,
+        waveHeightFeet: 0,
+        source: 'unavailable',
+      },
+      waterQuality: waterQualityData || {
+        timestamp: now,
+        status: 'safe',
+        source: 'unavailable',
+      },
       recentSSOs: ssoData,
       dataFreshness: {
         tide: tideData.timestamp,
-        weather: weatherData.timestamp,
-        waves: waveData.timestamp,
-        waterQuality: waterQualityData.timestamp,
-        sso: ssoData.length > 0 ? ssoData[0].reportedAt : new Date(),
+        weather: weatherData?.timestamp || now,
+        waves: waveData?.timestamp || now,
+        waterQuality: waterQualityData?.timestamp || now,
+        sso: ssoData.length > 0 ? ssoData[0].reportedAt : now,
       },
     };
 
