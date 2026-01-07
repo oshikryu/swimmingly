@@ -74,6 +74,14 @@ export const SAFETY_THRESHOLDS = {
     lowCurrent: 1.0,      // Tide change < 1.0 ft/hour = low current
     moderateCurrent: 2.0, // Tide change < 2.0 ft/hour = moderate
     // > 2.0 ft/hour = strong current
+
+    // Tide phase preferences (0-100, where 100 is most favorable)
+    // Adjust these based on local conditions and swimmer preferences
+    phasePreference: {
+      slack: 100,         // Slack tide (no movement)
+      flood: 85,          // Incoming/rising tide
+      ebb: 85,            // Outgoing/falling tide
+    },
   },
 } as const;
 

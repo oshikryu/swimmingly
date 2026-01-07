@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { CurrentConditions as CurrentConditionsType } from '@/types/conditions';
+import { useTidePreference } from '@/hooks/useTidePreference';
 import SwimScore from './SwimScore';
 import ConditionsCard from './ConditionsCard';
 
@@ -9,17 +10,32 @@ export default function CurrentConditions() {
   const [conditions, setConditions] = useState<CurrentConditionsType | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { preference, isLoaded } = useTidePreference();
 
   useEffect(() => {
-    fetchConditions();
+    // Only fetch when preference is loaded to avoid double-fetching
+    if (isLoaded) {
+      fetchConditions();
+    }
+  }, [isLoaded, preference]);
+
+  useEffect(() => {
     // Refresh every 5 minutes
     const interval = setInterval(fetchConditions, 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [preference]);
 
   async function fetchConditions() {
     try {
-      const response = await fetch('/api/conditions');
+      // Include tide preference in API call
+      const params = new URLSearchParams();
+      if (preference) {
+        params.append('tidePhasePreference', preference);
+      }
+
+      const url = `/api/conditions${params.toString() ? `?${params.toString()}` : ''}`;
+      const response = await fetch(url);
+
       if (!response.ok) {
         throw new Error('Failed to fetch conditions');
       }
@@ -88,7 +104,7 @@ export default function CurrentConditions() {
       {/* Swim Score */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1">
-          <SwimScore score={score} />
+          <SwimScore score={score} onPreferenceChange={fetchConditions} />
         </div>
 
         {/* Condition Cards */}

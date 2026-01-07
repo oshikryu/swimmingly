@@ -3,8 +3,8 @@
  * Main endpoint that orchestrates data fetching from all sources and calculates swim score
  */
 
-import { NextResponse } from 'next/server';
-import type { CurrentConditions } from '@/types/conditions';
+import { NextRequest, NextResponse } from 'next/server';
+import type { CurrentConditions, TidePhaseType, TidePhasePreferences } from '@/types/conditions';
 import { fetchCurrentTidePrediction, fetchCurrentWeather, fetchWaveData, fetchCurrents } from '@/lib/api/noaa';
 import { fetchWaterQuality } from '@/lib/api/beachwatch';
 import { fetchRecentSSOs } from '@/lib/api/sfpuc';
@@ -13,8 +13,22 @@ import { calculateSwimScore } from '@/lib/algorithms/swim-score';
 export const dynamic = 'force-dynamic'; // Always fetch fresh data
 export const revalidate = 300; // Cache for 5 minutes
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Extract tide phase preference from query parameters
+    const searchParams = request.nextUrl.searchParams;
+    const tidePhasePreference = searchParams.get('tidePhasePreference') as TidePhaseType | null;
+
+    // Build custom tide preferences if a valid preference is provided
+    let customTidePreferences: TidePhasePreferences | undefined;
+    if (tidePhasePreference && isValidTidePhase(tidePhasePreference)) {
+      customTidePreferences = {
+        slack: tidePhasePreference === 'slack' ? 100 : 85,
+        flood: tidePhasePreference === 'flood' ? 100 : 85,
+        ebb: tidePhasePreference === 'ebb' ? 100 : 85,
+      };
+    }
+
     // Fetch all data sources in parallel
     const [tide, current, weather, waves, waterQuality, recentSSOs] = await Promise.allSettled([
       fetchCurrentTidePrediction(),
@@ -49,14 +63,15 @@ export async function GET() {
       );
     }
 
-    // Calculate swim score
+    // Calculate swim score with custom preferences if provided
     const score = calculateSwimScore(
       tideData,
       currentData,
       weatherData,
       waveData,
       waterQualityData,
-      ssoData
+      ssoData,
+      customTidePreferences
     );
 
     // Construct response
@@ -100,4 +115,11 @@ export async function GET() {
       { status: 500 }
     );
   }
+}
+
+/**
+ * Type guard to validate tide phase values
+ */
+function isValidTidePhase(value: string): value is TidePhaseType {
+  return ['slack', 'flood', 'ebb'].includes(value);
 }

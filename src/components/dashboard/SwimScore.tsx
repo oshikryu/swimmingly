@@ -2,17 +2,29 @@
 
 import type { SwimScore as SwimScoreType } from '@/types/conditions';
 import { SCORE_RANGES } from '@/config/thresholds';
+import { useTidePreference } from '@/hooks/useTidePreference';
+import TidePhaseToggle from './TidePhaseToggle';
 
 interface SwimScoreProps {
   score: SwimScoreType;
+  onPreferenceChange?: () => void;
 }
 
-export default function SwimScore({ score }: SwimScoreProps) {
+export default function SwimScore({ score, onPreferenceChange }: SwimScoreProps) {
   const { overallScore, rating, warnings, recommendations } = score;
+  const { preference, setPreference, isLoaded } = useTidePreference();
 
   // Get color based on rating
   const scoreRange = SCORE_RANGES[rating];
   const color = scoreRange.color;
+
+  // Handle preference change and notify parent to refetch data
+  const handlePreferenceChange = (newPreference: typeof preference) => {
+    setPreference(newPreference);
+    if (onPreferenceChange) {
+      onPreferenceChange();
+    }
+  };
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
@@ -72,6 +84,15 @@ export default function SwimScore({ score }: SwimScoreProps) {
           </ul>
         </div>
       )}
+
+      {/* Tide Phase Preference Toggle */}
+      <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+        <TidePhaseToggle
+          preference={preference}
+          onChange={handlePreferenceChange}
+          isLoading={!isLoaded}
+        />
+      </div>
 
       {/* Timestamp */}
       <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">

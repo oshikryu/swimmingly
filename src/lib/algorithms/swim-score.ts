@@ -12,6 +12,7 @@ import type {
   SSOEvent,
   SwimScore,
   SwimScoreFactors,
+  TidePhasePreferences,
 } from '@/types/conditions';
 import { SAFETY_THRESHOLDS, SCORE_WEIGHTS, SCORE_RANGES } from '@/config/thresholds';
 
@@ -24,11 +25,12 @@ export function calculateSwimScore(
   weather: WeatherData,
   waves: WaveData,
   waterQuality: WaterQuality,
-  recentSSOs: SSOEvent[]
+  recentSSOs: SSOEvent[],
+  customTidePreferences?: TidePhasePreferences
 ): SwimScore {
   // Calculate individual factor scores
   const waterQualityFactor = scoreWaterQuality(waterQuality, recentSSOs);
-  const tideCurrentFactor = scoreTideAndCurrent(tide, current);
+  const tideCurrentFactor = scoreTideAndCurrent(tide, current, customTidePreferences);
   const waveFactor = scoreWaves(waves);
   const weatherFactor = scoreWeather(weather);
   const visibilityFactor = scoreVisibility(weather.visibilityMiles);
@@ -140,23 +142,29 @@ function scoreWaterQuality(
  */
 function scoreTideAndCurrent(
   tide: TidePrediction,
-  current: CurrentData | null
+  current: CurrentData | null,
+  customTidePreferences?: TidePhasePreferences
 ): SwimScoreFactors['tideAndCurrent'] {
   let score = 100;
   const issues: string[] = [];
   const phase = tide.currentPhase;
   const currentSpeed = current?.speedKnots || 0;
 
-  // Score based on tide phase (slack is best)
-  if (phase === 'slack') {
-    score = 100;
-  } else if (Math.abs(tide.changeRateFeetPerHour) < SAFETY_THRESHOLDS.tide.lowCurrent) {
-    score = 90;
+  // Score based on tide phase using custom or default preferences
+  const preferences = customTidePreferences || SAFETY_THRESHOLDS.tide.phasePreference;
+  const basePhaseScore = preferences[phase];
+
+  // Adjust score based on actual tide change rate
+  if (Math.abs(tide.changeRateFeetPerHour) < SAFETY_THRESHOLDS.tide.lowCurrent) {
+    // Low current - use full phase preference score
+    score = basePhaseScore;
   } else if (Math.abs(tide.changeRateFeetPerHour) < SAFETY_THRESHOLDS.tide.moderateCurrent) {
-    score = 70;
+    // Moderate current - reduce score
+    score = Math.min(basePhaseScore * 0.7, 70);
     issues.push(`Moderate tide movement (${phase})`);
   } else {
-    score = 40;
+    // Strong current - significantly reduce score
+    score = Math.min(basePhaseScore * 0.4, 40);
     issues.push(`Strong tide movement (${phase})`);
   }
 
