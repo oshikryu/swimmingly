@@ -9,6 +9,7 @@ import { fetchCurrentTidePrediction, fetchCurrentWeather, fetchWaveData, fetchCu
 import { fetchWaterQuality } from '@/lib/api/beachwatch';
 import { fetchRecentSSOs } from '@/lib/api/sfpuc';
 import { calculateSwimScore } from '@/lib/algorithms/swim-score';
+import { fetchWindData } from '@/lib/api/open-meteo';
 
 export const dynamic = 'force-dynamic'; // Always fetch fresh data
 export const revalidate = 300; // Cache for 5 minutes
@@ -30,13 +31,14 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch all data sources in parallel
-    const [tide, current, weather, waves, waterQuality, recentSSOs] = await Promise.allSettled([
+    const [tide, current, weather, waves, waterQuality, recentSSOs, windData] = await Promise.allSettled([
       fetchCurrentTidePrediction(),
       fetchCurrents(),
       fetchCurrentWeather(),
       fetchWaveData(),
       fetchWaterQuality(),
       fetchRecentSSOs(7),
+      fetchWindData(),
     ]);
 
     // Extract successful results or use fallbacks
@@ -46,6 +48,7 @@ export async function GET(request: NextRequest) {
     const waveData = waves.status === 'fulfilled' ? waves.value : null;
     const waterQualityData = waterQuality.status === 'fulfilled' ? waterQuality.value : null;
     const ssoData = recentSSOs.status === 'fulfilled' ? recentSSOs.value : [];
+    const windDataResult = windData.status === 'fulfilled' ? windData.value : null;
 
     // Check if we have minimum required data (tide is critical)
     // Other data can be null and scoring algorithm will handle gracefully
@@ -69,18 +72,37 @@ export async function GET(request: NextRequest) {
     if (!waveData) console.warn('Wave data unavailable - using defaults');
     if (!waterQualityData) console.warn('Water quality data unavailable - using defaults');
 
+    // Log wind data source for debugging
+    if (windDataResult) {
+      console.log('Using Open-Meteo for wind data');
+    } else if (weatherData) {
+      console.log('Using NOAA for wind data (Open-Meteo unavailable)');
+    } else {
+      console.warn('No wind data available from any source');
+    }
+
     const now = new Date();
 
     // Provide fallbacks for missing data
+    // Hybrid approach: prefer Open-Meteo wind data with NOAA temperature/conditions
     const weatherWithFallback = weatherData || {
-      timestamp: now,
+      timestamp: windDataResult?.timestamp || now,
       temperatureF: 60,
-      windSpeedMph: 0,
-      windDirection: 0,
+      windSpeedMph: windDataResult?.windSpeedMph || 0,
+      windDirection: windDataResult?.windDirection || 0,
+      windGustMph: windDataResult?.windGustMph,
       visibilityMiles: 10,
       conditions: 'unavailable',
-      source: 'unavailable',
+      source: windDataResult ? 'open-meteo-wind-only' : 'unavailable',
     };
+
+    // If we have both NOAA weather and Open-Meteo wind, prefer Open-Meteo for wind
+    if (weatherData && windDataResult) {
+      weatherWithFallback.windSpeedMph = windDataResult.windSpeedMph;
+      weatherWithFallback.windDirection = windDataResult.windDirection;
+      weatherWithFallback.windGustMph = windDataResult.windGustMph;
+      weatherWithFallback.source = 'NOAA-NWS+open-meteo-wind';
+    }
 
     const wavesWithFallback = waveData || {
       timestamp: now,
