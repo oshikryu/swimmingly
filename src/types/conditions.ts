@@ -2,6 +2,16 @@
  * Type definitions for environmental conditions and swim scoring
  */
 
+/**
+ * Generic cached data structure with expiration metadata
+ * Can be used for caching any data type in localStorage
+ */
+export interface CachedData<T> {
+  data: T;
+  cachedAt: number;
+  expiresAt: number;
+}
+
 export interface TideData {
   timestamp: Date;
   heightFeet: number;
@@ -96,12 +106,6 @@ export interface SwimScoreFactors {
     temperature: number;
     windSpeed: number;
     windCondition: 'calm' | 'light' | 'moderate' | 'strong';
-    issues: string[];
-  };
-  visibility: {
-    score: number; // 0-100
-    miles: number;
-    status: 'poor' | 'moderate' | 'good' | 'excellent';
     issues: string[];
   };
 }

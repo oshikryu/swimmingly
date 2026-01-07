@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
           error: 'Unable to fetch critical tide data',
           details: {
             tide: tide.status === 'rejected' ? tide.reason?.message : 'missing',
-            weather: weather.status === 'rejected' ? tide.reason?.message : (!weatherData ? 'missing' : 'ok'),
+            weather: weather.status === 'rejected' ? weather.reason?.message : (!weatherData ? 'missing' : 'ok'),
             waves: waves.status === 'rejected' ? waves.reason?.message : (!waveData ? 'missing' : 'ok'),
             waterQuality: waterQuality.status === 'rejected' ? waterQuality.reason?.message : (!waterQualityData ? 'missing' : 'ok'),
           },
@@ -69,18 +69,41 @@ export async function GET(request: NextRequest) {
     if (!waveData) console.warn('Wave data unavailable - using defaults');
     if (!waterQualityData) console.warn('Water quality data unavailable - using defaults');
 
+    const now = new Date();
+
+    // Provide fallbacks for missing data
+    const weatherWithFallback = weatherData || {
+      timestamp: now,
+      temperatureF: 60,
+      windSpeedMph: 0,
+      windDirection: 0,
+      visibilityMiles: 10,
+      conditions: 'unavailable',
+      source: 'unavailable',
+    };
+
+    const wavesWithFallback = waveData || {
+      timestamp: now,
+      waveHeightFeet: 0,
+      source: 'unavailable',
+    };
+
+    const waterQualityWithFallback = waterQualityData || {
+      timestamp: now,
+      status: 'safe' as const,
+      source: 'unavailable',
+    };
+
     // Calculate swim score with custom preferences if provided
     const score = calculateSwimScore(
       tideData,
       currentData,
-      weatherData,
-      waveData,
-      waterQualityData,
+      weatherWithFallback,
+      wavesWithFallback,
+      waterQualityWithFallback,
       ssoData,
       customTidePreferences
     );
-
-    const now = new Date();
 
     // Construct response with fallbacks for missing data
     const conditions: CurrentConditions = {
@@ -95,25 +118,9 @@ export async function GET(request: NextRequest) {
         lon: -122.4216,
         source: 'unavailable',
       },
-      weather: weatherData || {
-        timestamp: now,
-        temperatureF: 60,
-        windSpeedMph: 0,
-        windDirection: 0,
-        visibilityMiles: 10,
-        conditions: 'unavailable',
-        source: 'unavailable',
-      },
-      waves: waveData || {
-        timestamp: now,
-        waveHeightFeet: 0,
-        source: 'unavailable',
-      },
-      waterQuality: waterQualityData || {
-        timestamp: now,
-        status: 'safe',
-        source: 'unavailable',
-      },
+      weather: weatherWithFallback,
+      waves: wavesWithFallback,
+      waterQuality: waterQualityWithFallback,
       recentSSOs: ssoData,
       dataFreshness: {
         tide: tideData.timestamp,

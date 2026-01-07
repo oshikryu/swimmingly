@@ -3,14 +3,35 @@
 import { useEffect, useState } from 'react';
 import type { CurrentConditions as CurrentConditionsType } from '@/types/conditions';
 import { useTidePreference } from '@/hooks/useTidePreference';
+import { useWaveDataCache } from '@/hooks/useWaveDataCache';
 import SwimScore from './SwimScore';
 import ConditionsCard from './ConditionsCard';
+
+/**
+ * Format wave timestamp for display
+ * Shows relative time for recent data, absolute time for older data
+ */
+function formatWaveTimestamp(date: Date): string {
+  const now = new Date();
+  const diffMinutes = Math.floor((now.getTime() - new Date(date).getTime()) / (1000 * 60));
+
+  if (diffMinutes === 0) return 'just now';
+  if (diffMinutes === 1) return '1 minute ago';
+  if (diffMinutes < 60) return `${diffMinutes} minutes ago`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours === 1) return '1 hour ago';
+  if (diffHours < 24) return `${diffHours} hours ago`;
+
+  return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
 
 export default function CurrentConditions() {
   const [conditions, setConditions] = useState<CurrentConditionsType | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { preference, setPreference, isLoaded } = useTidePreference();
+  const { cachedData: cachedWaveData, setCachedData: setCachedWaveData } = useWaveDataCache();
 
   // Fetch conditions when component mounts or preference changes
   useEffect(() => {
@@ -42,6 +63,12 @@ export default function CurrentConditions() {
         throw new Error('Failed to fetch conditions');
       }
       const data = await response.json();
+
+      // Update wave cache after successful fetch
+      if (data.waves) {
+        setCachedWaveData(data.waves);
+      }
+
       setConditions(data);
       setError(null);
     } catch (err) {
@@ -100,7 +127,6 @@ export default function CurrentConditions() {
   const tideHeight = score?.factors?.tideAndCurrent?.tideHeight ?? 0;
   const windSpeed = score?.factors?.weather?.windSpeed ?? 0;
   const temperature = score?.factors?.weather?.temperature ?? 0;
-  const visibility = score?.factors?.visibility?.miles ?? 0;
 
   // Map score factor statuses to card statuses
   const mapWaveStatus = (status: string): 'good' | 'warning' | 'danger' | 'info' => {
@@ -169,6 +195,7 @@ export default function CurrentConditions() {
             details={[
               `Status: ${score?.factors?.waves?.status ?? 'unknown'}`,
               swellPeriod ? `Period: ${swellPeriod.toFixed(0)}s` : '',
+              conditions.waves?.timestamp ? `Updated: ${formatWaveTimestamp(conditions.waves.timestamp)}` : '',
               ...(score?.factors?.waves?.issues ?? []),
             ].filter(Boolean)}
           />
@@ -182,7 +209,6 @@ export default function CurrentConditions() {
             details={[
               `Condition: ${score?.factors?.weather?.windCondition ?? 'unknown'}`,
               `Temp: ${temperature.toFixed(0)}°F`,
-              `Visibility: ${visibility.toFixed(1)} mi (${score?.factors?.visibility?.status ?? 'unknown'})`,
               weather?.conditions || 'Unknown',
               ...(score?.factors?.weather?.issues ?? []),
             ].filter(Boolean)}

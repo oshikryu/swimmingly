@@ -33,22 +33,13 @@ export function calculateSwimScore(
   const tideCurrentFactor = scoreTideAndCurrent(tide, current, customTidePreferences);
   const waveFactor = scoreWaves(waves);
   const weatherFactor = scoreWeather(weather);
-  const visibilityFactor = {
-    score:100,
-    miles: 10,
-    status: 'good',
-    issues: "",
-  };
-  // FIXME
-  // const visibilityFactor = scoreVisibility(weather.visibilityMiles);
 
   // Calculate weighted overall score
   const overallScore = Math.round(
     (waterQualityFactor.score * SCORE_WEIGHTS.waterQuality +
       tideCurrentFactor.score * SCORE_WEIGHTS.tideAndCurrent +
       waveFactor.score * SCORE_WEIGHTS.waves +
-      weatherFactor.score * SCORE_WEIGHTS.weather +
-      visibilityFactor.score * SCORE_WEIGHTS.visibility) /
+      weatherFactor.score * SCORE_WEIGHTS.weather) /
       100
   );
 
@@ -61,7 +52,6 @@ export function calculateSwimScore(
     tideAndCurrent: tideCurrentFactor,
     waves: waveFactor,
     weather: weatherFactor,
-    visibility: visibilityFactor,
   };
 
   // Generate recommendations and warnings
@@ -307,43 +297,6 @@ function scoreWeather(weather: WeatherData): SwimScoreFactors['weather'] {
   };
 }
 
-/**
- * Score visibility (10% weight)
- */
-function scoreVisibility(visibilityMiles: number): SwimScoreFactors['visibility'] {
-  let score = 100;
-  const issues: string[] = [];
-  let status: 'poor' | 'moderate' | 'good' | 'excellent' = 'excellent';
-  const miles = visibilityMiles ?? 10; // Default to 10 miles (excellent)
-
-  // Handle null/undefined visibility data
-  if (visibilityMiles == null) {
-    score = 50;
-    status = 'moderate';
-    issues.push('No visibility data available');
-  } else if (miles < SAFETY_THRESHOLDS.visibility.poor) {
-    score = 30;
-    status = 'poor';
-    issues.push(`Poor visibility (${miles.toFixed(1)} mi)`);
-  } else if (miles < SAFETY_THRESHOLDS.visibility.moderate) {
-    score = 60;
-    status = 'moderate';
-    issues.push(`Moderate visibility (${miles.toFixed(1)} mi)`);
-  } else if (miles < SAFETY_THRESHOLDS.visibility.good) {
-    score = 85;
-    status = 'good';
-  } else {
-    score = 100;
-    status = 'excellent';
-  }
-
-  return {
-    score,
-    miles,
-    status,
-    issues,
-  };
-}
 
 /**
  * Determine rating from score
@@ -394,10 +347,6 @@ function generateAdvice(
   // Weather advisories
   if (factors.weather.windCondition === 'strong') {
     warnings.push('Strong winds present');
-  }
-
-  if (factors.visibility.status === 'poor') {
-    warnings.push('Poor visibility - stay close to shore');
   }
 
   // Overall advice

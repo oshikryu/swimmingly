@@ -90,11 +90,10 @@ export const SAFETY_THRESHOLDS = {
  * All weights should sum to 100
  */
 export const SCORE_WEIGHTS = {
-  waterQuality: 30,     // Highest priority - safety first
-  tideAndCurrent: 25,   // Affects difficulty and safety
-  waves: 20,            // Affects comfort and safety
-  weather: 15,          // Affects comfort
-  visibility: 10,       // Safety factor
+  waterQuality: 33.33,  // Highest priority - safety first
+  tideAndCurrent: 27.78, // Affects difficulty and safety
+  waves: 22.22,         // Affects comfort and safety
+  weather: 16.67,       // Affects comfort
 } as const;
 
 /**
