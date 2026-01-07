@@ -10,27 +10,29 @@ export default function CurrentConditions() {
   const [conditions, setConditions] = useState<CurrentConditionsType | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { preference, isLoaded } = useTidePreference();
+  const { preference, setPreference, isLoaded } = useTidePreference();
 
+  // Fetch conditions when component mounts or preference changes
   useEffect(() => {
     // Only fetch when preference is loaded to avoid double-fetching
     if (isLoaded) {
-      fetchConditions();
+      fetchConditions(preference);
     }
   }, [isLoaded, preference]);
 
+  // Setup auto-refresh interval
   useEffect(() => {
     // Refresh every 5 minutes
-    const interval = setInterval(fetchConditions, 5 * 60 * 1000);
+    const interval = setInterval(() => fetchConditions(preference), 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [preference]);
 
-  async function fetchConditions() {
+  async function fetchConditions(tidePreference: typeof preference) {
     try {
       // Include tide preference in API call
       const params = new URLSearchParams();
-      if (preference) {
-        params.append('tidePhasePreference', preference);
+      if (tidePreference) {
+        params.append('tidePhasePreference', tidePreference);
       }
 
       const url = `/api/conditions${params.toString() ? `?${params.toString()}` : ''}`;
@@ -48,6 +50,15 @@ export default function CurrentConditions() {
       setLoading(false);
     }
   }
+
+  // Handle tide preference change from SwimScore component
+  const handleTidePreferenceChange = (newPreference: typeof preference) => {
+    // Update localStorage and state
+    setPreference(newPreference);
+    // Immediately refetch with new preference
+    setLoading(true);
+    fetchConditions(newPreference);
+  };
 
   if (loading) {
     return (
@@ -68,7 +79,7 @@ export default function CurrentConditions() {
         </h3>
         <p className="text-red-700 dark:text-red-300">{error}</p>
         <button
-          onClick={fetchConditions}
+          onClick={() => fetchConditions(preference)}
           className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition"
         >
           Retry
@@ -83,28 +94,53 @@ export default function CurrentConditions() {
 
   const { score, tide, weather, waves, waterQuality } = conditions;
 
-  // Safely get numeric values with fallbacks
-  const waveHeight = waves?.waveHeightFeet ?? 0;
+  // Get values from score factors with safe defaults (ensures sync with score calculation)
+  const waveHeight = score?.factors?.waves?.heightFeet ?? 0;
   const swellPeriod = waves?.swellPeriodSeconds ?? null;
-  const tideHeight = tide?.heightFeet ?? 0;
-  const windSpeed = weather?.windSpeedMph ?? 0;
-  const temperature = weather?.temperatureF ?? 0;
-  const visibility = weather?.visibilityMiles ?? 0;
+  const tideHeight = score?.factors?.tideAndCurrent?.tideHeight ?? 0;
+  const windSpeed = score?.factors?.weather?.windSpeed ?? 0;
+  const temperature = score?.factors?.weather?.temperature ?? 0;
+  const visibility = score?.factors?.visibility?.miles ?? 0;
 
-  // Determine status for each condition
-  const tideStatus = score.factors.tideAndCurrent.favorable ? 'good' : 'warning';
-  const waveStatus = waveHeight < 3 ? 'good' : waveHeight < 5 ? 'warning' : 'danger';
-  const weatherStatus = windSpeed < 15 ? 'good' : windSpeed < 25 ? 'warning' : 'danger';
-  const waterQualityStatus =
-    waterQuality?.status === 'safe' ? 'good' :
-    waterQuality?.status === 'advisory' ? 'warning' : 'danger';
+  // Map score factor statuses to card statuses
+  const mapWaveStatus = (status: string): 'good' | 'warning' | 'danger' | 'info' => {
+    if (status === 'calm') return 'good';
+    if (status === 'moderate') return 'warning';
+    if (status === 'rough' || status === 'dangerous') return 'danger';
+    return 'info';
+  };
+
+  const mapWeatherStatus = (condition: string): 'good' | 'warning' | 'danger' | 'info' => {
+    if (condition === 'calm' || condition === 'light') return 'good';
+    if (condition === 'moderate') return 'warning';
+    if (condition === 'strong') return 'danger';
+    return 'info';
+  };
+
+  const mapWaterQualityStatus = (status: string): 'good' | 'warning' | 'danger' | 'info' => {
+    if (status === 'safe') return 'good';
+    if (status === 'advisory') return 'warning';
+    if (status === 'warning' || status === 'dangerous') return 'danger';
+    return 'info';
+  };
+
+  // Use statuses from score factors with safe defaults (ensures sync with score calculation)
+  const tideStatus = score?.factors?.tideAndCurrent?.favorable ? 'good' : 'warning';
+  const waveStatus = mapWaveStatus(score?.factors?.waves?.status ?? 'calm');
+  const weatherStatus = mapWeatherStatus(score?.factors?.weather?.windCondition ?? 'calm');
+  const waterQualityStatus = mapWaterQualityStatus(score?.factors?.waterQuality?.status ?? 'safe');
 
   return (
     <div className="space-y-6">
       {/* Swim Score */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1">
-          <SwimScore score={score} onPreferenceChange={fetchConditions} />
+          <SwimScore
+            score={score}
+            tidePreference={preference}
+            onTidePreferenceChange={handleTidePreferenceChange}
+            isPreferenceLoaded={isLoaded}
+          />
         </div>
 
         {/* Condition Cards */}
@@ -116,9 +152,11 @@ export default function CurrentConditions() {
             status={tideStatus}
             icon="🌊"
             details={[
-              `Phase: ${tide?.currentPhase || 'Unknown'}`,
+              `Phase: ${score?.factors?.tideAndCurrent?.phase ?? 'unknown'}`,
+              `Current: ${(score?.factors?.tideAndCurrent?.currentSpeed ?? 0).toFixed(1)} knots`,
               tide?.nextHigh ? `Next high: ${new Date(tide.nextHigh.timestamp).toLocaleTimeString()}` : '',
               tide?.nextLow ? `Next low: ${new Date(tide.nextLow.timestamp).toLocaleTimeString()}` : '',
+              ...(score?.factors?.tideAndCurrent?.issues ?? []),
             ].filter(Boolean)}
           />
 
@@ -129,7 +167,9 @@ export default function CurrentConditions() {
             status={waveStatus}
             icon="🌊"
             details={[
+              `Status: ${score?.factors?.waves?.status ?? 'unknown'}`,
               swellPeriod ? `Period: ${swellPeriod.toFixed(0)}s` : '',
+              ...(score?.factors?.waves?.issues ?? []),
             ].filter(Boolean)}
           />
 
@@ -140,22 +180,26 @@ export default function CurrentConditions() {
             status={weatherStatus}
             icon="💨"
             details={[
+              `Condition: ${score?.factors?.weather?.windCondition ?? 'unknown'}`,
               `Temp: ${temperature.toFixed(0)}°F`,
-              `Visibility: ${visibility.toFixed(1)} mi`,
+              `Visibility: ${visibility.toFixed(1)} mi (${score?.factors?.visibility?.status ?? 'unknown'})`,
               weather?.conditions || 'Unknown',
-            ]}
+              ...(score?.factors?.weather?.issues ?? []),
+            ].filter(Boolean)}
           />
 
           <ConditionsCard
             title="Water Quality"
-            value={waterQuality?.status?.toUpperCase() || 'UNKNOWN'}
+            value={(score?.factors?.waterQuality?.status ?? 'unknown').toUpperCase()}
             status={waterQualityStatus}
             icon="💧"
             details={[
-              waterQuality?.enterococcusCount
-                ? `Bacteria: ${waterQuality.enterococcusCount} MPN/100ml`
-                : 'No recent data',
+              `Bacteria: ${score?.factors?.waterQuality?.bacteriaLevel ?? 'unknown'}`,
+              score?.factors?.waterQuality?.recentSSO
+                ? `SSO ${score?.factors?.waterQuality?.daysSinceSSO ?? '?'} days ago`
+                : '',
               waterQuality?.notes || '',
+              ...(score?.factors?.waterQuality?.issues ?? []),
             ].filter(Boolean)}
           />
         </div>

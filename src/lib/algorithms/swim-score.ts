@@ -82,8 +82,13 @@ function scoreWaterQuality(
   let bacteriaLevel = 'unknown';
   let status: 'safe' | 'advisory' | 'warning' | 'dangerous' = 'safe';
 
-  // Check enterococcus levels
-  if (waterQuality.enterococcusCount !== undefined) {
+  // Handle null/undefined water quality data
+  if (!waterQuality) {
+    score = 50;
+    status = 'advisory';
+    bacteriaLevel = 'unknown';
+    issues.push('No water quality data available');
+  } else if (waterQuality.enterococcusCount !== undefined) {
     const count = waterQuality.enterococcusCount;
     const thresholds = SAFETY_THRESHOLDS.waterQuality.enterococcus;
 
@@ -108,8 +113,9 @@ function scoreWaterQuality(
   }
 
   // Check for recent SSOs
-  const activeSSOs = recentSSOs.filter(sso => !sso.resolved);
-  const recentSSO = recentSSOs.find(sso => {
+  const activeSSOs = (recentSSOs ?? []).filter(sso => !sso?.resolved);
+  const recentSSO = (recentSSOs ?? []).find(sso => {
+    if (!sso?.reportedAt) return false;
     const daysSince = (Date.now() - sso.reportedAt.getTime()) / (1000 * 60 * 60 * 24);
     return daysSince < SAFETY_THRESHOLDS.sso.cautionDays;
   });
@@ -147,37 +153,45 @@ function scoreTideAndCurrent(
 ): SwimScoreFactors['tideAndCurrent'] {
   let score = 100;
   const issues: string[] = [];
-  const phase = tide.currentPhase;
-  const currentSpeed = current?.speedKnots || 0;
+  const phase = tide?.currentPhase ?? 'slack';
+  const currentSpeed = current?.speedKnots ?? 0;
+  const tideHeight = tide?.heightFeet ?? 0;
+  const changeRate = tide?.changeRateFeetPerHour ?? 0;
 
-  // Score based on tide phase using custom or default preferences
-  const preferences = customTidePreferences || SAFETY_THRESHOLDS.tide.phasePreference;
-  const basePhaseScore = preferences[phase];
-
-  // Adjust score based on actual tide change rate
-  if (Math.abs(tide.changeRateFeetPerHour) < SAFETY_THRESHOLDS.tide.lowCurrent) {
-    // Low current - use full phase preference score
-    score = basePhaseScore;
-  } else if (Math.abs(tide.changeRateFeetPerHour) < SAFETY_THRESHOLDS.tide.moderateCurrent) {
-    // Moderate current - reduce score
-    score = Math.min(basePhaseScore * 0.7, 70);
-    issues.push(`Moderate tide movement (${phase})`);
+  // Handle null/undefined tide data
+  if (!tide || tide.heightFeet == null) {
+    score = 50;
+    issues.push('No tide data available');
   } else {
-    // Strong current - significantly reduce score
-    score = Math.min(basePhaseScore * 0.4, 40);
-    issues.push(`Strong tide movement (${phase})`);
-  }
+    // Score based on tide phase using custom or default preferences
+    const preferences = customTidePreferences || SAFETY_THRESHOLDS.tide.phasePreference;
+    const basePhaseScore = preferences[phase];
 
-  // Factor in current speed
-  if (currentSpeed > SAFETY_THRESHOLDS.current.veryStrong) {
-    score = Math.min(score, 20);
-    issues.push(`Very strong current (${currentSpeed.toFixed(1)} knots)`);
-  } else if (currentSpeed > SAFETY_THRESHOLDS.current.strong) {
-    score = Math.min(score, 40);
-    issues.push(`Strong current (${currentSpeed.toFixed(1)} knots)`);
-  } else if (currentSpeed > SAFETY_THRESHOLDS.current.moderate) {
-    score = Math.min(score, 65);
-    issues.push(`Moderate current (${currentSpeed.toFixed(1)} knots)`);
+    // Adjust score based on actual tide change rate
+    if (Math.abs(changeRate) < SAFETY_THRESHOLDS.tide.lowCurrent) {
+      // Low current - use full phase preference score
+      score = basePhaseScore;
+    } else if (Math.abs(changeRate) < SAFETY_THRESHOLDS.tide.moderateCurrent) {
+      // Moderate current - reduce score
+      score = Math.min(basePhaseScore * 0.7, 70);
+      issues.push(`Moderate tide movement (${phase})`);
+    } else {
+      // Strong current - significantly reduce score
+      score = Math.min(basePhaseScore * 0.4, 40);
+      issues.push(`Strong tide movement (${phase})`);
+    }
+
+    // Factor in current speed
+    if (currentSpeed > SAFETY_THRESHOLDS.current.veryStrong) {
+      score = Math.min(score, 20);
+      issues.push(`Very strong current (${currentSpeed.toFixed(1)} knots)`);
+    } else if (currentSpeed > SAFETY_THRESHOLDS.current.strong) {
+      score = Math.min(score, 40);
+      issues.push(`Strong current (${currentSpeed.toFixed(1)} knots)`);
+    } else if (currentSpeed > SAFETY_THRESHOLDS.current.moderate) {
+      score = Math.min(score, 65);
+      issues.push(`Moderate current (${currentSpeed.toFixed(1)} knots)`);
+    }
   }
 
   const favorable = phase === 'slack' || currentSpeed < SAFETY_THRESHOLDS.current.slow;
@@ -186,7 +200,7 @@ function scoreTideAndCurrent(
     score,
     phase,
     currentSpeed,
-    tideHeight: tide.heightFeet,
+    tideHeight,
     favorable,
     issues,
   };
@@ -199,9 +213,14 @@ function scoreWaves(waves: WaveData): SwimScoreFactors['waves'] {
   let score = 100;
   const issues: string[] = [];
   let status: 'calm' | 'moderate' | 'rough' | 'dangerous' = 'calm';
-  const height = waves.waveHeightFeet;
+  const height = waves?.waveHeightFeet ?? 0;
 
-  if (height < SAFETY_THRESHOLDS.waves.calm) {
+  // Handle null/undefined wave data
+  if (height === 0 && !waves?.waveHeightFeet) {
+    score = 50;
+    status = 'moderate';
+    issues.push('No wave data available');
+  } else if (height < SAFETY_THRESHOLDS.waves.calm) {
     score = 100;
     status = 'calm';
   } else if (height < SAFETY_THRESHOLDS.waves.safe) {
@@ -236,10 +255,15 @@ function scoreWeather(weather: WeatherData): SwimScoreFactors['weather'] {
   let score = 100;
   const issues: string[] = [];
   let windCondition: 'calm' | 'light' | 'moderate' | 'strong' = 'calm';
-  const windSpeed = weather.windSpeedMph;
+  const windSpeed = weather?.windSpeedMph ?? 0;
+  const temperature = weather?.temperatureF ?? 0;
 
-  // Score wind
-  if (windSpeed < SAFETY_THRESHOLDS.wind.calm) {
+  // Handle null/undefined wind data
+  if (windSpeed === 0 && !weather?.windSpeedMph) {
+    score = 50;
+    windCondition = 'moderate';
+    issues.push('No wind data available');
+  } else if (windSpeed < SAFETY_THRESHOLDS.wind.calm) {
     windCondition = 'calm';
   } else if (windSpeed < SAFETY_THRESHOLDS.wind.light) {
     score = 95;
@@ -262,14 +286,14 @@ function scoreWeather(weather: WeatherData): SwimScoreFactors['weather'] {
   }
 
   // Check for precipitation
-  if (weather.conditions.includes('rain') || weather.conditions.includes('storm')) {
+  if (weather?.conditions?.includes('rain') || weather?.conditions?.includes('storm')) {
     score = Math.min(score, 40);
     issues.push('Precipitation present');
   }
 
   return {
     score,
-    temperature: weather.temperatureF,
+    temperature,
     windSpeed,
     windCondition,
     issues,
@@ -283,16 +307,22 @@ function scoreVisibility(visibilityMiles: number): SwimScoreFactors['visibility'
   let score = 100;
   const issues: string[] = [];
   let status: 'poor' | 'moderate' | 'good' | 'excellent' = 'excellent';
+  const miles = visibilityMiles ?? 10; // Default to 10 miles (excellent)
 
-  if (visibilityMiles < SAFETY_THRESHOLDS.visibility.poor) {
+  // Handle null/undefined visibility data
+  if (visibilityMiles == null) {
+    score = 50;
+    status = 'moderate';
+    issues.push('No visibility data available');
+  } else if (miles < SAFETY_THRESHOLDS.visibility.poor) {
     score = 30;
     status = 'poor';
-    issues.push(`Poor visibility (${visibilityMiles.toFixed(1)} mi)`);
-  } else if (visibilityMiles < SAFETY_THRESHOLDS.visibility.moderate) {
+    issues.push(`Poor visibility (${miles.toFixed(1)} mi)`);
+  } else if (miles < SAFETY_THRESHOLDS.visibility.moderate) {
     score = 60;
     status = 'moderate';
-    issues.push(`Moderate visibility (${visibilityMiles.toFixed(1)} mi)`);
-  } else if (visibilityMiles < SAFETY_THRESHOLDS.visibility.good) {
+    issues.push(`Moderate visibility (${miles.toFixed(1)} mi)`);
+  } else if (miles < SAFETY_THRESHOLDS.visibility.good) {
     score = 85;
     status = 'good';
   } else {
@@ -302,7 +332,7 @@ function scoreVisibility(visibilityMiles: number): SwimScoreFactors['visibility'
 
   return {
     score,
-    miles: visibilityMiles,
+    miles,
     status,
     issues,
   };
