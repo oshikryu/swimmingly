@@ -159,6 +159,26 @@ export default function CurrentConditions() {
   const isCurrentCalculated = current?.source === 'calculated-from-tide-rate';
   const currentSource = isCurrentCalculated ? '(estimated from tide)' : '';
 
+  // Determine wind data source and format display
+  const windSource = weather?.source || 'unavailable';
+  const isOpenMeteoWind = windSource.includes('open-meteo');
+  const windSourceDisplay = isOpenMeteoWind ? 'Open-Meteo' : windSource === 'NOAA-NWS' ? 'NOAA' : '';
+  const windGust = weather?.windGustMph;
+  const windDirection = weather?.windDirection;
+
+  // Determine latest timestamp for tide/current data
+  const tideTimestamp = tide?.timestamp ? new Date(tide.timestamp) : null;
+  const currentTimestamp = current?.timestamp ? new Date(current.timestamp) : null;
+  const latestTideCurrentTimestamp = tideTimestamp && currentTimestamp
+    ? (tideTimestamp > currentTimestamp ? tideTimestamp : currentTimestamp)
+    : (tideTimestamp || currentTimestamp);
+
+  // Check if using cached data (comparing with conditions.dataFreshness)
+  const tideDataAge = conditions.dataFreshness?.tide
+    ? Math.floor((Date.now() - new Date(conditions.dataFreshness.tide).getTime()) / (1000 * 60))
+    : null;
+  const isUsingCachedTideData = tideDataAge && tideDataAge > 5; // More than 5 minutes old = likely cached
+
   // Map score factor statuses to card statuses
   const mapWaveStatus = (status: string): 'good' | 'warning' | 'danger' | 'info' => {
     if (status === 'calm') return 'good';
@@ -211,8 +231,9 @@ export default function CurrentConditions() {
             details={[
               `Phase: ${score?.factors?.tideAndCurrent?.phase ?? 'unknown'}`,
               `Current: ${currentSpeed.toFixed(1)} knots ${currentSource}`,
-              tide?.nextHigh ? `Next high: ${new Date(tide.nextHigh.timestamp).toLocaleTimeString()}` : '',
-              tide?.nextLow ? `Next low: ${new Date(tide.nextLow.timestamp).toLocaleTimeString()}` : '',
+              tide?.nextHigh ? `Next high: ${new Date(tide.nextHigh.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })}` : '',
+              tide?.nextLow ? `Next low: ${new Date(tide.nextLow.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })}` : '',
+              latestTideCurrentTimestamp ? `Updated: ${latestTideCurrentTimestamp.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} PST${isUsingCachedTideData ? ' (cached)' : ''}` : '',
               ...(score?.factors?.tideAndCurrent?.issues ?? []),
             ].filter(Boolean)}
           />
@@ -226,7 +247,7 @@ export default function CurrentConditions() {
             details={[
               `Status: ${score?.factors?.waves?.status ?? 'unknown'}`,
               swellPeriod ? `Period: ${swellPeriod.toFixed(0)}s` : '',
-              conditions.waves?.timestamp ? `Updated: ${formatTimestamp(conditions.waves.timestamp)}` : '',
+              conditions.waves?.timestamp ? `Updated: ${new Date(conditions.waves.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} PST` : '',
               ...(score?.factors?.waves?.issues ?? []),
             ].filter(Boolean)}
           />
@@ -239,8 +260,11 @@ export default function CurrentConditions() {
             icon="💨"
             details={[
               `Condition: ${score?.factors?.weather?.windCondition ?? 'unknown'}`,
+              windGust ? `Gusts: ${windGust.toFixed(0)} mph` : '',
+              windDirection !== undefined ? `Direction: ${windDirection}°` : '',
               `Temp: ${temperature.toFixed(0)}°F`,
-              weather?.conditions || 'Unknown',
+              weather?.timestamp ? `Updated: ${formatTimestamp(weather.timestamp)}` : '',
+              windSourceDisplay ? `Source: ${windSourceDisplay}` : '',
               ...(score?.factors?.weather?.issues ?? []),
             ].filter(Boolean)}
           />
