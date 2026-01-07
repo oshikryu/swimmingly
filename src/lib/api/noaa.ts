@@ -4,7 +4,7 @@
  */
 
 import axios from 'axios';
-import { TIDE_STATION_ID, WAVE_BUOY_ID, AQUATIC_PARK_LAT, AQUATIC_PARK_LON } from '@/config/aquatic-park';
+import { TIDE_STATION_ID, WAVE_BUOY_ID, AQUATIC_PARK_LAT, AQUATIC_PARK_LON, CURRENT_STATION_ID } from '@/config/aquatic-park';
 import type { TideData, TidePrediction, WeatherData, WaveData, CurrentData } from '@/types/conditions';
 
 const NOAA_TIDES_BASE_URL = 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter';
@@ -98,14 +98,16 @@ export async function fetchCurrentTide(stationId: string = TIDE_STATION_ID): Pro
 /**
  * Fetch current data (water flow/currents)
  */
-export async function fetchCurrents(stationId: string = TIDE_STATION_ID): Promise<CurrentData | null> {
+export async function fetchCurrents(
+  stationId: string = CURRENT_STATION_ID
+): Promise<CurrentData | null> {
   try {
     const now = new Date();
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
 
     const response = await axios.get(NOAA_TIDES_BASE_URL, {
       params: {
-        product: 'currents',
+        product: 'currents_predictions',
         application: 'Swimmingly',
         begin_date: formatNOAADate(oneHourAgo),
         end_date: formatNOAADate(now),
@@ -116,16 +118,25 @@ export async function fetchCurrents(stationId: string = TIDE_STATION_ID): Promis
       },
     });
 
-    if (!response.data?.data || response.data.data.length === 0) {
+    const predictions = response.data?.current_predictions?.cp;
+    if (!predictions || predictions.length === 0) {
       return null;
     }
 
-    const latest = response.data.data[response.data.data.length - 1];
+    const latest = predictions[predictions.length - 1];
+
+    const velocity = parseFloat(latest.Velocity_Major);
+    const speedKnots = Math.abs(velocity);
+
+    const direction =
+      velocity >= 0
+        ? parseInt(latest.meanFloodDir, 10)
+        : parseInt(latest.meanEbbDir, 10);
 
     return {
-      timestamp: new Date(latest.t),
-      speedKnots: parseFloat(latest.s),
-      direction: parseInt(latest.d, 10),
+      timestamp: new Date(latest.Time),
+      speedKnots,
+      direction,
       lat: AQUATIC_PARK_LAT,
       lon: AQUATIC_PARK_LON,
       source: 'NOAA',

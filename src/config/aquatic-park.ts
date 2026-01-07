@@ -21,6 +21,7 @@ export const AQUATIC_PARK = {
   noaaStations: {
     tide: '9414290', // San Francisco NOAA Tide Station
     buoy: '46026',   // San Francisco Buoy (wave/swell data)
+    current: 'SFB1203' // Point Blunt SE corner of angel island
   },
 
   // Beach identifier for water quality APIs
@@ -40,3 +41,4 @@ export const AQUATIC_PARK_LAT = AQUATIC_PARK.center.lat;
 export const AQUATIC_PARK_LON = AQUATIC_PARK.center.lon;
 export const TIDE_STATION_ID = AQUATIC_PARK.noaaStations.tide;
 export const WAVE_BUOY_ID = AQUATIC_PARK.noaaStations.buoy;
+export const CURRENT_STATION_ID = AQUATIC_PARK.noaaStations.current;
