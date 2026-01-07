@@ -259,9 +259,6 @@ export async function fetchWaveData(buoyId: string = WAVE_BUOY_ID): Promise<Wave
       throw new Error('Insufficient data from buoy');
     }
 
-    // Skip header lines and get the most recent data (line 2)
-    const dataLine = lines[2].trim().split(/\s+/);
-
     // NDBC standard format: YY MM DD hh mm WDIR WSPD GST WVHT DPD APD MWD PRES ATMP WTMP DEWP VIS TIDE
     // Parse values, handling "MM" (missing data) from NOAA
     const parseValue = (value: string): number | undefined => {
@@ -270,21 +267,61 @@ export async function fetchWaveData(buoyId: string = WAVE_BUOY_ID): Promise<Wave
       return isNaN(parsed) ? undefined : parsed;
     };
 
-    const waveHeightMeters = parseValue(dataLine[8]); // WVHT in meters
-    const dominantPeriod = parseValue(dataLine[9]); // DPD in seconds
-    const meanWaveDirection = parseValue(dataLine[11]); // MWD in degrees
+    // Parse all data lines (skip first 2 header lines) and find the most recent with valid wave height
+    interface ValidDataEntry {
+      timestamp: Date;
+      line: string[];
+    }
+    let latestValidData: ValidDataEntry | null = null;
 
-    console.log(`Buoy ${buoyId} raw data - WVHT: ${dataLine[8]}, DPD: ${dataLine[9]}, MWD: ${dataLine[11]}`);
-    console.log(`Parsed wave data - height: ${waveHeightMeters}m, period: ${dominantPeriod}s, direction: ${meanWaveDirection}°`);
+    for (let i = 2; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
 
-    // Only return data if we have at least wave height
-    if (waveHeightMeters === undefined) {
+      const dataLine = line.split(/\s+/);
+      if (dataLine.length < 12) continue; // Need at least 12 fields
+
+      // Parse timestamp: YY MM DD hh mm
+      const year = parseInt(dataLine[0], 10);
+      const month = parseInt(dataLine[1], 10);
+      const day = parseInt(dataLine[2], 10);
+      const hour = parseInt(dataLine[3], 10);
+      const minute = parseInt(dataLine[4], 10);
+
+      // Validate timestamp fields
+      if (isNaN(year) || isNaN(month) || isNaN(day) || isNaN(hour) || isNaN(minute)) {
+        continue;
+      }
+
+      // NDBC uses 2-digit year (23 = 2023)
+      const fullYear = year < 50 ? 2000 + year : 1900 + year;
+      const timestamp = new Date(Date.UTC(fullYear, month - 1, day, hour, minute));
+
+      // Check if this line has valid wave height
+      const waveHeightMeters = parseValue(dataLine[8]);
+      if (waveHeightMeters !== undefined) {
+        // Use the first valid entry (most recent)
+        latestValidData = { timestamp, line: dataLine };
+        break; // Found the most recent valid data
+      }
+    }
+
+    if (!latestValidData) {
       console.warn(`No valid wave height data from buoy ${buoyId}`);
       return null;
     }
 
+    const { timestamp, line: dataLine } = latestValidData;
+    const waveHeightMeters = parseValue(dataLine[8])!; // We know it's valid
+    const dominantPeriod = parseValue(dataLine[9]); // DPD in seconds
+    const meanWaveDirection = parseValue(dataLine[11]); // MWD in degrees
+
+    console.log(`Buoy ${buoyId} - Using data from ${timestamp.toISOString()}`);
+    console.log(`Buoy ${buoyId} raw data - WVHT: ${dataLine[8]}, DPD: ${dataLine[9]}, MWD: ${dataLine[11]}`);
+    console.log(`Parsed wave data - height: ${waveHeightMeters}m, period: ${dominantPeriod}s, direction: ${meanWaveDirection}°`);
+
     return {
-      timestamp: new Date(), // Buoy data is usually within the last hour
+      timestamp,
       waveHeightFeet: waveHeightMeters * 3.28084, // Convert meters to feet
       swellPeriodSeconds: dominantPeriod,
       swellDirection: meanWaveDirection,

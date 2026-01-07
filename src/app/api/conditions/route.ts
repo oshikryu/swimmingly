@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import type { CurrentConditions, TidePhaseType, TidePhasePreferences } from '@/types/conditions';
+import type { CurrentConditions, TidePhaseType, TidePhasePreferences, TidePrediction, CurrentData } from '@/types/conditions';
 import { fetchCurrentTidePrediction, fetchCurrentWeather, fetchWaveData, fetchCurrents } from '@/lib/api/noaa';
 import { fetchWaterQuality } from '@/lib/api/beachwatch';
 import { fetchRecentSSOs } from '@/lib/api/sfpuc';
@@ -94,10 +94,13 @@ export async function GET(request: NextRequest) {
       source: 'unavailable',
     };
 
+    // Calculate current from tide if actual current data is unavailable
+    const currentWithFallback = currentData || calculateCurrentFromTide(tideData, now);
+
     // Calculate swim score with custom preferences if provided
     const score = calculateSwimScore(
       tideData,
-      currentData,
+      currentWithFallback,
       weatherWithFallback,
       wavesWithFallback,
       waterQualityWithFallback,
@@ -110,14 +113,7 @@ export async function GET(request: NextRequest) {
       timestamp: now,
       score,
       tide: tideData,
-      current: currentData || {
-        timestamp: now,
-        speedKnots: 0,
-        direction: 0,
-        lat: 37.8065,
-        lon: -122.4216,
-        source: 'unavailable',
-      },
+      current: currentWithFallback,
       weather: weatherWithFallback,
       waves: wavesWithFallback,
       waterQuality: waterQualityWithFallback,
@@ -153,4 +149,35 @@ export async function GET(request: NextRequest) {
  */
 function isValidTidePhase(value: string): value is TidePhaseType {
   return ['slack', 'flood', 'ebb'].includes(value);
+}
+
+/**
+ * Calculate estimated current speed from tide change rate
+ * Uses tide rate as a proxy when direct current measurements are unavailable
+ */
+function calculateCurrentFromTide(tide: TidePrediction, timestamp: Date): CurrentData {
+  // In sheltered bays like Aquatic Park, current speed correlates with tide change rate
+  // A typical multiplier is 0.3-0.5; using 0.4 as a conservative middle estimate
+  // Current (knots) ≈ |tide change rate (ft/hr)| × 0.4
+  const TIDE_RATE_TO_CURRENT_MULTIPLIER = 0.4;
+
+  const estimatedSpeedKnots = Math.abs(tide.changeRateFeetPerHour) * TIDE_RATE_TO_CURRENT_MULTIPLIER;
+
+  // Direction: flood (incoming) is generally eastward (90°), ebb (outgoing) is westward (270°)
+  // For Aquatic Park specifically, the cove opens to the north, so adjust accordingly
+  let direction = 0;
+  if (tide.currentPhase === 'flood') {
+    direction = 90; // Incoming tide - eastward
+  } else if (tide.currentPhase === 'ebb') {
+    direction = 270; // Outgoing tide - westward
+  }
+
+  return {
+    timestamp,
+    speedKnots: estimatedSpeedKnots,
+    direction,
+    lat: 37.8065,
+    lon: -122.4216,
+    source: 'calculated-from-tide-rate',
+  };
 }

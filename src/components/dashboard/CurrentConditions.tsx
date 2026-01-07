@@ -3,15 +3,15 @@
 import { useEffect, useState } from 'react';
 import type { CurrentConditions as CurrentConditionsType } from '@/types/conditions';
 import { useTidePreference } from '@/hooks/useTidePreference';
-import { useWaveDataCache } from '@/hooks/useWaveDataCache';
+import { useConditionsCache } from '@/hooks/useConditionsCache';
 import SwimScore from './SwimScore';
 import ConditionsCard from './ConditionsCard';
 
 /**
- * Format wave timestamp for display
+ * Format timestamp for display
  * Shows relative time for recent data, absolute time for older data
  */
-function formatWaveTimestamp(date: Date): string {
+function formatTimestamp(date: Date): string {
   const now = new Date();
   const diffMinutes = Math.floor((now.getTime() - new Date(date).getTime()) / (1000 * 60));
 
@@ -31,25 +31,43 @@ export default function CurrentConditions() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { preference, setPreference, isLoaded } = useTidePreference();
-  const { cachedData: cachedWaveData, setCachedData: setCachedWaveData } = useWaveDataCache();
+  const { cachedData, setCachedData, isCacheValid } = useConditionsCache();
+
+  // Load cached data immediately on mount
+  useEffect(() => {
+    if (isCacheValid && cachedData) {
+      setConditions(cachedData);
+      setLoading(false);
+    }
+  }, [isCacheValid, cachedData]);
 
   // Fetch conditions when component mounts or preference changes
   useEffect(() => {
     // Only fetch when preference is loaded to avoid double-fetching
     if (isLoaded) {
-      fetchConditions(preference);
+      // If we have valid cache, fetch in background
+      if (isCacheValid && cachedData) {
+        fetchConditions(preference, true); // background fetch
+      } else {
+        fetchConditions(preference, false); // foreground fetch
+      }
     }
   }, [isLoaded, preference]);
 
   // Setup auto-refresh interval
   useEffect(() => {
     // Refresh every 5 minutes
-    const interval = setInterval(() => fetchConditions(preference), 5 * 60 * 1000);
+    const interval = setInterval(() => fetchConditions(preference, true), 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [preference]);
 
-  async function fetchConditions(tidePreference: typeof preference) {
+  async function fetchConditions(tidePreference: typeof preference, isBackgroundFetch = false) {
     try {
+      // Only show loading state if not a background fetch
+      if (!isBackgroundFetch) {
+        setLoading(true);
+      }
+
       // Include tide preference in API call
       const params = new URLSearchParams();
       if (tidePreference) {
@@ -64,17 +82,25 @@ export default function CurrentConditions() {
       }
       const data = await response.json();
 
-      // Update wave cache after successful fetch
-      if (data.waves) {
-        setCachedWaveData(data.waves);
+      // Only update cache and state if we have valid data
+      // Don't overwrite good cached data with null/missing data
+      if (data && data.tide && data.score) {
+        setCachedData(data);
+        setConditions(data);
+        setError(null);
+      } else {
+        console.warn('Received incomplete data from API, keeping cached data');
+        // If we have cached data, keep using it
+        if (!conditions && cachedData) {
+          setConditions(cachedData);
+        }
       }
-
-      setConditions(data);
-      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
-      setLoading(false);
+      if (!isBackgroundFetch) {
+        setLoading(false);
+      }
     }
   }
 
@@ -119,14 +145,19 @@ export default function CurrentConditions() {
     return null;
   }
 
-  const { score, tide, weather, waves, waterQuality } = conditions;
+  const { score, tide, current, weather, waves, waterQuality } = conditions;
 
   // Get values from score factors with safe defaults (ensures sync with score calculation)
   const waveHeight = score?.factors?.waves?.heightFeet ?? 0;
   const swellPeriod = waves?.swellPeriodSeconds ?? null;
   const tideHeight = score?.factors?.tideAndCurrent?.tideHeight ?? 0;
+  const currentSpeed = score?.factors?.tideAndCurrent?.currentSpeed ?? 0;
   const windSpeed = score?.factors?.weather?.windSpeed ?? 0;
   const temperature = score?.factors?.weather?.temperature ?? 0;
+
+  // Determine if current is measured or calculated
+  const isCurrentCalculated = current?.source === 'calculated-from-tide-rate';
+  const currentSource = isCurrentCalculated ? '(estimated from tide)' : '';
 
   // Map score factor statuses to card statuses
   const mapWaveStatus = (status: string): 'good' | 'warning' | 'danger' | 'info' => {
@@ -172,14 +203,14 @@ export default function CurrentConditions() {
         {/* Condition Cards */}
         <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
           <ConditionsCard
-            title="Tide"
+            title="Tide & Current"
             value={tideHeight.toFixed(1)}
             unit="ft"
             status={tideStatus}
             icon="🌊"
             details={[
               `Phase: ${score?.factors?.tideAndCurrent?.phase ?? 'unknown'}`,
-              `Current: ${(score?.factors?.tideAndCurrent?.currentSpeed ?? 0).toFixed(1)} knots`,
+              `Current: ${currentSpeed.toFixed(1)} knots ${currentSource}`,
               tide?.nextHigh ? `Next high: ${new Date(tide.nextHigh.timestamp).toLocaleTimeString()}` : '',
               tide?.nextLow ? `Next low: ${new Date(tide.nextLow.timestamp).toLocaleTimeString()}` : '',
               ...(score?.factors?.tideAndCurrent?.issues ?? []),
@@ -195,7 +226,7 @@ export default function CurrentConditions() {
             details={[
               `Status: ${score?.factors?.waves?.status ?? 'unknown'}`,
               swellPeriod ? `Period: ${swellPeriod.toFixed(0)}s` : '',
-              conditions.waves?.timestamp ? `Updated: ${formatWaveTimestamp(conditions.waves.timestamp)}` : '',
+              conditions.waves?.timestamp ? `Updated: ${formatTimestamp(conditions.waves.timestamp)}` : '',
               ...(score?.factors?.waves?.issues ?? []),
             ].filter(Boolean)}
           />
