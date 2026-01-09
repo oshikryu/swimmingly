@@ -262,7 +262,7 @@ export default function CurrentConditions() {
               `Condition: ${score?.factors?.weather?.windCondition ?? 'unknown'}`,
               windGust ? `Gusts: ${windGust.toFixed(0)} mph` : '',
               windDirection !== undefined ? `Direction: ${windDirection}°` : '',
-              `Temp: ${temperature.toFixed(0)}°F`,
+              `Air Temp: ${temperature.toFixed(0)}°F`,
               weather?.timestamp ? `Updated: ${formatTimestamp(weather.timestamp)}` : '',
               windSourceDisplay ? `Source: ${windSourceDisplay}` : '',
               ...(score?.factors?.weather?.issues ?? []),

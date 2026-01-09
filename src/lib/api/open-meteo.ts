@@ -19,6 +19,7 @@ export interface OpenMeteoWindData {
   windSpeedMph: number;
   windDirection: number; // degrees 0-360
   windGustMph?: number;
+  temperatureF?: number; // Air temperature in Fahrenheit
   source: string;
 }
 
@@ -33,8 +34,9 @@ export async function fetchWindData(): Promise<OpenMeteoWindData | null> {
       params: {
         latitude: AQUATIC_PARK_LAT,
         longitude: AQUATIC_PARK_LON,
-        current: 'wind_speed_10m,wind_direction_10m,wind_gusts_10m',
+        current: 'wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m',
         wind_speed_unit: 'mph',
+        temperature_unit: 'fahrenheit',
         timezone: 'America/Los_Angeles',
       },
       timeout: 5000, // 5 second timeout
@@ -61,6 +63,9 @@ export async function fetchWindData(): Promise<OpenMeteoWindData | null> {
       windSpeedMph: current.wind_speed_10m,
       windDirection: current.wind_direction_10m,
       windGustMph: current.wind_gusts_10m || undefined,
+      temperatureF: current.temperature_2m !== undefined && !isNaN(current.temperature_2m)
+        ? current.temperature_2m
+        : undefined,
       source: 'open-meteo',
     };
   } catch (error) {

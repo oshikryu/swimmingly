@@ -87,21 +87,25 @@ export async function GET(request: NextRequest) {
     // Hybrid approach: prefer Open-Meteo wind data with NOAA temperature/conditions
     const weatherWithFallback = weatherData || {
       timestamp: windDataResult?.timestamp || now,
-      temperatureF: 60,
+      temperatureF: windDataResult?.temperatureF ?? 60,
       windSpeedMph: windDataResult?.windSpeedMph || 0,
       windDirection: windDataResult?.windDirection || 0,
       windGustMph: windDataResult?.windGustMph,
       visibilityMiles: 10,
       conditions: 'unavailable',
-      source: windDataResult ? 'open-meteo-wind-only' : 'unavailable',
+      source: windDataResult ? 'open-meteo' : 'unavailable',
     };
 
     // If we have both NOAA weather and Open-Meteo wind, prefer Open-Meteo for wind
+    // and use NOAA for temperature if available
     if (weatherData && windDataResult) {
       weatherWithFallback.windSpeedMph = windDataResult.windSpeedMph;
       weatherWithFallback.windDirection = windDataResult.windDirection;
       weatherWithFallback.windGustMph = windDataResult.windGustMph;
       weatherWithFallback.source = 'NOAA-NWS+open-meteo-wind';
+    } else if (!weatherData && windDataResult?.temperatureF) {
+      // If NOAA weather is unavailable but Open-Meteo has temperature, use it
+      weatherWithFallback.temperatureF = windDataResult.temperatureF;
     }
 
     const wavesWithFallback = waveData || {
