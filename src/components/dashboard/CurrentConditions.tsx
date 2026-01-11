@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import type { CurrentConditions as CurrentConditionsType } from '@/types/conditions';
 import { useTidePreference } from '@/hooks/useTidePreference';
 import { useConditionsCache } from '@/hooks/useConditionsCache';
+import { SAFETY_THRESHOLDS } from '@/config/thresholds';
 import SwimScore from './SwimScore';
 import ConditionsCard from './ConditionsCard';
 
@@ -231,6 +232,8 @@ export default function CurrentConditions() {
             details={[
               `Phase: ${score?.factors?.tideAndCurrent?.phase ?? 'unknown'}`,
               `Current: ${currentSpeed.toFixed(1)} knots ${currentSource}`,
+              `Score uses: Tide ${tideHeight.toFixed(1)}ft, Current ${currentSpeed.toFixed(1)}kt, Phase ${score?.factors?.tideAndCurrent?.phase ?? 'unknown'}`,
+              `Thresholds: Slack <${SAFETY_THRESHOLDS.current.slack}kt, Moderate <${SAFETY_THRESHOLDS.current.moderate}kt, Strong <${SAFETY_THRESHOLDS.current.strong}kt, Dangerous >${SAFETY_THRESHOLDS.current.veryStrong}kt`,
               // Sort next high/low by timestamp - show whichever comes first
               ...((() => {
                 const tideEvents = [];
@@ -266,6 +269,8 @@ export default function CurrentConditions() {
             details={[
               `Status: ${score?.factors?.waves?.status ?? 'unknown'}`,
               swellPeriod ? `Period: ${swellPeriod.toFixed(0)}s` : '',
+              `Score uses: Height ${waveHeight.toFixed(1)}ft`,
+              `Thresholds: Calm <${SAFETY_THRESHOLDS.waves.calm}ft, Safe <${SAFETY_THRESHOLDS.waves.safe}ft, Moderate <${SAFETY_THRESHOLDS.waves.moderate}ft, Rough <${SAFETY_THRESHOLDS.waves.rough}ft`,
               conditions.waves?.timestamp ? `Updated: ${new Date(conditions.waves.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} PST` : '',
               ...(score?.factors?.waves?.issues ?? []),
             ].filter(Boolean)}
@@ -282,6 +287,8 @@ export default function CurrentConditions() {
               windGust ? `Gusts: ${windGust.toFixed(0)} mph` : '',
               windDirection !== undefined ? `Direction: ${windDirection}°` : '',
               `Air Temp: ${temperature.toFixed(0)}°F`,
+              `Score uses: Wind ${windSpeed.toFixed(1)}mph, Temp ${temperature.toFixed(0)}°F`,
+              `Thresholds: Calm <${SAFETY_THRESHOLDS.wind.calm}mph, Light <${SAFETY_THRESHOLDS.wind.light}mph, Moderate <${SAFETY_THRESHOLDS.wind.moderate}mph, Strong <${SAFETY_THRESHOLDS.wind.strong}mph`,
               weather?.timestamp ? `Updated: ${formatTimestamp(weather.timestamp)}` : '',
               windSourceDisplay ? `Source: ${windSourceDisplay}` : '',
               ...(score?.factors?.weather?.issues ?? []),
@@ -295,10 +302,19 @@ export default function CurrentConditions() {
             icon="💧"
             details={[
               `Bacteria: ${score?.factors?.waterQuality?.bacteriaLevel ?? 'unknown'}`,
+              waterQuality?.enterococcusCount !== undefined
+                ? `Enterococcus: ${waterQuality.enterococcusCount.toFixed(0)} MPN/100ml`
+                : '',
+              waterQuality?.coliformCount !== undefined
+                ? `Total Coliform: ${waterQuality.coliformCount.toFixed(0)} MPN/100ml`
+                : '',
               score?.factors?.waterQuality?.recentSSO
                 ? `SSO ${score?.factors?.waterQuality?.daysSinceSSO ?? '?'} days ago`
                 : '',
-              waterQuality?.notes || '',
+              `Score uses: Bacteria levels & SSO data`,
+              `Thresholds (Enterococcus): Safe <${SAFETY_THRESHOLDS.waterQuality.enterococcus.safe}, Advisory <${SAFETY_THRESHOLDS.waterQuality.enterococcus.advisory}, Dangerous >${SAFETY_THRESHOLDS.waterQuality.enterococcus.dangerous} MPN/100ml`,
+              waterQuality?.notes || '', // Shows "Sampled X days ago"
+              waterQuality?.source ? `Source: ${waterQuality.source}` : '', // Show which API
               ...(score?.factors?.waterQuality?.issues ?? []),
             ].filter(Boolean)}
           />
