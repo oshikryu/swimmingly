@@ -231,8 +231,27 @@ export default function CurrentConditions() {
             details={[
               `Phase: ${score?.factors?.tideAndCurrent?.phase ?? 'unknown'}`,
               `Current: ${currentSpeed.toFixed(1)} knots ${currentSource}`,
-              tide?.nextHigh ? `Next high: ${new Date(tide.nextHigh.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })}` : '',
-              tide?.nextLow ? `Next low: ${new Date(tide.nextLow.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })}` : '',
+              // Sort next high/low by timestamp - show whichever comes first
+              ...((() => {
+                const tideEvents = [];
+                if (tide?.nextHigh) {
+                  tideEvents.push({
+                    label: 'Next high',
+                    timestamp: new Date(tide.nextHigh.timestamp)
+                  });
+                }
+                if (tide?.nextLow) {
+                  tideEvents.push({
+                    label: 'Next low',
+                    timestamp: new Date(tide.nextLow.timestamp)
+                  });
+                }
+                // Sort by timestamp (earliest first)
+                tideEvents.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+                return tideEvents.map(event =>
+                  `${event.label}: ${event.timestamp.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })}`
+                );
+              })()),
               latestTideCurrentTimestamp ? `Updated: ${latestTideCurrentTimestamp.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} PST${isUsingCachedTideData ? ' (cached)' : ''}` : '',
               ...(score?.factors?.tideAndCurrent?.issues ?? []),
             ].filter(Boolean)}
