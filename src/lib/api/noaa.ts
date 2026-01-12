@@ -337,7 +337,7 @@ export async function fetchWaveData(buoyId: string = WAVE_BUOY_ID): Promise<Wave
       swellPeriodSeconds: dominantPeriod,
       swellDirection: meanWaveDirection,
       dominantPeriod: dominantPeriod,
-      source: 'NOAA-NDBC',
+      source: `NOAA-NDBC Buoy ${buoyId}`,
     };
   } catch (error) {
     console.error('Error fetching wave data:', error);

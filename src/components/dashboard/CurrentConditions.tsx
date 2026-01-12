@@ -232,7 +232,6 @@ export default function CurrentConditions() {
             details={[
               `Phase: ${score?.factors?.tideAndCurrent?.phase ?? 'unknown'}`,
               `Current: ${currentSpeed.toFixed(1)} knots ${currentSource}`,
-              `Score uses: Tide ${tideHeight.toFixed(1)}ft, Current ${currentSpeed.toFixed(1)}kt, Phase ${score?.factors?.tideAndCurrent?.phase ?? 'unknown'}`,
               `Thresholds: Slack <${SAFETY_THRESHOLDS.current.slack}kt, Moderate <${SAFETY_THRESHOLDS.current.moderate}kt, Strong <${SAFETY_THRESHOLDS.current.strong}kt, Dangerous >${SAFETY_THRESHOLDS.current.veryStrong}kt`,
               // Sort next high/low by timestamp - show whichever comes first
               ...((() => {
@@ -269,8 +268,8 @@ export default function CurrentConditions() {
             details={[
               `Status: ${score?.factors?.waves?.status ?? 'unknown'}`,
               swellPeriod ? `Period: ${swellPeriod.toFixed(0)}s` : '',
-              `Score uses: Height ${waveHeight.toFixed(1)}ft`,
               `Thresholds: Calm <${SAFETY_THRESHOLDS.waves.calm}ft, Safe <${SAFETY_THRESHOLDS.waves.safe}ft, Moderate <${SAFETY_THRESHOLDS.waves.moderate}ft, Rough <${SAFETY_THRESHOLDS.waves.rough}ft`,
+              conditions.waves?.source ? `Station: ${conditions.waves.source}` : '',
               conditions.waves?.timestamp ? `Updated: ${new Date(conditions.waves.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} PST` : '',
               ...(score?.factors?.waves?.issues ?? []),
             ].filter(Boolean)}
@@ -287,7 +286,6 @@ export default function CurrentConditions() {
               windGust ? `Gusts: ${windGust.toFixed(0)} mph` : '',
               windDirection !== undefined ? `Direction: ${windDirection}°` : '',
               `Air Temp: ${temperature.toFixed(0)}°F`,
-              `Score uses: Wind ${windSpeed.toFixed(1)}mph, Temp ${temperature.toFixed(0)}°F`,
               `Thresholds: Calm <${SAFETY_THRESHOLDS.wind.calm}mph, Light <${SAFETY_THRESHOLDS.wind.light}mph, Moderate <${SAFETY_THRESHOLDS.wind.moderate}mph, Strong <${SAFETY_THRESHOLDS.wind.strong}mph`,
               weather?.timestamp ? `Updated: ${formatTimestamp(weather.timestamp)}` : '',
               windSourceDisplay ? `Source: ${windSourceDisplay}` : '',
@@ -311,7 +309,6 @@ export default function CurrentConditions() {
               score?.factors?.waterQuality?.recentSSO
                 ? `SSO ${score?.factors?.waterQuality?.daysSinceSSO ?? '?'} days ago`
                 : '',
-              `Score uses: Bacteria levels & SSO data`,
               `Thresholds (Enterococcus): Safe <${SAFETY_THRESHOLDS.waterQuality.enterococcus.safe}, Advisory <${SAFETY_THRESHOLDS.waterQuality.enterococcus.advisory}, Dangerous >${SAFETY_THRESHOLDS.waterQuality.enterococcus.dangerous} MPN/100ml`,
               waterQuality?.notes || '', // Shows "Sampled X days ago"
               waterQuality?.source ? `Source: ${waterQuality.source}` : '', // Show which API
