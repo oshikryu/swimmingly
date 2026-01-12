@@ -1,6 +1,11 @@
 # Swimmingly - Aquatic Park Swim Planner
+(Warning: this was heavily vibe coded)
 
 A Next.js web application that helps swimmers determine optimal swimming times and routes at Aquatic Park in San Francisco Bay by aggregating real-time data on tides, currents, weather, waves, and water quality.
+
+<img width="1310" height="1176" alt="Screenshot 2026-01-12 at 10 57 44" src="https://github.com/user-attachments/assets/000eac2f-458a-4c67-a2a6-1846069c54a6" />
+
+
 
 ## Features
 
