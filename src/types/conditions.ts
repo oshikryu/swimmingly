@@ -64,6 +64,7 @@ export interface WaterQuality {
   status: 'safe' | 'advisory' | 'warning' | 'closed';
   notes?: string;
   source?: string;
+  stationId?: string; // e.g., BAY#211_SL, BAY#210.1_SL
 }
 
 export interface SSOEvent {

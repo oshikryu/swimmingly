@@ -260,7 +260,6 @@ export default function CurrentConditions() {
             icon="🌊"
             details={[
               `Phase: ${score?.factors?.tideAndCurrent?.phase ?? 'unknown'}`,
-              `Current: ${currentSpeed.toFixed(1)} knots ${currentSource}`,
               // Sort next high/low by timestamp - show whichever comes first
               ...((() => {
                 const tideEvents = [];
@@ -342,6 +341,7 @@ export default function CurrentConditions() {
                 : '',
               waterQuality?.notes || '', // Shows "Sampled X days ago"
               waterQuality?.source ? `Source: ${waterQuality.source}` : '', // Show which API
+              waterQuality?.stationId ? `Station: ${waterQuality.stationId}` : '',
               waterQuality?.source?.includes('SF Beach Water Quality')
                 ? '🔗 https://data.sfgov.org/Energy-and-Environment/Beach-Water-Quality-Monitoring/v3fv-x3ux'
                 : '',

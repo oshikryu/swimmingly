@@ -55,11 +55,33 @@ export default function ConditionsCard({
 
       {details && details.length > 0 && (
         <ul className="mt-3 space-y-1">
-          {details.map((detail, idx) => (
-            <li key={idx} className="text-xs text-gray-600 dark:text-gray-400">
-              {detail}
-            </li>
-          ))}
+          {details.map((detail, idx) => {
+            // Check if detail contains a URL (starts with 🔗 and has https://)
+            const urlMatch = detail.match(/🔗\s*(https?:\/\/[^\s]+)/);
+
+            if (urlMatch) {
+              const url = urlMatch[1];
+              return (
+                <li key={idx} className="text-xs text-gray-600 dark:text-gray-400">
+                  🔗{' '}
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    {url}
+                  </a>
+                </li>
+              );
+            }
+
+            return (
+              <li key={idx} className="text-xs text-gray-600 dark:text-gray-400">
+                {detail}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

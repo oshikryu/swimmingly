@@ -134,6 +134,7 @@ async function fetchFromSFGov(): Promise<WaterQuality | null> {
       enterococcusCount: enterococcus,
       status: assessWaterQualityStatus(enterococcus, undefined),
       source: `SF Beach Water Quality (${locationName})`,
+      stationId: selectedRecord.source,
       notes: `Sampled ${formatSampleAge(sampleDate)}`,
     };
   } catch (error) {
