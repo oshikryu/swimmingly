@@ -11,6 +11,7 @@ import { fetchRecentSSOs } from '@/lib/api/sfpuc';
 import { calculateSwimScore } from '@/lib/algorithms/swim-score';
 import { fetchWindData } from '@/lib/api/open-meteo';
 import { fetchDamReleases } from '@/lib/api/cdec';
+import { fetchOpenWaterLogWaveData } from '@/lib/api/openwaterlog';
 
 export const dynamic = 'force-dynamic'; // Always fetch fresh data
 export const revalidate = 300; // Cache for 5 minutes
@@ -31,12 +32,31 @@ export async function GET(request: NextRequest) {
       };
     }
 
+    // Fetch wave data with fallback strategy: OpenWaterLog first, then NOAA buoy
+    const fetchWaveDataWithFallback = async () => {
+      try {
+        console.log('Attempting to fetch wave data from OpenWaterLog...');
+        const owlData = await fetchOpenWaterLogWaveData();
+        if (owlData) {
+          console.log('Successfully fetched wave data from OpenWaterLog');
+          return owlData;
+        }
+        console.log('OpenWaterLog returned null, falling back to NOAA buoy...');
+      } catch (error) {
+        console.warn('OpenWaterLog fetch failed, falling back to NOAA buoy:', error);
+      }
+
+      // Fallback to NOAA buoy
+      console.log('Fetching wave data from NOAA buoy...');
+      return fetchWaveData();
+    };
+
     // Fetch all data sources in parallel
     const [tide, current, weather, waves, waterQuality, recentSSOs, windData, damReleases] = await Promise.allSettled([
       fetchCurrentTidePrediction(),
       fetchCurrents(),
       fetchCurrentWeather(),
-      fetchWaveData(),
+      fetchWaveDataWithFallback(),
       fetchWaterQuality(),
       fetchRecentSSOs(7),
       fetchWindData(),
