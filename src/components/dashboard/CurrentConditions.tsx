@@ -146,7 +146,7 @@ export default function CurrentConditions() {
     return null;
   }
 
-  const { score, tide, current, weather, waves, waterQuality } = conditions;
+  const { score, tide, current, weather, waves, waterQuality, damReleases } = conditions;
 
   // Get values from score factors with safe defaults (ensures sync with score calculation)
   const waveHeight = score?.factors?.waves?.heightFeet ?? 0;
@@ -202,11 +202,20 @@ export default function CurrentConditions() {
     return 'info';
   };
 
+  const mapDamReleasesStatus = (level: string): 'good' | 'warning' | 'danger' | 'info' => {
+    if (level === 'low') return 'good';
+    if (level === 'moderate') return 'info';
+    if (level === 'high') return 'warning';
+    if (level === 'extreme') return 'danger';
+    return 'info';
+  };
+
   // Use statuses from score factors with safe defaults (ensures sync with score calculation)
   const tideStatus = score?.factors?.tideAndCurrent?.favorable ? 'good' : 'warning';
   const waveStatus = mapWaveStatus(score?.factors?.waves?.status ?? 'calm');
   const weatherStatus = mapWeatherStatus(score?.factors?.weather?.windCondition ?? 'calm');
   const waterQualityStatus = mapWaterQualityStatus(score?.factors?.waterQuality?.status ?? 'safe');
+  const damReleasesStatus = mapDamReleasesStatus(score?.factors?.damReleases?.releaseLevel ?? 'low');
 
   return (
     <div className="space-y-6">
@@ -313,6 +322,34 @@ export default function CurrentConditions() {
               waterQuality?.notes || '', // Shows "Sampled X days ago"
               waterQuality?.source ? `Source: ${waterQuality.source}` : '', // Show which API
               ...(score?.factors?.waterQuality?.issues ?? []),
+            ].filter(Boolean)}
+          />
+
+          <ConditionsCard
+            title="Dam Releases"
+            value={score?.factors?.damReleases?.totalFlowCFS
+              ? Math.round(score.factors.damReleases.totalFlowCFS / 1000).toString() + 'k'
+              : '0'}
+            unit="CFS"
+            status={damReleasesStatus}
+            icon="🏔️"
+            details={[
+              `Level: ${score?.factors?.damReleases?.releaseLevel ?? 'unknown'}`,
+              `Total Flow: ${score?.factors?.damReleases?.totalFlowCFS?.toLocaleString() ?? '0'} CFS`,
+              `Top Source: ${score?.factors?.damReleases?.topContributor ?? 'Unknown'}`,
+              `Thresholds: Low <${SAFETY_THRESHOLDS.damReleases.moderate.toLocaleString()}CFS, Moderate <${SAFETY_THRESHOLDS.damReleases.high.toLocaleString()}CFS, High <${SAFETY_THRESHOLDS.damReleases.extreme.toLocaleString()}CFS`,
+              // Show individual dam contributions
+              ...(damReleases?.dams
+                .filter(dam => dam.flowCFS > 0)
+                .sort((a, b) => b.flowCFS - a.flowCFS)
+                .slice(0, 3)  // Top 3 dams
+                .map(dam => `${dam.name}: ${Math.round(dam.flowCFS).toLocaleString()} CFS (${dam.percentOfTotal.toFixed(0)}%)`)
+                || []
+              ),
+              damReleases?.latestDataTimestamp
+                ? `Latest Data: ${new Date(damReleases.latestDataTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} PST`
+                : '',
+              ...(score?.factors?.damReleases?.issues ?? []),
             ].filter(Boolean)}
           />
         </div>

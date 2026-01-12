@@ -10,6 +10,7 @@ import { fetchWaterQuality } from '@/lib/api/beachwatch';
 import { fetchRecentSSOs } from '@/lib/api/sfpuc';
 import { calculateSwimScore } from '@/lib/algorithms/swim-score';
 import { fetchWindData } from '@/lib/api/open-meteo';
+import { fetchDamReleases } from '@/lib/api/cdec';
 
 export const dynamic = 'force-dynamic'; // Always fetch fresh data
 export const revalidate = 300; // Cache for 5 minutes
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch all data sources in parallel
-    const [tide, current, weather, waves, waterQuality, recentSSOs, windData] = await Promise.allSettled([
+    const [tide, current, weather, waves, waterQuality, recentSSOs, windData, damReleases] = await Promise.allSettled([
       fetchCurrentTidePrediction(),
       fetchCurrents(),
       fetchCurrentWeather(),
@@ -39,6 +40,7 @@ export async function GET(request: NextRequest) {
       fetchWaterQuality(),
       fetchRecentSSOs(7),
       fetchWindData(),
+      fetchDamReleases(),
     ]);
 
     // Extract successful results or use fallbacks
@@ -49,6 +51,7 @@ export async function GET(request: NextRequest) {
     const waterQualityData = waterQuality.status === 'fulfilled' ? waterQuality.value : null;
     const ssoData = recentSSOs.status === 'fulfilled' ? recentSSOs.value : [];
     const windDataResult = windData.status === 'fulfilled' ? windData.value : null;
+    const damReleasesData = damReleases.status === 'fulfilled' ? damReleases.value : null;
 
     // Check if we have minimum required data (tide is critical)
     // Other data can be null and scoring algorithm will handle gracefully
@@ -131,6 +134,7 @@ export async function GET(request: NextRequest) {
       wavesWithFallback,
       waterQualityWithFallback,
       ssoData,
+      damReleasesData,
       customTidePreferences
     );
 
@@ -144,12 +148,14 @@ export async function GET(request: NextRequest) {
       waves: wavesWithFallback,
       waterQuality: waterQualityWithFallback,
       recentSSOs: ssoData,
+      damReleases: damReleasesData || undefined,
       dataFreshness: {
         tide: tideData.timestamp,
         weather: weatherData?.timestamp || now,
         waves: waveData?.timestamp || now,
         waterQuality: waterQualityData?.timestamp || now,
         sso: ssoData.length > 0 ? ssoData[0].reportedAt : now,
+        damReleases: damReleasesData?.timestamp || undefined,
       },
     };
 

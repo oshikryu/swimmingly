@@ -10,6 +10,7 @@ import type {
   WaveData,
   WaterQuality,
   SSOEvent,
+  DamReleaseData,
   SwimScore,
   SwimScoreFactors,
   TidePhasePreferences,
@@ -26,6 +27,7 @@ export function calculateSwimScore(
   waves: WaveData,
   waterQuality: WaterQuality,
   recentSSOs: SSOEvent[],
+  damReleases: DamReleaseData | null,
   customTidePreferences?: TidePhasePreferences
 ): SwimScore {
   // Calculate individual factor scores
@@ -33,13 +35,15 @@ export function calculateSwimScore(
   const tideCurrentFactor = scoreTideAndCurrent(tide, current, customTidePreferences);
   const waveFactor = scoreWaves(waves);
   const weatherFactor = scoreWeather(weather);
+  const damReleasesFactor = scoreDamReleases(damReleases);
 
   // Calculate weighted overall score
   const overallScore = Math.round(
     (waterQualityFactor.score * SCORE_WEIGHTS.waterQuality +
       tideCurrentFactor.score * SCORE_WEIGHTS.tideAndCurrent +
       waveFactor.score * SCORE_WEIGHTS.waves +
-      weatherFactor.score * SCORE_WEIGHTS.weather) /
+      weatherFactor.score * SCORE_WEIGHTS.weather +
+      damReleasesFactor.score * SCORE_WEIGHTS.damReleases) /
       100
   );
 
@@ -52,6 +56,7 @@ export function calculateSwimScore(
     tideAndCurrent: tideCurrentFactor,
     waves: waveFactor,
     weather: weatherFactor,
+    damReleases: damReleasesFactor,
   };
 
   // Generate recommendations and warnings
@@ -297,6 +302,66 @@ function scoreWeather(weather: WeatherData): SwimScoreFactors['weather'] {
   };
 }
 
+/**
+ * Score dam releases (10% weight)
+ * Dam releases affect bay currents and water flow patterns
+ */
+function scoreDamReleases(
+  damReleases: DamReleaseData | null
+): SwimScoreFactors['damReleases'] {
+  let score = 100;
+  const issues: string[] = [];
+
+  if (!damReleases) {
+    score = 75; // Unknown - slight caution
+    issues.push('Dam release data unavailable');
+    return {
+      score,
+      totalFlowCFS: 0,
+      releaseLevel: 'low',
+      topContributor: 'Unknown',
+      issues,
+    };
+  }
+
+  const { totalFlowCFS, dams, releaseLevel } = damReleases;
+  const thresholds = SAFETY_THRESHOLDS.damReleases;
+
+  // Score based on total flow
+  // Note: thresholds.low is the boundary between low and moderate (30k)
+  if (totalFlowCFS > thresholds.extreme) {
+    score = 10;
+    issues.push(`Extreme dam releases (${Math.round(totalFlowCFS).toLocaleString()} CFS)`);
+    issues.push('Very strong currents expected - swimming not recommended');
+  } else if (totalFlowCFS > thresholds.high) {
+    score = 30;
+    issues.push(`High dam releases (${Math.round(totalFlowCFS).toLocaleString()} CFS)`);
+    issues.push('Strong currents - experienced swimmers only');
+  } else if (totalFlowCFS > thresholds.moderate) {
+    score = 65;
+    issues.push(`High dam releases (${Math.round(totalFlowCFS).toLocaleString()} CFS)`);
+    issues.push('Strong currents - experienced swimmers only');
+  } else if (totalFlowCFS > thresholds.low) {
+    score = 75;
+    issues.push(`Moderate dam releases (${Math.round(totalFlowCFS).toLocaleString()} CFS)`);
+    issues.push('Increased current strength');
+  } else {
+    score = 100;
+  }
+
+  // Find top contributor
+  const topDam = dams.reduce((max, dam) =>
+    dam.flowCFS > max.flowCFS ? dam : max
+  , dams[0] || { name: 'Unknown', flowCFS: 0 });
+
+  return {
+    score,
+    totalFlowCFS,
+    releaseLevel,
+    topContributor: topDam.name,
+    issues,
+  };
+}
 
 /**
  * Determine rating from score
@@ -347,6 +412,17 @@ function generateAdvice(
   // Weather advisories
   if (factors.weather.windCondition === 'strong') {
     warnings.push('Strong winds present');
+  }
+
+  // Dam releases advisories
+  if (factors.damReleases.releaseLevel === 'extreme') {
+    warnings.push('Extreme dam releases - very strong currents expected');
+  } else if (factors.damReleases.releaseLevel === 'high') {
+    warnings.push('High dam releases - strong bay currents');
+  } else if (factors.damReleases.releaseLevel === 'moderate') {
+    recommendations.push('Moderate dam releases - be aware of currents');
+  } else if (factors.damReleases.releaseLevel === 'low') {
+    recommendations.push('Normal dam operations');
   }
 
   // Overall advice

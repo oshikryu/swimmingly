@@ -78,6 +78,45 @@ export interface SSOEvent {
   source?: string;
 }
 
+export interface DamReleaseData {
+  timestamp: Date;
+
+  // Current snapshot (for backward compatibility)
+  current: {
+    totalFlowCFS: number;
+    releaseLevel: 'low' | 'moderate' | 'high' | 'extreme';
+  };
+
+  // 48-hour historical aggregates
+  historical48h: {
+    averageFlowCFS: number;
+    peakFlowCFS: number;
+    peakTimestamp: Date;
+    trendDirection: 'increasing' | 'stable' | 'decreasing';
+    last24hAverage: number;
+    last48hAverage: number;
+    dataPointsCount: number;
+  };
+
+  dams: Array<{
+    name: string;
+    stationId: string;
+    current: {
+      flowCFS: number;
+      timestamp?: Date;
+      percentOfTotal: number;
+    };
+    historical48h: {
+      averageFlowCFS: number;
+      peakFlowCFS: number;
+      dataPoints: number;
+    };
+  }>;
+
+  latestDataTimestamp?: Date;
+  source?: string;
+}
+
 export interface SwimScoreFactors {
   waterQuality: {
     score: number; // 0-100
@@ -108,6 +147,13 @@ export interface SwimScoreFactors {
     windCondition: 'calm' | 'light' | 'moderate' | 'strong';
     issues: string[];
   };
+  damReleases: {
+    score: number; // 0-100
+    totalFlowCFS: number;
+    releaseLevel: 'low' | 'moderate' | 'high' | 'extreme';
+    topContributor: string;  // Name of dam with highest flow
+    issues: string[];
+  };
 }
 
 export interface SwimScore {
@@ -128,12 +174,14 @@ export interface CurrentConditions {
   waves: WaveData;
   waterQuality: WaterQuality;
   recentSSOs: SSOEvent[];
+  damReleases?: DamReleaseData;
   dataFreshness: {
     tide: Date;
     weather: Date;
     waves: Date;
     waterQuality: Date;
     sso: Date;
+    damReleases?: Date;
   };
 }
 

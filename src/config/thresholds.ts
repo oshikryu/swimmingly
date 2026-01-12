@@ -83,6 +83,15 @@ export const SAFETY_THRESHOLDS = {
       ebb: 85,            // Outgoing/falling tide
     },
   },
+
+  // Dam release thresholds (CFS - cubic feet per second)
+  // Combined flow from all monitored dams affecting SF Bay
+  damReleases: {
+    low: 30000,        // < 30k CFS - normal operations
+    moderate: 50000,   // 30k-50k CFS - elevated releases, increased currents
+    high: 80000,       // 50k-80k CFS - high release period, strong currents
+    extreme: 100000,   // > 100k CFS - flood control releases, dangerous conditions
+  },
 } as const;
 
 /**
@@ -90,10 +99,11 @@ export const SAFETY_THRESHOLDS = {
  * All weights should sum to 100
  */
 export const SCORE_WEIGHTS = {
-  waterQuality: 33.33,  // Highest priority - safety first
-  tideAndCurrent: 27.78, // Affects difficulty and safety
-  waves: 22.22,         // Affects comfort and safety
-  weather: 16.67,       // Affects comfort
+  waterQuality: 30,      // Highest priority - safety first
+  tideAndCurrent: 25,    // Affects difficulty and safety
+  waves: 20,             // Affects comfort and safety
+  weather: 15,           // Affects comfort
+  damReleases: 10,       // Affects bay currents and water flow
 } as const;
 
 /**
