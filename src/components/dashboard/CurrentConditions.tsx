@@ -342,7 +342,7 @@ export default function CurrentConditions() {
                 : '',
               waterQuality?.notes || '', // Shows "Sampled X days ago"
               waterQuality?.source ? `Source: ${waterQuality.source}` : '', // Show which API
-              waterQuality?.source === 'SF Beach Water Quality'
+              waterQuality?.source?.includes('SF Beach Water Quality')
                 ? '🔗 https://data.sfgov.org/Energy-and-Environment/Beach-Water-Quality-Monitoring/v3fv-x3ux'
                 : '',
               ...(score?.factors?.waterQuality?.issues ?? []),

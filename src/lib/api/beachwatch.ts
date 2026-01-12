@@ -59,28 +59,28 @@ function daysAgo(days: number): Date {
 
 /**
  * Fetch water quality data from SF Gov Beach Water Quality Monitoring (Primary source)
- * Queries location BAY#211_SL (Aquatic Park)
+ * Queries locations BAY#211_SL (Aquatic Park) and BAY#210.1_SL (Hyde Street Pier)
  */
 async function fetchFromSFGov(): Promise<WaterQuality | null> {
   try {
     const response = await axios.get(SF_BEACH_WQ_API, {
       params: {
-        $where: "source like '%211%'",
+        $where: "source like '%210%' OR source like '%211%'",
         $order: 'sample_date DESC',
-        $limit: 100,
+        $limit: 200,
       },
       timeout: 10000,
     });
 
     if (!response.data || !Array.isArray(response.data) || response.data.length === 0) {
-      console.warn('No data from SF Gov Beach Water Quality API for location 211');
+      console.warn('No data from SF Gov Beach Water Quality API for locations 210/211');
       return null;
     }
 
-    console.log(`SF Gov API: Retrieved ${response.data.length} records for location 211 (Aquatic Park)`);
+    console.log(`SF Gov API: Retrieved ${response.data.length} records for locations 210/211 (Hyde St Pier & Aquatic Park)`);
 
-    // Find the most recent Enterococcus measurement (analyte = "ENTERO")
-    const enterococcusRecord = response.data.find(
+    // Find the most recent Enterococcus measurements from both locations
+    const aquaticParkRecord = response.data.find(
       (record: any) =>
         record.source === 'BAY#211_SL' &&
         record.analyte === 'ENTERO' &&
@@ -89,21 +89,51 @@ async function fetchFromSFGov(): Promise<WaterQuality | null> {
         !isNaN(parseFloat(record.data))
     );
 
-    if (!enterococcusRecord) {
-      console.warn('No ENTERO (Enterococcus) data found in SF Gov API response for BAY#211_SL');
+    const hydePierRecord = response.data.find(
+      (record: any) =>
+        record.source === 'BAY#210.1_SL' &&
+        record.analyte === 'ENTERO' &&
+        record.data !== null &&
+        record.data !== undefined &&
+        !isNaN(parseFloat(record.data))
+    );
+
+    if (!aquaticParkRecord && !hydePierRecord) {
+      console.warn('No ENTERO (Enterococcus) data found in SF Gov API response for either location');
       return null;
     }
 
-    const sampleDate = new Date(enterococcusRecord.sample_date);
-    const enterococcus = parseFloat(enterococcusRecord.data);
+    // Use the most recent data between the two locations
+    let selectedRecord = aquaticParkRecord;
+    let locationName = 'Aquatic Park';
 
-    console.log(`SF Gov: Found Enterococcus ${enterococcus} MPN/100ml from ${sampleDate.toLocaleDateString()} (${enterococcusRecord.source})`);
+    if (aquaticParkRecord && hydePierRecord) {
+      const aquaticDate = new Date(aquaticParkRecord.sample_date).getTime();
+      const hydeDate = new Date(hydePierRecord.sample_date).getTime();
+
+      if (hydeDate > aquaticDate) {
+        selectedRecord = hydePierRecord;
+        locationName = 'Hyde St Pier';
+      }
+    } else if (hydePierRecord && !aquaticParkRecord) {
+      selectedRecord = hydePierRecord;
+      locationName = 'Hyde St Pier';
+    }
+
+    if (!selectedRecord) {
+      return null;
+    }
+
+    const sampleDate = new Date(selectedRecord.sample_date);
+    const enterococcus = parseFloat(selectedRecord.data);
+
+    console.log(`SF Gov: Found Enterococcus ${enterococcus} MPN/100ml from ${sampleDate.toLocaleDateString()} (${selectedRecord.source} - ${locationName})`);
 
     return {
       timestamp: sampleDate,
       enterococcusCount: enterococcus,
       status: assessWaterQualityStatus(enterococcus, undefined),
-      source: 'SF Beach Water Quality',
+      source: `SF Beach Water Quality (${locationName})`,
       notes: `Sampled ${formatSampleAge(sampleDate)}`,
     };
   } catch (error) {

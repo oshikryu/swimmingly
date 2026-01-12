@@ -28,7 +28,7 @@ A Next.js web application that helps swimmers determine optimal swimming times a
   - NOAA NDBC (Buoy data)
   - Open-Meteo (Weather backup)
   - CDEC - California Data Exchange Center (Dam releases)
-  - SF Beach Water Quality Monitoring (Primary water quality source - location BAY#211_SL)
+  - SF Beach Water Quality Monitoring (Primary water quality source - locations BAY#211_SL & BAY#210.1_SL)
   - CA Water Quality Portal (Water quality fallback)
   - SF Open Data (Sewer overflow alerts)
 
@@ -260,7 +260,7 @@ All thresholds are configured in `src/config/thresholds.ts`:
 - **NOAA NDBC**: Wave data from Buoy 46237 (San Francisco offshore) and Buoy 46026 (backup)
 - **Open-Meteo**: Weather data backup (wind speed, direction, gusts, air temperature)
 - **CDEC (California Data Exchange Center)**: 48 hours of hourly dam release data from Shasta, Oroville, Folsom, Pardee, and Camanche dams
-- **SF Beach Water Quality Monitoring** (Primary): Real-time Enterococcus measurements for Aquatic Park (location BAY#211_SL) via SF Gov Open Data API
+- **SF Beach Water Quality Monitoring** (Primary): Real-time Enterococcus measurements for Aquatic Park (BAY#211_SL) and Hyde Street Pier (BAY#210.1_SL) via SF Gov Open Data API - uses most recent data from either location
 - **CA Water Quality Portal** (Fallback): Historical water quality monitoring when SF data unavailable
 - **SF Open Data**: Sewer overflow alerts and incident tracking
 
