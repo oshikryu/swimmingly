@@ -305,6 +305,7 @@ function scoreWeather(weather: WeatherData): SwimScoreFactors['weather'] {
 /**
  * Score dam releases (10% weight)
  * Dam releases affect bay currents and water flow patterns
+ * Uses 48-hour historical data to account for time lag (releases take 24-48h to reach SF Bay)
  */
 function scoreDamReleases(
   damReleases: DamReleaseData | null
@@ -324,40 +325,57 @@ function scoreDamReleases(
     };
   }
 
-  const { totalFlowCFS, dams, releaseLevel } = damReleases;
+  const { current, historical48h, dams } = damReleases;
   const thresholds = SAFETY_THRESHOLDS.damReleases;
 
-  // Score based on total flow
-  // Note: thresholds.low is the boundary between low and moderate (30k)
-  if (totalFlowCFS > thresholds.extreme) {
+  // Calculate weighted flow accounting for time lag
+  // Recent 24h weighted 60%, older 24h weighted 40%
+  // This reflects that releases from 24-48 hours ago are currently affecting bay conditions
+  const weightedAvgFlow =
+    (historical48h.last24hAverage * 0.6) +
+    (historical48h.last48hAverage * 0.4);
+
+  // Consider peak flow (indicates maximum current strength)
+  // Use 80% of peak to avoid over-weighting brief spikes
+  const peakComponent = historical48h.peakFlowCFS * 0.8;
+
+  // Use the higher of weighted average or peak component for scoring
+  const scoringFlow = Math.max(weightedAvgFlow, peakComponent);
+
+  // Apply thresholds to weighted flow
+  if (scoringFlow > thresholds.extreme) {
     score = 10;
-    issues.push(`Extreme dam releases (${Math.round(totalFlowCFS).toLocaleString()} CFS)`);
+    issues.push(`Extreme dam releases (48h peak: ${Math.round(historical48h.peakFlowCFS).toLocaleString()} CFS)`);
     issues.push('Very strong currents expected - swimming not recommended');
-  } else if (totalFlowCFS > thresholds.high) {
+  } else if (scoringFlow > thresholds.high) {
     score = 30;
-    issues.push(`High dam releases (${Math.round(totalFlowCFS).toLocaleString()} CFS)`);
+    issues.push(`High dam releases (48h avg: ${Math.round(historical48h.averageFlowCFS).toLocaleString()} CFS)`);
     issues.push('Strong currents - experienced swimmers only');
-  } else if (totalFlowCFS > thresholds.moderate) {
+  } else if (scoringFlow > thresholds.moderate) {
     score = 65;
-    issues.push(`High dam releases (${Math.round(totalFlowCFS).toLocaleString()} CFS)`);
-    issues.push('Strong currents - experienced swimmers only');
-  } else if (totalFlowCFS > thresholds.low) {
-    score = 75;
-    issues.push(`Moderate dam releases (${Math.round(totalFlowCFS).toLocaleString()} CFS)`);
+    issues.push(`Elevated dam releases (48h avg: ${Math.round(historical48h.averageFlowCFS).toLocaleString()} CFS)`);
     issues.push('Increased current strength');
+  } else if (scoringFlow > thresholds.low) {
+    score = 75;
+    issues.push(`Moderate dam releases (48h avg: ${Math.round(historical48h.averageFlowCFS).toLocaleString()} CFS)`);
   } else {
     score = 100;
   }
 
+  // Add trend warning if releases are increasing and already elevated
+  if (historical48h.trendDirection === 'increasing' && scoringFlow > thresholds.low) {
+    issues.push('Dam releases trending upward - conditions may worsen');
+  }
+
   // Find top contributor
   const topDam = dams.reduce((max, dam) =>
-    dam.flowCFS > max.flowCFS ? dam : max
-  , dams[0] || { name: 'Unknown', flowCFS: 0 });
+    dam.current.flowCFS > max.current.flowCFS ? dam : max
+  , dams[0] || { name: 'Unknown', current: { flowCFS: 0 } });
 
   return {
     score,
-    totalFlowCFS,
-    releaseLevel,
+    totalFlowCFS: current.totalFlowCFS,
+    releaseLevel: current.releaseLevel,
     topContributor: topDam.name,
     issues,
   };

@@ -248,19 +248,21 @@ export default function CurrentConditions() {
                 if (tide?.nextHigh) {
                   tideEvents.push({
                     label: 'Next high',
-                    timestamp: new Date(tide.nextHigh.timestamp)
+                    timestamp: new Date(tide.nextHigh.timestamp),
+                    heightFeet: tide.nextHigh.heightFeet
                   });
                 }
                 if (tide?.nextLow) {
                   tideEvents.push({
                     label: 'Next low',
-                    timestamp: new Date(tide.nextLow.timestamp)
+                    timestamp: new Date(tide.nextLow.timestamp),
+                    heightFeet: tide.nextLow.heightFeet
                   });
                 }
                 // Sort by timestamp (earliest first)
                 tideEvents.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
                 return tideEvents.map(event =>
-                  `${event.label}: ${event.timestamp.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })}`
+                  `${event.label}: ${event.timestamp.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} (${event.heightFeet.toFixed(1)} ft)`
                 );
               })()),
               latestTideCurrentTimestamp ? `Updated: ${latestTideCurrentTimestamp.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} PST${isUsingCachedTideData ? ' (cached)' : ''}` : '',
@@ -335,20 +337,54 @@ export default function CurrentConditions() {
             icon="🏔️"
             details={[
               `Level: ${score?.factors?.damReleases?.releaseLevel ?? 'unknown'}`,
-              `Total Flow: ${score?.factors?.damReleases?.totalFlowCFS?.toLocaleString() ?? '0'} CFS`,
+
+              // Current snapshot
+              `Current: ${score?.factors?.damReleases?.totalFlowCFS?.toLocaleString() ?? '0'} CFS`,
+
+              // 48-hour historical context
+              damReleases?.historical48h?.averageFlowCFS
+                ? `48h Average: ${Math.round(damReleases.historical48h.averageFlowCFS).toLocaleString()} CFS`
+                : '',
+
+              damReleases?.historical48h?.peakFlowCFS
+                ? `48h Peak: ${Math.round(damReleases.historical48h.peakFlowCFS).toLocaleString()} CFS`
+                : '',
+
+              // Trend indicator with emoji
+              damReleases?.historical48h?.trendDirection
+                ? `Trend: ${damReleases.historical48h.trendDirection === 'increasing' ? '↗️ Increasing'
+                    : damReleases.historical48h.trendDirection === 'decreasing' ? '↘️ Decreasing'
+                    : '→ Stable'}`
+                : '',
+
+              // Explanatory note about time lag
+              '⏱️ Dam releases take 24-48 hours to reach SF Bay',
+              'Score reflects recent releases affecting current conditions',
+
+              // Top source
               `Top Source: ${score?.factors?.damReleases?.topContributor ?? 'Unknown'}`,
+
+              // Thresholds
               `Thresholds: Low <${SAFETY_THRESHOLDS.damReleases.moderate.toLocaleString()}CFS, Moderate <${SAFETY_THRESHOLDS.damReleases.high.toLocaleString()}CFS, High <${SAFETY_THRESHOLDS.damReleases.extreme.toLocaleString()}CFS`,
-              // Show individual dam contributions
+
+              // Individual dam contributions with 48h peak
               ...(damReleases?.dams
-                .filter(dam => dam.flowCFS > 0)
-                .sort((a, b) => b.flowCFS - a.flowCFS)
+                .filter(dam => dam.current.flowCFS > 0)
+                .sort((a, b) => b.current.flowCFS - a.current.flowCFS)
                 .slice(0, 3)  // Top 3 dams
-                .map(dam => `${dam.name}: ${Math.round(dam.flowCFS).toLocaleString()} CFS (${dam.percentOfTotal.toFixed(0)}%)`)
+                .map(dam =>
+                  `${dam.name}: ${Math.round(dam.current.flowCFS).toLocaleString()} CFS (${dam.current.percentOfTotal.toFixed(0)}%)` +
+                  (dam.historical48h?.peakFlowCFS ? ` - 48h peak: ${Math.round(dam.historical48h.peakFlowCFS).toLocaleString()}` : '')
+                )
                 || []
               ),
+
+              // Latest data timestamp
               damReleases?.latestDataTimestamp
                 ? `Latest Data: ${new Date(damReleases.latestDataTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} PST`
                 : '',
+
+              // Issues/warnings from scoring algorithm
               ...(score?.factors?.damReleases?.issues ?? []),
             ].filter(Boolean)}
           />
