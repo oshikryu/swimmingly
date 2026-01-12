@@ -217,8 +217,27 @@ export default function CurrentConditions() {
   const waterQualityStatus = mapWaterQualityStatus(score?.factors?.waterQuality?.status ?? 'safe');
   const damReleasesStatus = mapDamReleasesStatus(score?.factors?.damReleases?.releaseLevel ?? 'low');
 
+  // Clear localStorage and refresh
+  const handleClearCache = () => {
+    if (confirm('Clear all cached data and refresh?')) {
+      localStorage.clear();
+      window.location.reload();
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Clear Cache Button */}
+      <div className="flex justify-end">
+        <button
+          onClick={handleClearCache}
+          className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-md transition-colors border border-gray-300 dark:border-gray-600"
+          title="Clear cached data and refresh"
+        >
+          🗑️ Clear Cache
+        </button>
+      </div>
+
       {/* Swim Score */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1">
@@ -236,12 +255,12 @@ export default function CurrentConditions() {
             title="Tide & Current"
             value={tideHeight.toFixed(1)}
             unit="ft"
+            threshold={`Slack <${SAFETY_THRESHOLDS.current.slack}kt, Moderate <${SAFETY_THRESHOLDS.current.moderate}kt, Strong <${SAFETY_THRESHOLDS.current.strong}kt, Dangerous >${SAFETY_THRESHOLDS.current.veryStrong}kt`}
             status={tideStatus}
             icon="🌊"
             details={[
               `Phase: ${score?.factors?.tideAndCurrent?.phase ?? 'unknown'}`,
               `Current: ${currentSpeed.toFixed(1)} knots ${currentSource}`,
-              `Thresholds: Slack <${SAFETY_THRESHOLDS.current.slack}kt, Moderate <${SAFETY_THRESHOLDS.current.moderate}kt, Strong <${SAFETY_THRESHOLDS.current.strong}kt, Dangerous >${SAFETY_THRESHOLDS.current.veryStrong}kt`,
               // Sort next high/low by timestamp - show whichever comes first
               ...((() => {
                 const tideEvents = [];
@@ -274,12 +293,12 @@ export default function CurrentConditions() {
             title="Waves"
             value={waveHeight.toFixed(1)}
             unit="ft"
+            threshold={`Calm <${SAFETY_THRESHOLDS.waves.calm}ft, Safe <${SAFETY_THRESHOLDS.waves.safe}ft, Moderate <${SAFETY_THRESHOLDS.waves.moderate}ft, Rough <${SAFETY_THRESHOLDS.waves.rough}ft`}
             status={waveStatus}
             icon="🌊"
             details={[
               `Status: ${score?.factors?.waves?.status ?? 'unknown'}`,
               swellPeriod ? `Period: ${swellPeriod.toFixed(0)}s` : '',
-              `Thresholds: Calm <${SAFETY_THRESHOLDS.waves.calm}ft, Safe <${SAFETY_THRESHOLDS.waves.safe}ft, Moderate <${SAFETY_THRESHOLDS.waves.moderate}ft, Rough <${SAFETY_THRESHOLDS.waves.rough}ft`,
               conditions.waves?.source ? `Station: ${conditions.waves.source}` : '',
               conditions.waves?.timestamp ? `Updated: ${new Date(conditions.waves.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} PST` : '',
               ...(score?.factors?.waves?.issues ?? []),
@@ -290,6 +309,7 @@ export default function CurrentConditions() {
             title="Wind"
             value={windSpeed.toFixed(0)}
             unit="mph"
+            threshold={`Calm <${SAFETY_THRESHOLDS.wind.calm}mph, Light <${SAFETY_THRESHOLDS.wind.light}mph, Moderate <${SAFETY_THRESHOLDS.wind.moderate}mph, Strong <${SAFETY_THRESHOLDS.wind.strong}mph`}
             status={weatherStatus}
             icon="💨"
             details={[
@@ -297,7 +317,6 @@ export default function CurrentConditions() {
               windGust ? `Gusts: ${windGust.toFixed(0)} mph` : '',
               windDirection !== undefined ? `Direction: ${windDirection}°` : '',
               `Air Temp: ${temperature.toFixed(0)}°F`,
-              `Thresholds: Calm <${SAFETY_THRESHOLDS.wind.calm}mph, Light <${SAFETY_THRESHOLDS.wind.light}mph, Moderate <${SAFETY_THRESHOLDS.wind.moderate}mph, Strong <${SAFETY_THRESHOLDS.wind.strong}mph`,
               weather?.timestamp ? `Updated: ${formatTimestamp(weather.timestamp)}` : '',
               windSourceDisplay ? `Source: ${windSourceDisplay}` : '',
               ...(score?.factors?.weather?.issues ?? []),
@@ -307,6 +326,7 @@ export default function CurrentConditions() {
           <ConditionsCard
             title="Water Quality"
             value={(score?.factors?.waterQuality?.status ?? 'unknown').toUpperCase()}
+            threshold={`Safe <${SAFETY_THRESHOLDS.waterQuality.enterococcus.safe}, Advisory <${SAFETY_THRESHOLDS.waterQuality.enterococcus.advisory}, Dangerous >${SAFETY_THRESHOLDS.waterQuality.enterococcus.dangerous} MPN/100ml`}
             status={waterQualityStatus}
             icon="💧"
             details={[
@@ -320,9 +340,11 @@ export default function CurrentConditions() {
               score?.factors?.waterQuality?.recentSSO
                 ? `SSO ${score?.factors?.waterQuality?.daysSinceSSO ?? '?'} days ago`
                 : '',
-              `Thresholds (Enterococcus): Safe <${SAFETY_THRESHOLDS.waterQuality.enterococcus.safe}, Advisory <${SAFETY_THRESHOLDS.waterQuality.enterococcus.advisory}, Dangerous >${SAFETY_THRESHOLDS.waterQuality.enterococcus.dangerous} MPN/100ml`,
               waterQuality?.notes || '', // Shows "Sampled X days ago"
               waterQuality?.source ? `Source: ${waterQuality.source}` : '', // Show which API
+              waterQuality?.source === 'SF Beach Water Quality'
+                ? '🔗 https://data.sfgov.org/Energy-and-Environment/Beach-Water-Quality-Monitoring/v3fv-x3ux'
+                : '',
               ...(score?.factors?.waterQuality?.issues ?? []),
             ].filter(Boolean)}
           />
@@ -333,6 +355,7 @@ export default function CurrentConditions() {
               ? Math.round(score.factors.damReleases.totalFlowCFS / 1000).toString() + 'k'
               : '0'}
             unit="CFS"
+            threshold={`Low <${SAFETY_THRESHOLDS.damReleases.moderate.toLocaleString()}CFS, Moderate <${SAFETY_THRESHOLDS.damReleases.high.toLocaleString()}CFS, High <${SAFETY_THRESHOLDS.damReleases.extreme.toLocaleString()}CFS`}
             status={damReleasesStatus}
             icon="🏔️"
             details={[
@@ -363,9 +386,6 @@ export default function CurrentConditions() {
 
               // Top source
               `Top Source: ${score?.factors?.damReleases?.topContributor ?? 'Unknown'}`,
-
-              // Thresholds
-              `Thresholds: Low <${SAFETY_THRESHOLDS.damReleases.moderate.toLocaleString()}CFS, Moderate <${SAFETY_THRESHOLDS.damReleases.high.toLocaleString()}CFS, High <${SAFETY_THRESHOLDS.damReleases.extreme.toLocaleString()}CFS`,
 
               // Individual dam contributions with 48h peak
               ...(damReleases?.dams

@@ -7,12 +7,14 @@ A Next.js web application that helps swimmers determine optimal swimming times a
 - **Real-time Conditions Dashboard**: Current swim score and environmental conditions
 - **Intelligent Swim Scoring**: Weighted algorithm considering:
   - Water Quality (30%) - Bacteria levels and sewer overflow events
-  - Tides & Currents (25%) - Optimal timing for slack tide
+  - Tides & Currents (25%) - Optimal timing for slack tide with customizable preferences
   - Waves (20%) - Swell height and period
-  - Weather (15%) - Wind, temperature, visibility
-  - Visibility (10%) - Safety factor
+  - Weather (15%) - Wind, temperature, precipitation
+  - Dam Releases (10%) - 48-hour historical flow data accounting for time lag
+- **48-Hour Dam Release Tracking**: Monitors upstream dam releases that affect bay currents
 - **Safety First**: Prominent warnings for poor water quality and dangerous conditions
 - **Auto-refresh**: Updates every 5 minutes with fresh data
+- **Customizable Tide Preferences**: Set your preferred tide phase (slack/flood/ebb)
 
 ## Tech Stack
 
@@ -24,8 +26,11 @@ A Next.js web application that helps swimmers determine optimal swimming times a
   - NOAA Tides & Currents API
   - NOAA National Weather Service API
   - NOAA NDBC (Buoy data)
-  - SF PUC (Sewer overflow alerts)
-  - CA Beach Watch (Water quality)
+  - Open-Meteo (Weather backup)
+  - CDEC - California Data Exchange Center (Dam releases)
+  - SF Beach Water Quality Monitoring (Primary water quality source - location BAY#211_SL)
+  - CA Water Quality Portal (Water quality fallback)
+  - SF Open Data (Sewer overflow alerts)
 
 ## Getting Started
 
@@ -147,8 +152,8 @@ The swim score (0-100) is calculated using weighted factors:
    - Days since last SSO event
 
 2. **Tide & Current (25%)**
-   - Tide phase (slack = best)
-   - Current speed
+   - Tide phase (customizable preference: slack/flood/ebb)
+   - Current speed (measured or estimated from tide rate)
    - Rate of tide change
 
 3. **Waves (20%)**
@@ -161,9 +166,11 @@ The swim score (0-100) is calculated using weighted factors:
    - Air temperature
    - Precipitation
 
-5. **Visibility (10%)**
-   - Visual range
-   - Safety factor
+5. **Dam Releases (10%)**
+   - 48-hour historical flow data from major upstream dams
+   - Weighted averaging (60% last 24h, 40% older 24h) to account for time lag
+   - Dam releases take 24-48 hours to reach SF Bay
+   - Monitors: Shasta, Oroville, Folsom, Pardee, Camanche dams
 
 **Score Ranges:**
 - 80-100: Excellent conditions
@@ -171,6 +178,25 @@ The swim score (0-100) is calculated using weighted factors:
 - 40-59: Fair (experienced swimmers)
 - 20-39: Poor (not recommended)
 - 0-19: Dangerous (do not swim)
+
+### Dam Release Time-Lag Modeling
+
+The app includes sophisticated modeling of upstream dam releases and their delayed impact on SF Bay currents:
+
+- **Transit Time**: Water released from dams takes 24-48 hours to reach SF Bay
+  - Shasta Dam (Sacramento River): 2-5 days
+  - Oroville Dam (Feather River): 2-4 days
+  - Folsom Dam (American River): 1-3 days
+
+- **48-Hour Historical Window**: Fetches hourly flow data to capture releases currently affecting bay conditions
+
+- **Weighted Scoring**: Recent releases (last 24h) weighted 60%, older releases (24-48h ago) weighted 40%
+
+- **Peak Detection**: Identifies maximum flow in 48h window (at 80% weight) to catch intense but brief releases
+
+- **Trend Analysis**: Compares first 12 hours vs last 12 hours to determine if releases are increasing, stable, or decreasing
+
+This provides swimmers with accurate assessments based on what's actually happening in the bay right now, not just what dams are releasing at this moment.
 
 ## Safety Thresholds
 
@@ -180,6 +206,7 @@ All thresholds are configured in `src/config/thresholds.ts`:
 - **Waves**: Calm < 2 ft, Safe < 3 ft, Moderate < 5 ft, Rough < 8 ft
 - **Wind**: Calm < 5 mph, Light < 10 mph, Moderate < 15 mph, Strong < 20 mph
 - **Current**: Slack < 0.3 kts, Slow < 0.5 kts, Moderate < 1.0 kts, Strong > 1.0 kts
+- **Dam Releases**: Low < 30k CFS, Moderate < 50k CFS, High < 80k CFS, Extreme > 100k CFS
 - **SSO**: Caution period = 3 days, Warning period = 7 days
 
 ## Development Roadmap
@@ -187,26 +214,29 @@ All thresholds are configured in `src/config/thresholds.ts`:
 ### Current Status ✅
 - [x] Project setup with Next.js, TypeScript, Tailwind
 - [x] NOAA API client (tides, weather, waves)
-- [x] SF PUC API client (sewer overflows)
-- [x] Water quality API integration
-- [x] Swim score algorithm
+- [x] SF Open Data API client (sewer overflows)
+- [x] CA Water Quality Portal integration
+- [x] CDEC API client (dam releases with 48-hour historical data)
+- [x] Open-Meteo weather backup integration
+- [x] Swim score algorithm with customizable tide preferences
 - [x] Current conditions dashboard
-- [x] Real-time data fetching
+- [x] Real-time data fetching with localStorage caching
+- [x] 48-hour dam release tracking with time-lag modeling
 
 ### Next Steps 🚀
 
-1. **Forecast View** (Phase 6)
+1. **Forecast View**
    - 48-hour forecast timeline
    - Optimal swim window detection
    - Hour-by-hour predictions
 
-2. **Interactive Map** (Phase 5)
+2. **Interactive Map**
    - Mapbox integration
    - Swimming route visualization
    - Current flow arrows
    - Route difficulty based on conditions
 
-3. **Historical Analysis** (Phase 7)
+3. **Historical Analysis**
    - Best times to swim (by day/month)
    - Seasonal patterns
    - Trend visualization
@@ -225,11 +255,14 @@ All thresholds are configured in `src/config/thresholds.ts`:
 
 ## Data Sources
 
-- **NOAA Tides & Currents**: Tide predictions for Station 9414290 (San Francisco)
-- **NOAA National Weather Service**: Point forecast for Aquatic Park coordinates
-- **NOAA NDBC**: Wave data from Buoy 46026 (San Francisco Bay)
-- **SF Public Utilities Commission**: Sewer overflow alerts via SF Open Data
-- **CA Beach Watch**: Water quality monitoring (placeholder - needs API key)
+- **NOAA Tides & Currents**: Tide predictions for Station 9414290 (San Francisco) and current data from Station 9414290
+- **NOAA National Weather Service**: Point forecast and observations for Aquatic Park
+- **NOAA NDBC**: Wave data from Buoy 46237 (San Francisco offshore) and Buoy 46026 (backup)
+- **Open-Meteo**: Weather data backup (wind speed, direction, gusts, air temperature)
+- **CDEC (California Data Exchange Center)**: 48 hours of hourly dam release data from Shasta, Oroville, Folsom, Pardee, and Camanche dams
+- **SF Beach Water Quality Monitoring** (Primary): Real-time Enterococcus measurements for Aquatic Park (location BAY#211_SL) via SF Gov Open Data API
+- **CA Water Quality Portal** (Fallback): Historical water quality monitoring when SF data unavailable
+- **SF Open Data**: Sewer overflow alerts and incident tracking
 
 ## Contributing
 

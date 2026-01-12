@@ -1,17 +1,22 @@
 /**
- * California Beach Watch API Client
+ * Water Quality API Client
  * Fetches water quality data including bacteria counts from multiple sources
+ * Primary: SF Gov Beach Water Quality Monitoring
+ * Fallbacks: California Water Quality Data, Water Quality Portal
  */
 
 import axios from 'axios';
 import type { WaterQuality } from '@/types/conditions';
 import { AQUATIC_PARK_LAT, AQUATIC_PARK_LON } from '@/config/aquatic-park';
 
-// California Surface Water Bacteria Data API
+// SF Gov Beach Water Quality Monitoring (Primary source) - SODA API
+const SF_BEACH_WQ_API = 'https://data.sfgov.org/resource/v3fv-x3ux.json';
+
+// California Surface Water Bacteria Data API (Fallback)
 const CA_BEACHES_API_URL = 'https://data.ca.gov/api/3/action/datastore_search';
 const CA_MEASUREMENTS_RESOURCE_ID = '15a63495-8d9f-4a49-b43a-3092ef3106b9'; // 2020-present measurements
 
-// Water Quality Portal (WQP) - Federal USGS/EPA API
+// Water Quality Portal (WQP) - Federal USGS/EPA API (Fallback)
 const WQP_STATION_API = 'https://www.waterqualitydata.us/data/Station/search';
 const WQP_RESULT_API = 'https://www.waterqualitydata.us/data/Result/search';
 
@@ -53,7 +58,66 @@ function daysAgo(days: number): Date {
 }
 
 /**
- * Fetch water quality data from California API
+ * Fetch water quality data from SF Gov Beach Water Quality Monitoring (Primary source)
+ * Queries location BAY#211_SL (Aquatic Park)
+ */
+async function fetchFromSFGov(): Promise<WaterQuality | null> {
+  try {
+    const response = await axios.get(SF_BEACH_WQ_API, {
+      params: {
+        $where: "source like '%211%'",
+        $order: 'sample_date DESC',
+        $limit: 100,
+      },
+      timeout: 10000,
+    });
+
+    if (!response.data || !Array.isArray(response.data) || response.data.length === 0) {
+      console.warn('No data from SF Gov Beach Water Quality API for location 211');
+      return null;
+    }
+
+    console.log(`SF Gov API: Retrieved ${response.data.length} records for location 211 (Aquatic Park)`);
+
+    // Find the most recent Enterococcus measurement (analyte = "ENTERO")
+    const enterococcusRecord = response.data.find(
+      (record: any) =>
+        record.source === 'BAY#211_SL' &&
+        record.analyte === 'ENTERO' &&
+        record.data !== null &&
+        record.data !== undefined &&
+        !isNaN(parseFloat(record.data))
+    );
+
+    if (!enterococcusRecord) {
+      console.warn('No ENTERO (Enterococcus) data found in SF Gov API response for BAY#211_SL');
+      return null;
+    }
+
+    const sampleDate = new Date(enterococcusRecord.sample_date);
+    const enterococcus = parseFloat(enterococcusRecord.data);
+
+    console.log(`SF Gov: Found Enterococcus ${enterococcus} MPN/100ml from ${sampleDate.toLocaleDateString()} (${enterococcusRecord.source})`);
+
+    return {
+      timestamp: sampleDate,
+      enterococcusCount: enterococcus,
+      status: assessWaterQualityStatus(enterococcus, undefined),
+      source: 'SF Beach Water Quality',
+      notes: `Sampled ${formatSampleAge(sampleDate)}`,
+    };
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      console.error('SF Gov API fetch failed:', error.message, error.response?.status);
+    } else {
+      console.error('SF Gov API fetch failed:', error);
+    }
+    return null;
+  }
+}
+
+/**
+ * Fetch water quality data from California API (Fallback)
  */
 async function fetchFromCaliforniaAPI(): Promise<WaterQuality | null> {
   try {
@@ -235,52 +299,57 @@ async function fetchFromWQP(): Promise<WaterQuality | null> {
 
 /**
  * Fetch the latest water quality data for Aquatic Park
- * Queries both APIs and uses whichever has the most recent data
+ * Queries multiple APIs and uses whichever has the most recent data
+ * Priority: SF Gov > California API > Water Quality Portal
  */
 export async function fetchWaterQuality(): Promise<WaterQuality | null> {
   try {
-    // Query both APIs in parallel for best performance
-    const [caData, wqpData] = await Promise.allSettled([
+    // Query all three APIs in parallel for best performance
+    const [sfGovData, caData, wqpData] = await Promise.allSettled([
+      fetchFromSFGov(),
       fetchFromCaliforniaAPI(),
       fetchFromWQP(),
     ]);
 
     // Extract successful results
+    const sfGovResult = sfGovData.status === 'fulfilled' ? sfGovData.value : null;
     const caResult = caData.status === 'fulfilled' ? caData.value : null;
     const wqpResult = wqpData.status === 'fulfilled' ? wqpData.value : null;
 
-    // If both failed, return null
-    if (!caResult && !wqpResult) {
+    // If all failed, return null
+    if (!sfGovResult && !caResult && !wqpResult) {
       console.warn('All water quality APIs unavailable');
       return null;
     }
 
-    // If only one succeeded, use that one
-    if (caResult && !wqpResult) {
-      console.log('Using California API data');
-      return caResult;
-    }
-    if (wqpResult && !caResult) {
-      console.log('Using Water Quality Portal data');
-      return wqpResult;
-    }
+    // Collect all successful results with their timestamps
+    const results: Array<{ data: WaterQuality; timestamp: number }> = [];
 
-    // Both succeeded - compare timestamps and use the most recent
-    if (caResult && wqpResult) {
-      const caTime = new Date(caResult.timestamp).getTime();
-      const wqpTime = new Date(wqpResult.timestamp).getTime();
-
-      if (caTime >= wqpTime) {
-        console.log(`Using California API data (${caResult.timestamp}) - more recent than WQP (${wqpResult.timestamp})`);
-        return caResult;
-      } else {
-        console.log(`Using WQP data (${wqpResult.timestamp}) - more recent than California (${caResult.timestamp})`);
-        return wqpResult;
-      }
+    if (sfGovResult) {
+      results.push({
+        data: sfGovResult,
+        timestamp: new Date(sfGovResult.timestamp).getTime(),
+      });
+    }
+    if (caResult) {
+      results.push({
+        data: caResult,
+        timestamp: new Date(caResult.timestamp).getTime(),
+      });
+    }
+    if (wqpResult) {
+      results.push({
+        data: wqpResult,
+        timestamp: new Date(wqpResult.timestamp).getTime(),
+      });
     }
 
-    // Shouldn't reach here, but just in case
-    return caResult || wqpResult;
+    // Sort by timestamp (most recent first) and return the most recent data
+    results.sort((a, b) => b.timestamp - a.timestamp);
+    const mostRecent = results[0].data;
+
+    console.log(`Using ${mostRecent.source} - Sample date: ${mostRecent.timestamp}`);
+    return mostRecent;
   } catch (error) {
     console.error('Error fetching water quality:', error);
     return null;
