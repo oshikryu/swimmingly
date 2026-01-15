@@ -300,6 +300,8 @@ export default function CurrentConditions() {
               })()),
               latestTideCurrentTimestamp ? `Updated: ${latestTideCurrentTimestamp.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} PST${isUsingCachedTideData ? ' (cached)' : ''}` : '',
               ...(score?.factors?.tideAndCurrent?.issues ?? []),
+              // Data source link
+              '🔗 https://tidesandcurrents.noaa.gov/noaatidepredictions.html?id=9414290',
             ].filter(Boolean)}
           />
 
@@ -315,6 +317,12 @@ export default function CurrentConditions() {
               swellPeriod ? `Period: ${swellPeriod.toFixed(0)}s` : '',
               conditions.waves?.source ? `Station: ${conditions.waves.source}` : '',
               conditions.waves?.timestamp ? `Updated: ${new Date(conditions.waves.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} PST` : '',
+              // Add data source links
+              conditions.waves?.source?.toLowerCase().includes('openwaterlog')
+                ? '🔗 https://openwaterlog.com/locations/aquatic-park/'
+                : conditions.waves?.source?.includes('NOAA-NDBC Buoy')
+                ? `🔗 https://www.ndbc.noaa.gov/station_page.php?station=${conditions.waves.source.match(/\d{5}/)?.[0] || '46237'}`
+                : '',
               ...(score?.factors?.waves?.issues ?? []),
             ].filter(Boolean)}
           />
@@ -334,6 +342,12 @@ export default function CurrentConditions() {
               weather?.timestamp ? `Updated: ${formatTimestamp(weather.timestamp)}` : '',
               windSourceDisplay ? `Source: ${windSourceDisplay}` : '',
               ...(score?.factors?.weather?.issues ?? []),
+              // Data source link
+              isOpenMeteoWind
+                ? '🔗 https://open-meteo.com/'
+                : windSource?.includes('NOAA')
+                ? '🔗 https://www.weather.gov/'
+                : '',
             ].filter(Boolean)}
           />
 
@@ -421,6 +435,9 @@ export default function CurrentConditions() {
 
               // Issues/warnings from scoring algorithm
               ...(score?.factors?.damReleases?.issues ?? []),
+
+              // Data source link
+              '🔗 https://cdec.water.ca.gov/',
             ].filter(Boolean)}
           />
         </div>
