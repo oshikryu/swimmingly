@@ -1,34 +1,31 @@
 #!/bin/bash
-# Manual export script for Next.js static files
-# This works around Next.js 15's behavior with API routes present
-
 set -e
 
 echo "📦 Exporting static files to out/ directory..."
 
-# Create out directory
+# Clean output
 rm -rf out
-mkdir -p out
+
+# Create required directories
+mkdir -p out/_next/static
 
 # Copy HTML pages
 cp .next/server/app/index.html out/
 cp .next/server/app/_not-found.html out/404.html
+
 cp .next/server/pages/404.html out/_404.html 2>/dev/null || true
 cp .next/server/pages/500.html out/500.html 2>/dev/null || true
 
-# Create _next directory structure
-mkdir -p out/_next
+cp -r .next/static/* out/_next/static/
 
-# Copy static assets
-cp -r .next/static out/_next/
+# Copy public assets
 cp -r public/* out/ 2>/dev/null || true
 
-# Create .nojekyll to bypass Jekyll processing on GitHub Pages
+# Disable Jekyll for GitHub Pages
 touch out/.nojekyll
 
 echo "✅ Static export complete!"
 echo "📁 Files exported to: out/"
 echo ""
-echo "To test locally:"
+echo "Test locally:"
 echo "  npx serve out"
-echo ""
