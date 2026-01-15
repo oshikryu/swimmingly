@@ -274,6 +274,7 @@ export default function CurrentConditions() {
             icon="🌊"
             details={[
               `Phase: ${score?.factors?.tideAndCurrent?.phase ?? 'unknown'}`,
+              `Current: ${currentSpeed.toFixed(2)} kts ${currentSource}`,
               // Sort next high/low by timestamp - show whichever comes first
               ...((() => {
                 const tideEvents = [];
