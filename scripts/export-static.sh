@@ -23,6 +23,9 @@ mkdir -p out/_next
 cp -r .next/static out/_next/
 cp -r public/* out/ 2>/dev/null || true
 
+# Create .nojekyll to bypass Jekyll processing on GitHub Pages
+touch out/.nojekyll
+
 echo "✅ Static export complete!"
 echo "📁 Files exported to: out/"
 echo ""

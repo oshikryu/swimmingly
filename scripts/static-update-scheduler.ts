@@ -50,6 +50,9 @@ async function updateStaticSite() {
   log('🌊 Starting static site update...', colors.blue);
 
   try {
+    // Import fs/promises
+    const fs = await import('fs/promises');
+
     // Step 1: Check if API is available
     log('Checking API availability...', colors.dim);
     try {
@@ -77,7 +80,6 @@ async function updateStaticSite() {
     };
 
     // Write to public/static-data.json
-    const fs = await import('fs/promises');
     const staticDataPath = path.join(CONFIG.projectDir, 'public', 'static-data.json');
     await fs.writeFile(staticDataPath, JSON.stringify(staticData, null, 2), 'utf-8');
     log(`✓ Wrote data to ${staticDataPath}`, colors.green);
@@ -99,6 +101,10 @@ async function updateStaticSite() {
     // Step 4: Deploy to GitHub Pages
     log('Deploying to GitHub Pages...', colors.dim);
     const buildDir = path.join(CONFIG.projectDir, 'out');
+
+    // Create .nojekyll file to bypass Jekyll processing
+    await fs.writeFile(path.join(buildDir, '.nojekyll'), '', 'utf-8');
+    log('✓ Created .nojekyll file', colors.dim);
 
     // Initialize git in out directory
     await execAsync('git init', { cwd: buildDir });
