@@ -4,6 +4,8 @@ const repo = "swimmingly"
 
 const nextConfig: NextConfig = {
   /* config options here */
+  basePath: `/${repo}`,
+  assetPrefix: `/${repo}/`,
 
   // Enable static export when BUILD_MODE=static
   ...(process.env.BUILD_MODE === 'static' && {
@@ -12,8 +14,6 @@ const nextConfig: NextConfig = {
     images: {
       unoptimized: true, // Required for static export
     },
-    basePath: `/${repo}`,
-    assetPrefix: `/${repo}/`,
   }),
 };
 
