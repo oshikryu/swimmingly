@@ -55,13 +55,13 @@ export default function CurrentConditions() {
     }
   }, [isLoaded, preference]);
 
-  // Setup auto-refresh interval (disabled in static mode)
+  // Setup auto-refresh interval (disabled on GitHub Pages static site)
   useEffect(() => {
-    // Detect static mode
-    const isStaticMode = process.env.NEXT_PUBLIC_BUILD_MODE === 'static';
+    // Detect if we're on GitHub Pages
+    const isGitHubPages = typeof window !== 'undefined' && window.location.hostname.includes('github.io');
 
-    // Only set up auto-refresh in dynamic mode
-    if (!isStaticMode) {
+    // Only set up auto-refresh in dynamic mode (not on GitHub Pages)
+    if (!isGitHubPages) {
       // Refresh every 5 minutes
       const interval = setInterval(() => fetchConditions(preference, true), 5 * 60 * 1000);
       return () => clearInterval(interval);
@@ -75,12 +75,12 @@ export default function CurrentConditions() {
         setLoading(true);
       }
 
-      // Detect static mode
-      const isStaticMode = process.env.NEXT_PUBLIC_BUILD_MODE === 'static';
+      // Detect static mode by checking if we're on GitHub Pages
+      const isGitHubPages = typeof window !== 'undefined' && window.location.hostname.includes('github.io');
 
-      // In static mode, fetch from static-data.json
-      const url = isStaticMode
-        ? '/static-data.json'
+      // Build the URL based on environment
+      const url = isGitHubPages
+        ? '/swimmingly/static-data.json'
         : (() => {
             // Include tide preference in API call for dynamic mode
             const params = new URLSearchParams();

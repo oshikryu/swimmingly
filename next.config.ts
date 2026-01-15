@@ -1,20 +1,8 @@
 import type { NextConfig } from "next";
 
-const repo = "swimmingly"
-
 const nextConfig: NextConfig = {
-  /* config options here */
-  basePath: `/${repo}`,
-  assetPrefix: `/${repo}/`,
-
-  // Enable static export when BUILD_MODE=static
-  ...(process.env.BUILD_MODE === 'static' && {
-    output: 'export',
-    // Disable features incompatible with static export
-    images: {
-      unoptimized: true, // Required for static export
-    },
-  }),
+  // Note: basePath/assetPrefix not used here because output:'export' conflicts with API routes.
+  // The export-static.sh script handles path prefixing via sed post-processing.
 };
 
 export default nextConfig;

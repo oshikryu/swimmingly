@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+REPO_NAME="swimmingly"
+
 echo "📦 Exporting static files to out/ directory..."
 
 # Clean output
@@ -23,6 +25,16 @@ cp -r public/* out/ 2>/dev/null || true
 
 # Disable Jekyll for GitHub Pages
 touch out/.nojekyll
+
+# Add basePath prefix to all asset URLs for GitHub Pages deployment
+echo "🔧 Adding /${REPO_NAME}/ prefix to asset paths..."
+for file in out/*.html; do
+  if [ -f "$file" ]; then
+    # Prefix /_next/ paths with /swimmingly
+    sed -i '' "s|\"/_next/|\"/${REPO_NAME}/_next/|g" "$file"
+    sed -i '' "s|'/_next/|'/${REPO_NAME}/_next/|g" "$file"
+  fi
+done
 
 echo "✅ Static export complete!"
 echo "📁 Files exported to: out/"
