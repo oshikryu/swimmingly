@@ -117,102 +117,586 @@ swimmingly/
 
 ## API Endpoints
 
-### `/api/conditions`
-Returns current conditions including swim score, tide, weather, waves, and water quality.
+### `GET /api/conditions`
+
+Returns current conditions including swim score, tide, weather, waves, water quality, and dam releases.
+
+**Query Parameters:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `tidePhasePreference` | `slack` \| `flood` \| `ebb` | `slack` | Preferred tide phase for score calculation |
+
+**Example Request:**
+```bash
+curl "http://localhost:3000/api/conditions?tidePhasePreference=slack"
+```
 
 **Response:**
 ```json
 {
-  "timestamp": "2024-01-06T12:00:00Z",
+  "timestamp": "2026-01-15T22:20:05.245Z",
   "score": {
-    "overallScore": 78,
-    "rating": "good",
-    "factors": { ... },
-    "recommendations": [...],
-    "warnings": [...]
+    "timestamp": "2026-01-15T22:20:05.247Z",
+    "overallScore": 84,
+    "rating": "excellent",
+    "factors": {
+      "waterQuality": {
+        "score": 100,
+        "status": "safe",
+        "bacteriaLevel": "safe",
+        "recentSSO": false,
+        "issues": []
+      },
+      "tideAndCurrent": {
+        "score": 40,
+        "phase": "ebb",
+        "currentSpeed": 1.78,
+        "tideHeight": 0.664,
+        "favorable": false,
+        "issues": ["Strong current (1.8 knots)"]
+      },
+      "waves": {
+        "score": 100,
+        "heightFeet": 0.6,
+        "status": "calm",
+        "issues": []
+      },
+      "weather": {
+        "score": 95,
+        "temperature": 60.6,
+        "windSpeed": 8.5,
+        "windCondition": "light",
+        "issues": []
+      },
+      "damReleases": {
+        "score": 100,
+        "totalFlowCFS": 27505,
+        "releaseLevel": "low",
+        "topContributor": "Shasta Dam",
+        "issues": []
+      }
+    },
+    "recommendations": [
+      "Calm water conditions",
+      "Normal dam operations",
+      "Excellent conditions for swimming"
+    ],
+    "warnings": ["Strong currents - experienced swimmers only"]
   },
-  "tide": { ... },
-  "weather": { ... },
-  "waves": { ... },
-  "waterQuality": { ... }
+  "tide": {
+    "timestamp": "2026-01-15T22:12:00.000Z",
+    "heightFeet": 0.664,
+    "type": "normal",
+    "source": "NOAA",
+    "nextHigh": {
+      "timestamp": "2026-01-16T07:13:00.000Z",
+      "heightFeet": 4.533,
+      "type": "high",
+      "source": "NOAA"
+    },
+    "nextLow": {
+      "timestamp": "2026-01-15T23:47:00.000Z",
+      "heightFeet": -0.287,
+      "type": "low",
+      "source": "NOAA"
+    },
+    "currentPhase": "ebb",
+    "changeRateFeetPerHour": 0.656
+  },
+  "current": {
+    "timestamp": "2026-01-15T22:20:00.000Z",
+    "speedKnots": 1.78,
+    "direction": 257,
+    "lat": 37.8065,
+    "lon": -122.4216,
+    "source": "NOAA"
+  },
+  "weather": {
+    "timestamp": "2026-01-15T22:15:00.000Z",
+    "temperatureF": 60.6,
+    "windSpeedMph": 8.5,
+    "windDirection": 12,
+    "windGustMph": 9.4,
+    "visibilityMiles": 10,
+    "conditions": "unavailable",
+    "source": "open-meteo"
+  },
+  "waves": {
+    "timestamp": "2026-01-15T20:00:00.000Z",
+    "waveHeightFeet": 0.6,
+    "source": "OpenWaterLog"
+  },
+  "waterQuality": {
+    "timestamp": "2026-01-12T08:00:00.000Z",
+    "enterococcusCount": 41,
+    "status": "safe",
+    "source": "SF Beach Water Quality (Aquatic Park)",
+    "stationId": "BAY#211_SL",
+    "notes": "Sampled 3 days ago"
+  },
+  "recentSSOs": [],
+  "damReleases": {
+    "timestamp": "2026-01-15T22:20:03.732Z",
+    "current": {
+      "totalFlowCFS": 27505,
+      "releaseLevel": "low"
+    },
+    "historical48h": {
+      "averageFlowCFS": 25265.16,
+      "peakFlowCFS": 29632,
+      "peakTimestamp": "2026-01-14T02:00:00.000Z",
+      "trendDirection": "stable",
+      "last24hAverage": 25545.3,
+      "last48hAverage": 25265.16,
+      "dataPointsCount": 49
+    },
+    "dams": [
+      {
+        "name": "Shasta Dam",
+        "stationId": "SHA",
+        "current": {
+          "flowCFS": 15317,
+          "timestamp": "2026-01-15T08:00:00.000Z",
+          "percentOfTotal": 55.69
+        },
+        "historical48h": {
+          "averageFlowCFS": 13813.45,
+          "peakFlowCFS": 15581,
+          "dataPoints": 49
+        }
+      }
+    ],
+    "latestDataTimestamp": "2026-01-15T08:00:00.000Z",
+    "source": "CDEC"
+  },
+  "dataFreshness": {
+    "tide": "2026-01-15T22:12:00.000Z",
+    "weather": "2026-01-15T22:20:05.245Z",
+    "waves": "2026-01-15T20:00:00.000Z",
+    "waterQuality": "2026-01-12T08:00:00.000Z",
+    "sso": "2026-01-15T22:20:05.245Z",
+    "damReleases": "2026-01-15T22:20:03.732Z"
+  }
 }
 ```
 
-### `/api/tides?hours=48`
-Returns tide predictions for the next N hours.
+---
 
-### `/api/weather`
-Returns current weather and 72-hour forecast.
+### `GET /api/tides`
 
-### `/api/waves`
-Returns current wave and swell data from NOAA buoy.
+Returns tide predictions for a specified time range.
+
+**Query Parameters:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `hours` | `number` | `48` | Number of hours to forecast |
+
+**Example Request:**
+```bash
+curl "http://localhost:3000/api/tides?hours=24"
+```
+
+**Response:**
+```json
+{
+  "current": {
+    "timestamp": "2026-01-15T22:12:00.000Z",
+    "heightFeet": 0.664,
+    "type": "normal",
+    "source": "NOAA",
+    "nextHigh": {
+      "timestamp": "2026-01-16T07:13:00.000Z",
+      "heightFeet": 4.533,
+      "type": "high",
+      "source": "NOAA"
+    },
+    "nextLow": {
+      "timestamp": "2026-01-15T23:47:00.000Z",
+      "heightFeet": -0.287,
+      "type": "low",
+      "source": "NOAA"
+    },
+    "currentPhase": "ebb",
+    "changeRateFeetPerHour": 0.656
+  },
+  "predictions": [
+    {
+      "timestamp": "2026-01-15T23:00:00.000Z",
+      "heightFeet": 0.123,
+      "type": "normal",
+      "source": "NOAA"
+    },
+    {
+      "timestamp": "2026-01-15T23:47:00.000Z",
+      "heightFeet": -0.287,
+      "type": "low",
+      "source": "NOAA"
+    }
+  ],
+  "range": {
+    "start": "2026-01-15T22:00:00.000Z",
+    "end": "2026-01-16T22:00:00.000Z"
+  }
+}
+```
+
+---
+
+### `GET /api/weather`
+
+Returns current weather and 72-hour forecast from NOAA/Open-Meteo.
+
+**Example Request:**
+```bash
+curl "http://localhost:3000/api/weather"
+```
+
+**Response:**
+```json
+{
+  "current": {
+    "timestamp": "2026-01-15T22:15:00.000Z",
+    "temperatureF": 60.6,
+    "windSpeedMph": 8.5,
+    "windDirection": 12,
+    "windGustMph": 9.4,
+    "visibilityMiles": 10,
+    "conditions": "Partly Cloudy",
+    "source": "NOAA-NWS"
+  },
+  "forecast": [
+    {
+      "timestamp": "2026-01-15T23:00:00.000Z",
+      "temperatureF": 58.2,
+      "windSpeedMph": 6.0,
+      "windDirection": 315,
+      "conditions": "Clear",
+      "source": "NOAA-NWS"
+    }
+  ],
+  "timestamp": "2026-01-15T22:20:00.000Z"
+}
+```
+
+---
+
+### `GET /api/waves`
+
+Returns current wave and swell data from OpenWaterLog or NOAA buoy (fallback).
+
+**Example Request:**
+```bash
+curl "http://localhost:3000/api/waves"
+```
+
+**Response:**
+```json
+{
+  "current": {
+    "timestamp": "2026-01-15T20:00:00.000Z",
+    "waveHeightFeet": 0.6,
+    "swellPeriodSeconds": 12,
+    "swellDirection": 285,
+    "source": "OpenWaterLog"
+  },
+  "timestamp": "2026-01-15T22:20:00.000Z"
+}
+```
+
+**Error Response (503):**
+```json
+{
+  "error": "No wave data available"
+}
+```
+
+---
+
+### Error Responses
+
+All endpoints return errors in this format:
+
+```json
+{
+  "error": "Error message describing what went wrong"
+}
+```
+
+| Status Code | Description |
+|-------------|-------------|
+| `500` | Internal server error (API fetch failed) |
+| `503` | Service unavailable (data source unavailable) |
 
 ## Swim Score Algorithm
 
-The swim score (0-100) is calculated using weighted factors:
+The swim score (0-100) is calculated using weighted factors. The algorithm is implemented in `src/lib/algorithms/swim-score.ts`.
 
-1. **Water Quality (30%)**
-   - Bacteria levels (Enterococcus)
-   - Recent sewer overflows
-   - Days since last SSO event
+### Formula
 
-2. **Tide & Current (25%)**
-   - Tide phase (customizable preference: slack/flood/ebb)
-   - Current speed (measured or estimated from tide rate)
-   - Rate of tide change
+```
+overallScore = (waterQuality × 0.30) + (tideAndCurrent × 0.25) + (waves × 0.20) + (weather × 0.15) + (damReleases × 0.10)
+```
 
-3. **Waves (20%)**
-   - Wave height
-   - Swell period
-   - Swell direction
+### Factor Weights
 
-4. **Weather (15%)**
-   - Wind speed and gusts
-   - Air temperature
-   - Precipitation
+| Factor | Weight | Priority |
+|--------|--------|----------|
+| Water Quality | 30% | Highest - Safety first |
+| Tide & Current | 25% | Affects difficulty and safety |
+| Waves | 20% | Affects comfort and safety |
+| Weather | 15% | Affects comfort |
+| Dam Releases | 10% | Affects bay currents |
 
-5. **Dam Releases (10%)**
-   - 48-hour historical flow data from major upstream dams
-   - Weighted averaging (60% last 24h, 40% older 24h) to account for time lag
-   - Dam releases take 24-48 hours to reach SF Bay
-   - Monitors: Shasta, Oroville, Folsom, Pardee, Camanche dams
+---
 
-**Score Ranges:**
-- 80-100: Excellent conditions
-- 60-79: Good conditions
-- 40-59: Fair (experienced swimmers)
-- 20-39: Poor (not recommended)
-- 0-19: Dangerous (do not swim)
+### 1. Water Quality Score (30%)
+
+Evaluates bacteria levels and recent sewer overflow events.
+
+**Scoring Logic:**
+
+| Enterococcus (MPN/100ml) | Score | Status |
+|--------------------------|-------|--------|
+| ≤ 104 | 100 | Safe |
+| 105 - 500 | 70 | Advisory |
+| 501 - 1000 | 30 | Warning |
+| > 1000 | 0 | Dangerous |
+
+**SSO (Sewer Overflow) Adjustments:**
+- Active SSO nearby: Score capped at 20, status = dangerous
+- SSO within 3 days: Score capped at 60, status = advisory
+
+**Response Fields:**
+```json
+{
+  "score": 100,
+  "status": "safe | advisory | warning | dangerous",
+  "bacteriaLevel": "safe | moderate | high | dangerous | unknown",
+  "recentSSO": false,
+  "daysSinceSSO": null,
+  "issues": []
+}
+```
+
+---
+
+### 2. Tide & Current Score (25%)
+
+Evaluates tide phase and current speed with customizable preferences.
+
+**Tide Phase Preferences (customizable):**
+
+| Phase | Default Score | Description |
+|-------|---------------|-------------|
+| Slack | 100 | Minimal water movement (best) |
+| Flood | 85 | Incoming/rising tide |
+| Ebb | 85 | Outgoing/falling tide |
+
+**Current Speed Adjustments:**
+
+| Change Rate (ft/hr) | Multiplier | Effect |
+|---------------------|------------|--------|
+| < 1.0 | 1.0× | Full phase score |
+| 1.0 - 2.0 | 0.7× | Moderate reduction, cap at 70 |
+| > 2.0 | 0.4× | Strong reduction, cap at 40 |
+
+**Current Speed Caps:**
+
+| Speed (knots) | Max Score | Status |
+|---------------|-----------|--------|
+| < 0.3 | 100 | Slack |
+| 0.3 - 0.5 | 100 | Slow |
+| 0.5 - 1.0 | 65 | Moderate |
+| 1.0 - 1.5 | 40 | Strong |
+| > 2.0 | 20 | Very Strong |
+
+**Response Fields:**
+```json
+{
+  "score": 85,
+  "phase": "slack | flood | ebb",
+  "currentSpeed": 0.5,
+  "tideHeight": 2.3,
+  "favorable": true,
+  "issues": []
+}
+```
+
+---
+
+### 3. Wave Score (20%)
+
+Evaluates wave height conditions.
+
+**Scoring Logic:**
+
+| Wave Height (ft) | Score | Status |
+|------------------|-------|--------|
+| < 2 | 100 | Calm |
+| 2 - 3 | 85 | Calm |
+| 3 - 5 | 60 | Moderate |
+| 5 - 8 | 30 | Rough |
+| > 8 | 10 | Dangerous |
+
+**Response Fields:**
+```json
+{
+  "score": 100,
+  "heightFeet": 0.6,
+  "status": "calm | moderate | rough | dangerous",
+  "issues": []
+}
+```
+
+---
+
+### 4. Weather Score (15%)
+
+Evaluates wind speed and precipitation.
+
+**Wind Speed Scoring:**
+
+| Wind Speed (mph) | Score | Condition |
+|------------------|-------|-----------|
+| < 5 | 100 | Calm |
+| 5 - 10 | 95 | Light |
+| 10 - 15 | 80 | Moderate |
+| 15 - 20 | 60 | Moderate |
+| 20 - 25 | 35 | Strong |
+| > 25 | 15 | Strong |
+
+**Precipitation Adjustment:**
+- Rain or storm conditions: Score capped at 40
+
+**Response Fields:**
+```json
+{
+  "score": 95,
+  "temperature": 60.6,
+  "windSpeed": 8.5,
+  "windCondition": "calm | light | moderate | strong",
+  "issues": []
+}
+```
+
+---
+
+### 5. Dam Releases Score (10%)
+
+Evaluates upstream dam releases with time-lag modeling.
+
+**Scoring Logic:**
+
+| Weighted Flow (CFS) | Score | Level |
+|---------------------|-------|-------|
+| < 30,000 | 100 | Low |
+| 30,000 - 50,000 | 75 | Moderate |
+| 50,000 - 80,000 | 65 | Elevated |
+| 80,000 - 100,000 | 30 | High |
+| > 100,000 | 10 | Extreme |
+
+**Time-Lag Weighted Flow Calculation:**
+```
+weightedAvgFlow = (last24hAverage × 0.6) + (last48hAverage × 0.4)
+peakComponent = peakFlowCFS × 0.8
+scoringFlow = max(weightedAvgFlow, peakComponent)
+```
+
+**Monitored Dams:**
+- Shasta Dam (SHA) - Sacramento River
+- Oroville Dam (ORO) - Feather River
+- Folsom Dam (FOL) - American River
+- Pardee Dam (PAR) - Mokelumne River
+- Camanche Dam (CMN) - Mokelumne River
+
+**Response Fields:**
+```json
+{
+  "score": 100,
+  "totalFlowCFS": 27505,
+  "releaseLevel": "low | moderate | high | extreme",
+  "topContributor": "Shasta Dam",
+  "issues": []
+}
+```
+
+---
+
+### Score Ranges
+
+| Range | Rating | Color | Description |
+|-------|--------|-------|-------------|
+| 80-100 | Excellent | Green (#22c55e) | Ideal conditions |
+| 60-79 | Good | Blue (#3b82f6) | Good conditions |
+| 40-59 | Fair | Amber (#f59e0b) | Experienced swimmers only |
+| 20-39 | Poor | Red (#ef4444) | Not recommended |
+| 0-19 | Dangerous | Dark Red (#991b1b) | Do not swim |
+
+---
+
+### Recommendations & Warnings
+
+The algorithm generates contextual advice based on factor scores:
+
+**Recommendations (positive):**
+- "Excellent time - slack tide"
+- "Calm water conditions"
+- "Normal dam operations"
+- "Excellent/Good/Fair conditions for swimming"
+
+**Warnings (negative):**
+- "Do not swim - dangerous water quality"
+- "Water quality warning in effect"
+- "Recent sewer overflow - use caution"
+- "Strong currents - experienced swimmers only"
+- "Dangerous wave conditions"
+- "Strong winds present"
+- "Extreme dam releases - very strong currents expected"
+
+---
+
+### Client-Side Recalculation (Static Site)
+
+On GitHub Pages, the swim score is recalculated client-side when users change tide preferences:
+
+1. Raw data (tide, current, weather, waves, waterQuality, damReleases) is fetched from `static-data.json`
+2. User selects preferred tide phase (slack/flood/ebb)
+3. `calculateSwimScore()` runs in the browser with custom tide preferences
+4. Score updates instantly without server round-trip
+
+---
 
 ### Dam Release Time-Lag Modeling
 
-The app includes sophisticated modeling of upstream dam releases and their delayed impact on SF Bay currents:
+The app models upstream dam releases and their delayed impact on SF Bay:
 
-- **Transit Time**: Water released from dams takes 24-48 hours to reach SF Bay
-  - Shasta Dam (Sacramento River): 2-5 days
-  - Oroville Dam (Feather River): 2-4 days
-  - Folsom Dam (American River): 1-3 days
+**Transit Times:**
+| Dam | River | Transit Time |
+|-----|-------|--------------|
+| Shasta | Sacramento | 2-5 days |
+| Oroville | Feather | 2-4 days |
+| Folsom | American | 1-3 days |
 
-- **48-Hour Historical Window**: Fetches hourly flow data to capture releases currently affecting bay conditions
-
-- **Weighted Scoring**: Recent releases (last 24h) weighted 60%, older releases (24-48h ago) weighted 40%
-
-- **Peak Detection**: Identifies maximum flow in 48h window (at 80% weight) to catch intense but brief releases
-
-- **Trend Analysis**: Compares first 12 hours vs last 12 hours to determine if releases are increasing, stable, or decreasing
-
-This provides swimmers with accurate assessments based on what's actually happening in the bay right now, not just what dams are releasing at this moment.
+**Modeling Approach:**
+- **48-Hour Window**: Fetches hourly flow data to capture releases currently affecting bay
+- **Weighted Scoring**: Recent releases (last 24h) weighted 60%, older (24-48h) weighted 40%
+- **Peak Detection**: Maximum flow at 80% weight catches intense but brief releases
+- **Trend Analysis**: Compares first vs last 12 hours to determine increasing/stable/decreasing
 
 ## Safety Thresholds
 
 All thresholds are configured in `src/config/thresholds.ts`:
 
-- **Bacteria**: Safe < 104 MPN/100ml, Advisory < 500, Dangerous > 500
-- **Waves**: Calm < 2 ft, Safe < 3 ft, Moderate < 5 ft, Rough < 8 ft
-- **Wind**: Calm < 5 mph, Light < 10 mph, Moderate < 15 mph, Strong < 20 mph
-- **Current**: Slack < 0.3 kts, Slow < 0.5 kts, Moderate < 1.0 kts, Strong > 1.0 kts
-- **Dam Releases**: Low < 30k CFS, Moderate < 50k CFS, High < 80k CFS, Extreme > 100k CFS
-- **SSO**: Caution period = 3 days, Warning period = 7 days
+| Category | Threshold | Values |
+|----------|-----------|--------|
+| Bacteria (Enterococcus) | Safe / Advisory / Dangerous | < 104 / < 500 / > 1000 MPN/100ml |
+| Bacteria (Coliform) | Safe / Advisory / Dangerous | < 200 / < 1000 / > 2000 MPN/100ml |
+| Waves | Calm / Safe / Moderate / Rough | < 2 / < 3 / < 5 / < 8 ft |
+| Wind | Calm / Light / Moderate / Strong | < 5 / < 10 / < 15 / < 20 mph |
+| Current | Slack / Slow / Moderate / Strong | < 0.3 / < 0.5 / < 1.0 / < 1.5 kts |
+| Dam Releases | Low / Moderate / High / Extreme | < 30k / < 50k / < 80k / > 100k CFS |
+| SSO | Caution / Warning | 3 days / 7 days |
+| Water Temp | Cold / Cool / Moderate / Comfortable | < 55 / < 60 / < 65 / > 70 °F |
 
 ## Development Roadmap
 
