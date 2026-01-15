@@ -1,12 +1,25 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import type { CurrentConditions as CurrentConditionsType } from '@/types/conditions';
+import { useEffect, useState, useRef } from 'react';
+import type { CurrentConditions as CurrentConditionsType, TidePhasePreferences } from '@/types/conditions';
 import { useTidePreference } from '@/hooks/useTidePreference';
 import { useConditionsCache } from '@/hooks/useConditionsCache';
 import { SAFETY_THRESHOLDS } from '@/config/thresholds';
+import { calculateSwimScore } from '@/lib/algorithms/swim-score';
 import SwimScore from './SwimScore';
 import ConditionsCard from './ConditionsCard';
+
+// Raw data type for client-side recalculation
+interface RawConditionsData {
+  tide: CurrentConditionsType['tide'];
+  current: CurrentConditionsType['current'];
+  weather: CurrentConditionsType['weather'];
+  waves: CurrentConditionsType['waves'];
+  waterQuality: CurrentConditionsType['waterQuality'];
+  recentSSOs: CurrentConditionsType['recentSSOs'];
+  damReleases: CurrentConditionsType['damReleases'];
+  dataFreshness: CurrentConditionsType['dataFreshness'];
+}
 
 /**
  * Format timestamp for display
@@ -33,6 +46,41 @@ export default function CurrentConditions() {
   const [error, setError] = useState<string | null>(null);
   const { preference, setPreference, isLoaded } = useTidePreference();
   const { cachedData, setCachedData, isCacheValid } = useConditionsCache();
+  // Store raw data for client-side recalculation on GitHub Pages
+  const rawDataRef = useRef<RawConditionsData | null>(null);
+
+  // Helper to check if we're on GitHub Pages
+  const isGitHubPages = typeof window !== 'undefined' && window.location.hostname.includes('github.io');
+
+  // Build tide preferences object from preference string
+  const buildTidePreferences = (pref: string | null): TidePhasePreferences | undefined => {
+    if (!pref) return undefined;
+    return {
+      slack: pref === 'slack' ? 100 : 85,
+      flood: pref === 'flood' ? 100 : 85,
+      ebb: pref === 'ebb' ? 100 : 85,
+    };
+  };
+
+  // Recalculate score client-side using raw data (for GitHub Pages)
+  const recalculateScore = (rawData: RawConditionsData, tidePreference: string | null): CurrentConditionsType => {
+    const customTidePreferences = buildTidePreferences(tidePreference);
+    const newScore = calculateSwimScore(
+      rawData.tide,
+      rawData.current,
+      rawData.weather,
+      rawData.waves,
+      rawData.waterQuality,
+      rawData.recentSSOs || [],
+      rawData.damReleases ?? null,
+      customTidePreferences
+    );
+    return {
+      timestamp: new Date(),
+      ...rawData,
+      score: newScore,
+    };
+  };
 
   // Load cached data immediately on mount
   useEffect(() => {
@@ -46,6 +94,12 @@ export default function CurrentConditions() {
   useEffect(() => {
     // Only fetch when preference is loaded to avoid double-fetching
     if (isLoaded) {
+      // On GitHub Pages with cached raw data, recalculate instead of refetching
+      if (isGitHubPages && rawDataRef.current) {
+        const recalculated = recalculateScore(rawDataRef.current, preference);
+        setConditions(recalculated);
+        return;
+      }
       // If we have valid cache, fetch in background
       if (isCacheValid && cachedData) {
         fetchConditions(preference, true); // background fetch
@@ -57,16 +111,13 @@ export default function CurrentConditions() {
 
   // Setup auto-refresh interval (disabled on GitHub Pages static site)
   useEffect(() => {
-    // Detect if we're on GitHub Pages
-    const isGitHubPages = typeof window !== 'undefined' && window.location.hostname.includes('github.io');
-
     // Only set up auto-refresh in dynamic mode (not on GitHub Pages)
     if (!isGitHubPages) {
       // Refresh every 5 minutes
       const interval = setInterval(() => fetchConditions(preference, true), 5 * 60 * 1000);
       return () => clearInterval(interval);
     }
-  }, [preference]);
+  }, [preference, isGitHubPages]);
 
   async function fetchConditions(tidePreference: typeof preference, isBackgroundFetch = false) {
     try {
@@ -74,9 +125,6 @@ export default function CurrentConditions() {
       if (!isBackgroundFetch) {
         setLoading(true);
       }
-
-      // Detect static mode by checking if we're on GitHub Pages
-      const isGitHubPages = typeof window !== 'undefined' && window.location.hostname.includes('github.io');
 
       // Build the URL based on environment
       const url = isGitHubPages
@@ -100,8 +148,26 @@ export default function CurrentConditions() {
       // Only update cache and state if we have valid data
       // Don't overwrite good cached data with null/missing data
       if (data && data.tide && data.score) {
-        setCachedData(data);
-        setConditions(data);
+        // On GitHub Pages, store raw data and recalculate with user's preference
+        if (isGitHubPages) {
+          rawDataRef.current = {
+            tide: data.tide,
+            current: data.current,
+            weather: data.weather,
+            waves: data.waves,
+            waterQuality: data.waterQuality,
+            recentSSOs: data.recentSSOs,
+            damReleases: data.damReleases,
+            dataFreshness: data.dataFreshness,
+          };
+          // Recalculate score with user's tide preference
+          const recalculated = recalculateScore(rawDataRef.current, tidePreference);
+          setCachedData(recalculated);
+          setConditions(recalculated);
+        } else {
+          setCachedData(data);
+          setConditions(data);
+        }
         setError(null);
       } else {
         console.warn('Received incomplete data from API, keeping cached data');
