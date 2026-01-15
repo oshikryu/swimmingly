@@ -55,11 +55,17 @@ export default function CurrentConditions() {
     }
   }, [isLoaded, preference]);
 
-  // Setup auto-refresh interval
+  // Setup auto-refresh interval (disabled in static mode)
   useEffect(() => {
-    // Refresh every 5 minutes
-    const interval = setInterval(() => fetchConditions(preference, true), 5 * 60 * 1000);
-    return () => clearInterval(interval);
+    // Detect static mode
+    const isStaticMode = process.env.NEXT_PUBLIC_BUILD_MODE === 'static';
+
+    // Only set up auto-refresh in dynamic mode
+    if (!isStaticMode) {
+      // Refresh every 5 minutes
+      const interval = setInterval(() => fetchConditions(preference, true), 5 * 60 * 1000);
+      return () => clearInterval(interval);
+    }
   }, [preference]);
 
   async function fetchConditions(tidePreference: typeof preference, isBackgroundFetch = false) {
@@ -69,13 +75,21 @@ export default function CurrentConditions() {
         setLoading(true);
       }
 
-      // Include tide preference in API call
-      const params = new URLSearchParams();
-      if (tidePreference) {
-        params.append('tidePhasePreference', tidePreference);
-      }
+      // Detect static mode
+      const isStaticMode = process.env.NEXT_PUBLIC_BUILD_MODE === 'static';
 
-      const url = `/api/conditions${params.toString() ? `?${params.toString()}` : ''}`;
+      // In static mode, fetch from static-data.json
+      const url = isStaticMode
+        ? '/static-data.json'
+        : (() => {
+            // Include tide preference in API call for dynamic mode
+            const params = new URLSearchParams();
+            if (tidePreference) {
+              params.append('tidePhasePreference', tidePreference);
+            }
+            return `/api/conditions${params.toString() ? `?${params.toString()}` : ''}`;
+          })();
+
       const response = await fetch(url);
 
       if (!response.ok) {

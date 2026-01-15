@@ -1,0 +1,201 @@
+{
+  "timestamp": "2026-01-15T17:07:33.918Z",
+  "score": {
+    "timestamp": "2026-01-15T17:07:33.919Z",
+    "overallScore": 96,
+    "rating": "excellent",
+    "factors": {
+      "waterQuality": {
+        "score": 100,
+        "status": "safe",
+        "bacteriaLevel": "safe",
+        "recentSSO": false,
+        "issues": []
+      },
+      "tideAndCurrent": {
+        "score": 85,
+        "phase": "ebb",
+        "currentSpeed": 0.63,
+        "tideHeight": 6.333,
+        "favorable": false,
+        "issues": []
+      },
+      "waves": {
+        "score": 100,
+        "heightFeet": 0.7,
+        "status": "calm",
+        "issues": []
+      },
+      "weather": {
+        "score": 95,
+        "temperature": 51.6,
+        "windSpeed": 7.3,
+        "windCondition": "light",
+        "issues": []
+      },
+      "damReleases": {
+        "score": 100,
+        "totalFlowCFS": 27505,
+        "releaseLevel": "low",
+        "topContributor": "Shasta Dam",
+        "issues": []
+      }
+    },
+    "recommendations": [
+      "Calm water conditions",
+      "Normal dam operations",
+      "Excellent conditions for swimming"
+    ],
+    "warnings": []
+  },
+  "tide": {
+    "timestamp": "2026-01-15T17:00:00.000Z",
+    "heightFeet": 6.333,
+    "type": "normal",
+    "source": "NOAA",
+    "nextHigh": {
+      "timestamp": "2026-01-16T07:13:00.000Z",
+      "heightFeet": 4.533,
+      "type": "high",
+      "source": "NOAA"
+    },
+    "nextLow": {
+      "timestamp": "2026-01-15T23:47:00.000Z",
+      "heightFeet": -0.287,
+      "type": "low",
+      "source": "NOAA"
+    },
+    "currentPhase": "ebb",
+    "changeRateFeetPerHour": 0.9942411858403735
+  },
+  "current": {
+    "timestamp": "2026-01-15T17:07:00.000Z",
+    "speedKnots": 0.63,
+    "direction": 69,
+    "lat": 37.8065,
+    "lon": -122.4216,
+    "source": "NOAA"
+  },
+  "weather": {
+    "timestamp": "2026-01-15T17:00:00.000Z",
+    "temperatureF": 51.6,
+    "windSpeedMph": 7.3,
+    "windDirection": 47,
+    "windGustMph": 8.9,
+    "visibilityMiles": 10,
+    "conditions": "unavailable",
+    "source": "open-meteo"
+  },
+  "waves": {
+    "timestamp": "2026-01-15T16:00:00.000Z",
+    "waveHeightFeet": 0.7,
+    "source": "OpenWaterLog"
+  },
+  "waterQuality": {
+    "timestamp": "2026-01-12T08:00:00.000Z",
+    "enterococcusCount": 41,
+    "status": "safe",
+    "source": "SF Beach Water Quality (Aquatic Park)",
+    "stationId": "BAY#211_SL",
+    "notes": "Sampled 3 days ago"
+  },
+  "recentSSOs": [],
+  "damReleases": {
+    "timestamp": "2026-01-15T17:07:29.976Z",
+    "current": {
+      "totalFlowCFS": 27505,
+      "releaseLevel": "low"
+    },
+    "historical48h": {
+      "averageFlowCFS": 25265.163265306124,
+      "peakFlowCFS": 29632,
+      "peakTimestamp": "2026-01-14T02:00:00.000Z",
+      "trendDirection": "stable",
+      "last24hAverage": 24007.133333333335,
+      "last48hAverage": 25265.163265306124,
+      "dataPointsCount": 49
+    },
+    "dams": [
+      {
+        "name": "Folsom Dam",
+        "stationId": "FOL",
+        "current": {
+          "flowCFS": 5182,
+          "timestamp": "2026-01-15T08:00:00.000Z",
+          "percentOfTotal": 18.840210870750774
+        },
+        "historical48h": {
+          "averageFlowCFS": 5900.081632653061,
+          "peakFlowCFS": 6833,
+          "dataPoints": 49
+        }
+      },
+      {
+        "name": "Oroville Dam",
+        "stationId": "ORO",
+        "current": {
+          "flowCFS": 7006,
+          "timestamp": "2026-01-15T08:00:00.000Z",
+          "percentOfTotal": 25.471732412288674
+        },
+        "historical48h": {
+          "averageFlowCFS": 5667.291666666667,
+          "peakFlowCFS": 8057,
+          "dataPoints": 48
+        }
+      },
+      {
+        "name": "Shasta Dam",
+        "stationId": "SHA",
+        "current": {
+          "flowCFS": 15317,
+          "timestamp": "2026-01-15T08:00:00.000Z",
+          "percentOfTotal": 55.68805671696055
+        },
+        "historical48h": {
+          "averageFlowCFS": 13813.448979591836,
+          "peakFlowCFS": 15581,
+          "dataPoints": 49
+        }
+      },
+      {
+        "name": "Pardee Dam",
+        "stationId": "PAR",
+        "current": {
+          "flowCFS": 0,
+          "percentOfTotal": 0
+        },
+        "historical48h": {
+          "averageFlowCFS": 0,
+          "peakFlowCFS": 0,
+          "dataPoints": 0
+        }
+      },
+      {
+        "name": "Camanche Dam",
+        "stationId": "CMN",
+        "current": {
+          "flowCFS": 0,
+          "percentOfTotal": 0
+        },
+        "historical48h": {
+          "averageFlowCFS": 0,
+          "peakFlowCFS": 0,
+          "dataPoints": 0
+        }
+      }
+    ],
+    "latestDataTimestamp": "2026-01-15T08:00:00.000Z",
+    "source": "CDEC"
+  },
+  "dataFreshness": {
+    "tide": "2026-01-15T17:00:00.000Z",
+    "weather": "2026-01-15T17:07:33.918Z",
+    "waves": "2026-01-15T16:00:00.000Z",
+    "waterQuality": "2026-01-12T08:00:00.000Z",
+    "sso": "2026-01-15T17:07:33.918Z",
+    "damReleases": "2026-01-15T17:07:29.976Z"
+  },
+  "buildTimestamp": "2026-01-15T17:07:33.919Z",
+  "buildMode": "static"
+}
