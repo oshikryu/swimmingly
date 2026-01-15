@@ -107,7 +107,7 @@ async function updateStaticSite() {
 
     // Push to gh-pages
     await execAsync(
-      `git push -f ${CONFIG.githubRepo} main:${CONFIG.githubBranch}`,
+      `git push -f ${CONFIG.githubRepo} master:${CONFIG.githubBranch}`,
       { cwd: buildDir }
     );
 

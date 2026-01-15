@@ -1,8 +1,8 @@
 {
-  "timestamp": "2026-01-15T17:07:33.918Z",
+  "timestamp": "2026-01-15T17:30:11.589Z",
   "score": {
-    "timestamp": "2026-01-15T17:07:33.919Z",
-    "overallScore": 96,
+    "timestamp": "2026-01-15T17:30:11.591Z",
+    "overallScore": 82,
     "rating": "excellent",
     "factors": {
       "waterQuality": {
@@ -13,12 +13,14 @@
         "issues": []
       },
       "tideAndCurrent": {
-        "score": 85,
+        "score": 59.49999999999999,
         "phase": "ebb",
-        "currentSpeed": 0.63,
-        "tideHeight": 6.333,
-        "favorable": false,
-        "issues": []
+        "currentSpeed": 0.25,
+        "tideHeight": 6.212,
+        "favorable": true,
+        "issues": [
+          "Moderate tide movement (ebb)"
+        ]
       },
       "waves": {
         "score": 100,
@@ -27,11 +29,13 @@
         "issues": []
       },
       "weather": {
-        "score": 95,
-        "temperature": 51.6,
-        "windSpeed": 7.3,
-        "windCondition": "light",
-        "issues": []
+        "score": 50,
+        "temperature": 60,
+        "windSpeed": 0,
+        "windCondition": "moderate",
+        "issues": [
+          "No wind data available"
+        ]
       },
       "damReleases": {
         "score": 100,
@@ -49,8 +53,8 @@
     "warnings": []
   },
   "tide": {
-    "timestamp": "2026-01-15T17:00:00.000Z",
-    "heightFeet": 6.333,
+    "timestamp": "2026-01-15T17:24:00.000Z",
+    "heightFeet": 6.212,
     "type": "normal",
     "source": "NOAA",
     "nextHigh": {
@@ -66,25 +70,24 @@
       "source": "NOAA"
     },
     "currentPhase": "ebb",
-    "changeRateFeetPerHour": 0.9942411858403735
+    "changeRateFeetPerHour": 1.034583030722823
   },
   "current": {
-    "timestamp": "2026-01-15T17:07:00.000Z",
-    "speedKnots": 0.63,
+    "timestamp": "2026-01-15T17:30:00.000Z",
+    "speedKnots": 0.25,
     "direction": 69,
     "lat": 37.8065,
     "lon": -122.4216,
     "source": "NOAA"
   },
   "weather": {
-    "timestamp": "2026-01-15T17:00:00.000Z",
-    "temperatureF": 51.6,
-    "windSpeedMph": 7.3,
-    "windDirection": 47,
-    "windGustMph": 8.9,
+    "timestamp": "2026-01-15T17:30:11.589Z",
+    "temperatureF": 60,
+    "windSpeedMph": 0,
+    "windDirection": 0,
     "visibilityMiles": 10,
     "conditions": "unavailable",
-    "source": "open-meteo"
+    "source": "unavailable"
   },
   "waves": {
     "timestamp": "2026-01-15T16:00:00.000Z",
@@ -101,7 +104,7 @@
   },
   "recentSSOs": [],
   "damReleases": {
-    "timestamp": "2026-01-15T17:07:29.976Z",
+    "timestamp": "2026-01-15T17:30:05.689Z",
     "current": {
       "totalFlowCFS": 27505,
       "releaseLevel": "low"
@@ -189,13 +192,13 @@
     "source": "CDEC"
   },
   "dataFreshness": {
-    "tide": "2026-01-15T17:00:00.000Z",
-    "weather": "2026-01-15T17:07:33.918Z",
+    "tide": "2026-01-15T17:24:00.000Z",
+    "weather": "2026-01-15T17:30:11.589Z",
     "waves": "2026-01-15T16:00:00.000Z",
     "waterQuality": "2026-01-12T08:00:00.000Z",
-    "sso": "2026-01-15T17:07:33.918Z",
-    "damReleases": "2026-01-15T17:07:29.976Z"
+    "sso": "2026-01-15T17:30:11.589Z",
+    "damReleases": "2026-01-15T17:30:05.689Z"
   },
-  "buildTimestamp": "2026-01-15T17:07:33.919Z",
+  "buildTimestamp": "2026-01-15T17:30:11.592Z",
   "buildMode": "static"
 }
