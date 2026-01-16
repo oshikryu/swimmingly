@@ -292,8 +292,23 @@ export default function CurrentConditions() {
     return 'info';
   };
 
+  // Map current speed to status, considering both favorability and actual speed
+  const mapTideCurrentStatus = (): 'good' | 'warning' | 'danger' | 'info' => {
+    const speed = currentSpeed;
+    // Very strong current (>2.0 knots) is always dangerous
+    if (speed >= SAFETY_THRESHOLDS.current.veryStrong) return 'danger';
+    // Strong current (1.5-2.0 knots) is a warning
+    if (speed >= SAFETY_THRESHOLDS.current.strong) return 'warning';
+    // Moderate current (1.0-1.5 knots) - warning if not favorable, otherwise info
+    if (speed >= SAFETY_THRESHOLDS.current.moderate) {
+      return score?.factors?.tideAndCurrent?.favorable ? 'info' : 'warning';
+    }
+    // Slower currents - good if favorable, info otherwise
+    return score?.factors?.tideAndCurrent?.favorable ? 'good' : 'info';
+  };
+
   // Use statuses from score factors with safe defaults (ensures sync with score calculation)
-  const tideStatus = score?.factors?.tideAndCurrent?.favorable ? 'good' : 'warning';
+  const tideStatus = mapTideCurrentStatus();
   const waveStatus = mapWaveStatus(score?.factors?.waves?.status ?? 'calm');
   const weatherStatus = mapWeatherStatus(score?.factors?.weather?.windCondition ?? 'calm');
   const waterQualityStatus = mapWaterQualityStatus(score?.factors?.waterQuality?.status ?? 'safe');

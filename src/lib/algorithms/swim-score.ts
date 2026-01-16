@@ -38,7 +38,7 @@ export function calculateSwimScore(
   const damReleasesFactor = scoreDamReleases(damReleases);
 
   // Calculate weighted overall score
-  const overallScore = Math.round(
+  let overallScore = Math.round(
     (waterQualityFactor.score * SCORE_WEIGHTS.waterQuality +
       tideCurrentFactor.score * SCORE_WEIGHTS.tideAndCurrent +
       waveFactor.score * SCORE_WEIGHTS.waves +
@@ -46,6 +46,33 @@ export function calculateSwimScore(
       damReleasesFactor.score * SCORE_WEIGHTS.damReleases) /
       100
   );
+
+  // Cap overall score based on critical danger conditions
+  // These conditions are dangerous enough to override the weighted average
+  const currentSpeed = tideCurrentFactor.currentSpeed;
+
+  // Very strong current (>2.0 knots) caps score at 39 (Poor)
+  if (currentSpeed >= SAFETY_THRESHOLDS.current.veryStrong) {
+    overallScore = Math.min(overallScore, 39);
+  }
+  // Strong current (>1.5 knots) caps score at 59 (Fair)
+  else if (currentSpeed >= SAFETY_THRESHOLDS.current.strong) {
+    overallScore = Math.min(overallScore, 59);
+  }
+
+  // Dangerous water quality caps score
+  if (waterQualityFactor.status === 'dangerous') {
+    overallScore = Math.min(overallScore, 19);
+  } else if (waterQualityFactor.status === 'warning') {
+    overallScore = Math.min(overallScore, 39);
+  }
+
+  // Dangerous waves cap score
+  if (waveFactor.status === 'dangerous') {
+    overallScore = Math.min(overallScore, 19);
+  } else if (waveFactor.status === 'rough') {
+    overallScore = Math.min(overallScore, 39);
+  }
 
   // Determine rating
   const rating = getScoreRating(overallScore);
