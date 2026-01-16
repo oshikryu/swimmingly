@@ -102,25 +102,33 @@ async function updateStaticSite() {
     log('Deploying to GitHub Pages...', colors.dim);
     const buildDir = path.join(CONFIG.projectDir, 'out');
 
+    // Verify build directory exists
+    try {
+      await fs.access(buildDir);
+    } catch {
+      throw new Error(`Build directory does not exist: ${buildDir}`);
+    }
+
     // Create .nojekyll file to bypass Jekyll processing
     await fs.writeFile(path.join(buildDir, '.nojekyll'), '', 'utf-8');
     log('✓ Created .nojekyll file', colors.dim);
 
-    // Initialize git in out directory
-    await execAsync('git init', { cwd: buildDir });
-    await execAsync('git add -A', { cwd: buildDir });
-    await execAsync(`git commit -m "Deploy static site - ${new Date().toISOString()}"`, { cwd: buildDir });
+    // Initialize git in out directory and deploy
+    // Run all git commands from the project directory using -C flag for safety
+    await execAsync(`git -C "${buildDir}" init`, { cwd: CONFIG.projectDir });
+    await execAsync(`git -C "${buildDir}" add -A`, { cwd: CONFIG.projectDir });
+    await execAsync(`git -C "${buildDir}" commit -m "Deploy static site - ${new Date().toISOString()}"`, { cwd: CONFIG.projectDir });
 
     // Push to gh-pages
     await execAsync(
-      `git push -f ${CONFIG.githubRepo} master:${CONFIG.githubBranch}`,
-      { cwd: buildDir }
+      `git -C "${buildDir}" push -f ${CONFIG.githubRepo} master:${CONFIG.githubBranch}`,
+      { cwd: CONFIG.projectDir }
     );
 
     log('✓ Deployed to GitHub Pages', colors.green);
 
     // Cleanup
-    await execAsync(`rm -rf ${buildDir}/.git`);
+    await execAsync(`rm -rf "${buildDir}/.git"`, { cwd: CONFIG.projectDir });
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
     log(`✅ Static site update complete in ${duration}s`, colors.bright + colors.green);
