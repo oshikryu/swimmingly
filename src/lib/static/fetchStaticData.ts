@@ -12,6 +12,7 @@ import { calculateSwimScore } from '@/lib/algorithms/swim-score';
 import { fetchWindData } from '@/lib/api/open-meteo';
 import { fetchDamReleases } from '@/lib/api/cdec';
 import { fetchOpenWaterLogWaveData } from '@/lib/api/openwaterlog';
+import { fetchWaterTemperature } from '@/lib/api/seatemperature';
 
 /**
  * Fetch all data sources and calculate swim score
@@ -51,7 +52,7 @@ export async function fetchStaticData(tidePhasePreference?: TidePhaseType): Prom
     };
 
     // Fetch all data sources in parallel
-    const [tide, current, weather, waves, waterQuality, recentSSOs, windData, damReleases] = await Promise.allSettled([
+    const [tide, current, weather, waves, waterQuality, recentSSOs, windData, damReleases, waterTemp] = await Promise.allSettled([
       fetchCurrentTidePrediction(),
       fetchCurrents(),
       fetchCurrentWeather(),
@@ -60,6 +61,7 @@ export async function fetchStaticData(tidePhasePreference?: TidePhaseType): Prom
       fetchRecentSSOs(7),
       fetchWindData(),
       fetchDamReleases(),
+      fetchWaterTemperature(),
     ]);
 
     // Extract successful results or use fallbacks
@@ -71,6 +73,7 @@ export async function fetchStaticData(tidePhasePreference?: TidePhaseType): Prom
     const ssoData = recentSSOs.status === 'fulfilled' ? recentSSOs.value : [];
     const windDataResult = windData.status === 'fulfilled' ? windData.value : null;
     const damReleasesData = damReleases.status === 'fulfilled' ? damReleases.value : null;
+    const waterTempData = waterTemp.status === 'fulfilled' ? waterTemp.value : null;
 
     // Check if we have minimum required data (tide is critical)
     if (!tideData) {
@@ -144,6 +147,7 @@ export async function fetchStaticData(tidePhasePreference?: TidePhaseType): Prom
       weather: weatherWithFallback,
       waves: wavesWithFallback,
       waterQuality: waterQualityWithFallback,
+      waterTemperature: waterTempData || undefined,
       recentSSOs: ssoData,
       damReleases: damReleasesData || undefined,
       dataFreshness: {
@@ -151,6 +155,7 @@ export async function fetchStaticData(tidePhasePreference?: TidePhaseType): Prom
         weather: weatherData?.timestamp || now,
         waves: waveData?.timestamp || now,
         waterQuality: waterQualityData?.timestamp || now,
+        waterTemperature: waterTempData?.timestamp || undefined,
         sso: ssoData.length > 0 ? ssoData[0].reportedAt : now,
         damReleases: damReleasesData?.timestamp || undefined,
       },

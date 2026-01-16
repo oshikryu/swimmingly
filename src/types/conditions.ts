@@ -79,6 +79,12 @@ export interface SSOEvent {
   source?: string;
 }
 
+export interface WaterTemperature {
+  timestamp: Date;
+  temperatureF: number;
+  source: string;
+}
+
 export interface DamReleaseData {
   timestamp: Date;
 
@@ -174,6 +180,7 @@ export interface CurrentConditions {
   weather: WeatherData;
   waves: WaveData;
   waterQuality: WaterQuality;
+  waterTemperature?: WaterTemperature;
   recentSSOs: SSOEvent[];
   damReleases?: DamReleaseData;
   dataFreshness: {
@@ -181,6 +188,7 @@ export interface CurrentConditions {
     weather: Date;
     waves: Date;
     waterQuality: Date;
+    waterTemperature?: Date;
     sso: Date;
     damReleases?: Date;
   };

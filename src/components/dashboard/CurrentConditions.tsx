@@ -16,6 +16,7 @@ interface RawConditionsData {
   weather: CurrentConditionsType['weather'];
   waves: CurrentConditionsType['waves'];
   waterQuality: CurrentConditionsType['waterQuality'];
+  waterTemperature: CurrentConditionsType['waterTemperature'];
   recentSSOs: CurrentConditionsType['recentSSOs'];
   damReleases: CurrentConditionsType['damReleases'];
   dataFreshness: CurrentConditionsType['dataFreshness'];
@@ -156,6 +157,7 @@ export default function CurrentConditions() {
             weather: data.weather,
             waves: data.waves,
             waterQuality: data.waterQuality,
+            waterTemperature: data.waterTemperature,
             recentSSOs: data.recentSSOs,
             damReleases: data.damReleases,
             dataFreshness: data.dataFreshness,
@@ -405,14 +407,20 @@ export default function CurrentConditions() {
               windGust ? `Gusts: ${windGust.toFixed(0)} mph` : '',
               windDirection !== undefined ? `Direction: ${windDirection}°` : '',
               `Air Temp: ${temperature.toFixed(0)}°F`,
+              conditions?.waterTemperature
+                ? `Water Temp: ${conditions.waterTemperature.temperatureF.toFixed(1)}°F (${conditions.waterTemperature.source})`
+                : '',
               weather?.timestamp ? `Updated: ${formatTimestamp(weather.timestamp)}` : '',
               windSourceDisplay ? `Source: ${windSourceDisplay}` : '',
               ...(score?.factors?.weather?.issues ?? []),
-              // Data source link
+              // Data source links
               isOpenMeteoWind
                 ? '🔗 https://open-meteo.com/'
                 : windSource?.includes('NOAA')
                 ? '🔗 https://www.weather.gov/'
+                : '',
+              conditions?.waterTemperature
+                ? '🔗 https://seatemperature.info/aquatic-park-water-temperature.html'
                 : '',
             ].filter(Boolean)}
           />
