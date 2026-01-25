@@ -50,8 +50,11 @@ export default function CurrentConditions() {
   // Store raw data for client-side recalculation on GitHub Pages
   const rawDataRef = useRef<RawConditionsData | null>(null);
 
-  // Helper to check if we're on GitHub Pages
-  const isGitHubPages = typeof window !== 'undefined' && window.location.hostname.includes('github.io');
+  // Helper to check if we're using static data (GitHub Pages or static build mode)
+  const isStaticMode = typeof window !== 'undefined' && (
+    window.location.hostname.includes('github.io') ||
+    process.env.NEXT_PUBLIC_BUILD_MODE === 'static'
+  );
 
   // Build tide preferences object from preference string
   const buildTidePreferences = (pref: string | null): TidePhasePreferences | undefined => {
@@ -96,7 +99,7 @@ export default function CurrentConditions() {
     // Only fetch when preference is loaded to avoid double-fetching
     if (isLoaded) {
       // On GitHub Pages with cached raw data, recalculate instead of refetching
-      if (isGitHubPages && rawDataRef.current) {
+      if (isStaticMode && rawDataRef.current) {
         const recalculated = recalculateScore(rawDataRef.current, preference);
         setConditions(recalculated);
         return;
@@ -113,12 +116,12 @@ export default function CurrentConditions() {
   // Setup auto-refresh interval (disabled on GitHub Pages static site)
   useEffect(() => {
     // Only set up auto-refresh in dynamic mode (not on GitHub Pages)
-    if (!isGitHubPages) {
+    if (!isStaticMode) {
       // Refresh every 5 minutes
       const interval = setInterval(() => fetchConditions(preference, true), 5 * 60 * 1000);
       return () => clearInterval(interval);
     }
-  }, [preference, isGitHubPages]);
+  }, [preference, isStaticMode]);
 
   async function fetchConditions(tidePreference: typeof preference, isBackgroundFetch = false) {
     try {
@@ -128,7 +131,7 @@ export default function CurrentConditions() {
       }
 
       // Build the URL based on environment
-      const url = isGitHubPages
+      const url = isStaticMode
         ? '/swimmingly/static-data.json'
         : (() => {
             // Include tide preference in API call for dynamic mode
@@ -150,7 +153,7 @@ export default function CurrentConditions() {
       // Don't overwrite good cached data with null/missing data
       if (data && data.tide && data.score) {
         // On GitHub Pages, store raw data and recalculate with user's preference
-        if (isGitHubPages) {
+        if (isStaticMode) {
           rawDataRef.current = {
             tide: data.tide,
             current: data.current,
@@ -191,7 +194,15 @@ export default function CurrentConditions() {
   const handleTidePreferenceChange = (newPreference: typeof preference) => {
     // Update localStorage and state
     setPreference(newPreference);
-    // Immediately refetch with new preference
+
+    // In static mode, recalculate score client-side instead of re-fetching
+    if (isStaticMode && rawDataRef.current) {
+      const recalculated = recalculateScore(rawDataRef.current, newPreference);
+      setConditions(recalculated);
+      return;
+    }
+
+    // In dynamic mode, refetch with new preference
     setLoading(true);
     fetchConditions(newPreference);
   };
