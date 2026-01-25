@@ -4,6 +4,8 @@ interface ConditionsCardProps {
   title: string;
   value: string | number;
   unit?: string;
+  secondaryValue?: string | number;
+  secondaryUnit?: string;
   threshold?: string;
   status?: 'good' | 'warning' | 'danger' | 'info';
   details?: string[];
@@ -14,6 +16,8 @@ export default function ConditionsCard({
   title,
   value,
   unit,
+  secondaryValue,
+  secondaryUnit,
   threshold,
   status = 'info',
   details,
@@ -45,6 +49,13 @@ export default function ConditionsCard({
       <div className={`text-3xl font-bold ${textColors[status]}`}>
         {value}
         {unit && <span className="text-xl ml-1">{unit}</span>}
+        {secondaryValue !== undefined && (
+          <>
+            <span className="text-xl mx-2 text-gray-400">|</span>
+            {secondaryValue}
+            {secondaryUnit && <span className="text-xl ml-1">{secondaryUnit}</span>}
+          </>
+        )}
       </div>
 
       {threshold && (

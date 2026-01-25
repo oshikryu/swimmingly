@@ -238,10 +238,6 @@ export default function CurrentConditions() {
   const windSpeed = score?.factors?.weather?.windSpeed ?? 0;
   const temperature = score?.factors?.weather?.temperature ?? 0;
 
-  // Determine if current is measured or calculated
-  const isCurrentCalculated = current?.source === 'calculated-from-tide-rate';
-  const currentSource = isCurrentCalculated ? '(estimated from tide)' : '';
-
   // Determine wind data source and format display
   const windSource = weather?.source || 'unavailable';
   const isOpenMeteoWind = windSource.includes('open-meteo');
@@ -352,12 +348,13 @@ export default function CurrentConditions() {
             title="Tide & Current"
             value={tideHeight.toFixed(1)}
             unit="ft"
+            secondaryValue={currentSpeed.toFixed(2)}
+            secondaryUnit="kt"
             threshold={`Slack <${SAFETY_THRESHOLDS.current.slack}kt, Moderate <${SAFETY_THRESHOLDS.current.moderate}kt, Strong <${SAFETY_THRESHOLDS.current.strong}kt, Dangerous >${SAFETY_THRESHOLDS.current.veryStrong}kt`}
             status={tideStatus}
             icon="🌊"
             details={[
               `Phase: ${score?.factors?.tideAndCurrent?.phase ?? 'unknown'}`,
-              `Current: ${currentSpeed.toFixed(2)} kts ${currentSource}`,
               // Sort next high/low by timestamp - show whichever comes first
               ...((() => {
                 const tideEvents = [];
@@ -382,7 +379,7 @@ export default function CurrentConditions() {
                 );
               })()),
               latestTideCurrentTimestamp ? `Updated: ${latestTideCurrentTimestamp.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} PST${isUsingCachedTideData ? ' (cached)' : ''}` : '',
-              ...(score?.factors?.tideAndCurrent?.issues ?? []),
+              ...(score?.factors?.tideAndCurrent?.issues?.filter(issue => !issue.toLowerCase().includes('current')) ?? []),
               // Data source link
               '🔗 https://tidesandcurrents.noaa.gov/noaatidepredictions.html?id=9414290',
             ].filter(Boolean)}
