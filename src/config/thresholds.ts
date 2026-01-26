@@ -5,16 +5,18 @@
 
 export const SAFETY_THRESHOLDS = {
   // Water quality thresholds (MPN/100ml - Most Probable Number per 100 milliliters)
+  // EPA standards for marine recreational water quality
+  // Status ranges: safe → advisory → warning → closed
   waterQuality: {
     enterococcus: {
-      safe: 104,           // Below this is considered safe
-      advisory: 500,       // Above this is advisory/warning
-      dangerous: 1000,     // Above this is dangerous
+      safe: 104,           // ≤ 104: safe | 105-500: advisory
+      advisory: 500,       // 501-1000: warning
+      dangerous: 1000,     // > 1000: closed (do not swim)
     },
     coliform: {
-      safe: 200,           // Total coliform safe threshold
-      advisory: 1000,
-      dangerous: 2000,
+      safe: 200,           // ≤ 200: safe | 201-1000: advisory
+      advisory: 1000,      // 1001-2000: warning
+      dangerous: 2000,     // > 2000: closed (do not swim)
     },
   },
 

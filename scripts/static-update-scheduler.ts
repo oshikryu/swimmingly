@@ -79,15 +79,18 @@ async function updateStaticSite() {
       buildMode: 'static',
     };
 
-    // Write to public/static-data.json
-    const staticDataPath = path.join(CONFIG.projectDir, 'public', 'static-data.json');
+    // Write to isolated directory (.static-build/) to avoid conflicting with dev server
+    // The dev server watches public/ so we use a separate directory
+    const staticBuildDir = path.join(CONFIG.projectDir, '.static-build');
+    await fs.mkdir(staticBuildDir, { recursive: true });
+    const staticDataPath = path.join(staticBuildDir, 'static-data.json');
     await fs.writeFile(staticDataPath, JSON.stringify(staticData, null, 2), 'utf-8');
     log(`✓ Wrote data to ${staticDataPath}`, colors.green);
 
-    // Step 3: Build static site
-    log('Building static site...', colors.dim);
+    // Step 3: Build static site using isolated build (uses .next-static instead of .next)
+    log('Building static site (isolated)...', colors.dim);
     const { stdout: buildOutput, stderr: buildError } = await execAsync(
-      'npm run build:static',
+      'npm run build:static:isolated',
       { cwd: CONFIG.projectDir, maxBuffer: 1024 * 1024 * 10 }
     );
 

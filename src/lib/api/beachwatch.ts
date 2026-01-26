@@ -414,23 +414,36 @@ export async function fetchBacteriaCount(beachId: string, date?: Date): Promise<
 
 /**
  * Get water quality status based on bacteria levels
+ * Uses EPA standards for marine recreational water quality
+ *
+ * Thresholds (from src/config/thresholds.ts):
+ * - Enterococcus: safe < 104, advisory 104-500, warning 500-1000, closed > 1000 MPN/100ml
+ * - Total Coliform: safe < 200, advisory 200-1000, warning 1000-2000, closed > 2000 MPN/100ml
  */
 export function assessWaterQualityStatus(
   enterococcus?: number,
   coliform?: number
 ): 'safe' | 'advisory' | 'warning' | 'closed' {
-  // EPA standards for marine water
-  // Enterococcus: >104 MPN/100ml = advisory
-  // Enterococcus: >500 MPN/100ml = warning
+  // Enterococcus thresholds (primary indicator for marine water)
+  const ENTERO_SAFE = 104;      // Below this is safe
+  const ENTERO_ADVISORY = 500;  // Above this is advisory/warning
+  const ENTERO_DANGEROUS = 1000; // Above this is dangerous/closed
+
+  // Total Coliform thresholds (secondary indicator)
+  const COLIFORM_SAFE = 200;
+  const COLIFORM_ADVISORY = 1000;
+  const COLIFORM_DANGEROUS = 2000;
 
   if (enterococcus !== undefined) {
-    if (enterococcus > 500) return 'closed';
-    if (enterococcus > 104) return 'warning';
+    if (enterococcus > ENTERO_DANGEROUS) return 'closed';
+    if (enterococcus > ENTERO_ADVISORY) return 'warning';
+    if (enterococcus > ENTERO_SAFE) return 'advisory';
   }
 
   if (coliform !== undefined) {
-    if (coliform > 1000) return 'warning';
-    if (coliform > 200) return 'advisory';
+    if (coliform > COLIFORM_DANGEROUS) return 'closed';
+    if (coliform > COLIFORM_ADVISORY) return 'warning';
+    if (coliform > COLIFORM_SAFE) return 'advisory';
   }
 
   return 'safe';

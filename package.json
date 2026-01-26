@@ -9,7 +9,9 @@
     "dev:no-updates": "ENABLE_STATIC_UPDATES=false npm run dev:server",
     "build": "next build",
     "build:static": "BUILD_MODE=static NEXT_PUBLIC_BUILD_MODE=static npm run generate-static-data && next build && bash scripts/export-static.sh",
+    "build:static:isolated": "BUILD_MODE=static NEXT_PUBLIC_BUILD_MODE=static ISOLATED_BUILD=true npm run generate-static-data:isolated && ISOLATED_BUILD=true next build && NEXT_DIR=.next-static bash scripts/export-static.sh",
     "generate-static-data": "tsx src/lib/static/generateStaticData.ts",
+    "generate-static-data:isolated": "STATIC_DATA_DIR=.static-build tsx src/lib/static/generateStaticData.ts",
     "start": "next start",
     "lint": "next lint"
   },

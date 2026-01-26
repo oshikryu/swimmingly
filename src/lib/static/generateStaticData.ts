@@ -2,11 +2,15 @@
 /**
  * Generate static data file for build-time pre-fetching
  * This script is run before the static build to fetch fresh data
- * and write it to public/static-data.json
+ * and write it to public/static-data.json (or isolated directory)
+ *
+ * Environment variables:
+ * - STATIC_DATA_DIR: Override output directory (e.g., '.static-build')
+ *                    Used for isolated builds that don't conflict with dev server
  */
 
 import { fetchStaticData } from './fetchStaticData';
-import { writeFileSync } from 'fs';
+import { writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 
 async function generateStaticData() {
@@ -25,9 +29,17 @@ async function generateStaticData() {
       buildMode: 'static',
     };
 
-    // Write to public directory
-    const publicDir = join(process.cwd(), 'public');
-    const outputPath = join(publicDir, 'static-data.json');
+    // Write to output directory (default: public, or isolated directory if STATIC_DATA_DIR is set)
+    const outputDir = process.env.STATIC_DATA_DIR
+      ? join(process.cwd(), process.env.STATIC_DATA_DIR)
+      : join(process.cwd(), 'public');
+
+    // Ensure output directory exists
+    if (!existsSync(outputDir)) {
+      mkdirSync(outputDir, { recursive: true });
+    }
+
+    const outputPath = join(outputDir, 'static-data.json');
 
     writeFileSync(outputPath, JSON.stringify(staticData, null, 2), 'utf-8');
 

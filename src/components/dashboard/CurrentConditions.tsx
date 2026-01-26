@@ -451,7 +451,7 @@ export default function CurrentConditions() {
           <ConditionsCard
             title="Water Quality"
             value={(score?.factors?.waterQuality?.status ?? 'unknown').toUpperCase()}
-            threshold={`Safe <${SAFETY_THRESHOLDS.waterQuality.enterococcus.safe}, Advisory <${SAFETY_THRESHOLDS.waterQuality.enterococcus.advisory}, Dangerous >${SAFETY_THRESHOLDS.waterQuality.enterococcus.dangerous} MPN/100ml`}
+            threshold={`Enterococcus: Safe ≤${SAFETY_THRESHOLDS.waterQuality.enterococcus.safe}, Advisory ≤${SAFETY_THRESHOLDS.waterQuality.enterococcus.advisory}, Warning ≤${SAFETY_THRESHOLDS.waterQuality.enterococcus.dangerous}, Dangerous >${SAFETY_THRESHOLDS.waterQuality.enterococcus.dangerous} | Coliform: Safe ≤${SAFETY_THRESHOLDS.waterQuality.coliform.safe}, Advisory ≤${SAFETY_THRESHOLDS.waterQuality.coliform.advisory}, Warning ≤${SAFETY_THRESHOLDS.waterQuality.coliform.dangerous}, Dangerous >${SAFETY_THRESHOLDS.waterQuality.coliform.dangerous} MPN/100ml`}
             status={waterQualityStatus}
             icon="💧"
             details={[
@@ -468,8 +468,13 @@ export default function CurrentConditions() {
               waterQuality?.notes || '', // Shows "Sampled X days ago"
               waterQuality?.source ? `Source: ${waterQuality.source}` : '', // Show which API
               waterQuality?.stationId ? `Station: ${waterQuality.stationId}` : '',
+              // Show link to data source based on which API provided the data
               waterQuality?.source?.includes('SF Beach Water Quality')
                 ? '🔗 https://data.sfgov.org/Energy-and-Environment/Beach-Water-Quality-Monitoring/v3fv-x3ux'
+                : waterQuality?.source?.includes('California Water Quality')
+                ? '🔗 https://data.ca.gov/dataset/surface-water-fecal-indicator-bacteria-results/resource/15a63495-8d9f-4a49-b43a-3092ef3106b9'
+                : waterQuality?.source?.includes('Water Quality Portal')
+                ? '🔗 https://www.waterqualitydata.us/'
                 : '',
               ...(score?.factors?.waterQuality?.issues ?? []),
             ].filter(Boolean)}

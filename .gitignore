@@ -11,7 +11,11 @@
 
 # next.js
 /.next/
+/.next-static/
 /out/
+
+# isolated static build artifacts
+/.static-build/
 
 # production
 /build
