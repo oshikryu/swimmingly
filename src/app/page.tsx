@@ -81,7 +81,10 @@ export default function Home() {
       <footer className="mt-12 pb-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <p className="text-center text-sm text-gray-500 dark:text-gray-400">
-            Data sources: NOAA, SF PUC, CA Beach Watch • Updates every 5 minutes
+            Data sources: NOAA (tides, currents, weather) • CDEC (dam releases) • SF Open Data (water quality, SSO) • Open-Meteo (wind) • OpenWaterLog (waves)
+          </p>
+          <p className="text-center text-xs text-gray-400 dark:text-gray-500 mt-1">
+            Auto-refreshes every 5 minutes
           </p>
         </div>
       </footer>
