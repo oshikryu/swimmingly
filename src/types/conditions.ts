@@ -22,6 +22,8 @@ export interface TideData {
 export interface TidePrediction extends TideData {
   nextHigh?: TideData;
   nextLow?: TideData;
+  previousHigh?: TideData;
+  previousLow?: TideData;
   currentPhase: 'flood' | 'ebb' | 'slack';
   changeRateFeetPerHour: number;
 }

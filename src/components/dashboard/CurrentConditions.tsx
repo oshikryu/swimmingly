@@ -245,7 +245,10 @@ export default function CurrentConditions() {
   const waveHeight = score?.factors?.waves?.heightFeet ?? 0;
   const swellPeriod = waves?.swellPeriodSeconds ?? null;
   const tideHeight = score?.factors?.tideAndCurrent?.tideHeight ?? 0;
-  const currentSpeed = score?.factors?.tideAndCurrent?.currentSpeed ?? 0;
+  const currentSpeedRaw = score?.factors?.tideAndCurrent?.currentSpeed ?? 0;
+  const tidePhase = score?.factors?.tideAndCurrent?.phase ?? 'slack';
+  // Display current as negative for ebb, positive for flood
+  const currentSpeed = tidePhase === 'ebb' ? -currentSpeedRaw : currentSpeedRaw;
   const windSpeed = score?.factors?.weather?.windSpeed ?? 0;
   const temperature = score?.factors?.weather?.temperature ?? 0;
 
@@ -359,13 +362,26 @@ export default function CurrentConditions() {
             title="Tide & Current"
             value={tideHeight.toFixed(1)}
             unit="ft"
-            secondaryValue={currentSpeed.toFixed(2)}
+            secondaryValue={`${currentSpeed >= 0 ? '+' : ''}${currentSpeed.toFixed(2)}`}
             secondaryUnit="kt"
             threshold={`Slack <${SAFETY_THRESHOLDS.current.slack}kt, Moderate <${SAFETY_THRESHOLDS.current.moderate}kt, Strong <${SAFETY_THRESHOLDS.current.strong}kt, Dangerous >${SAFETY_THRESHOLDS.current.veryStrong}kt`}
             status={tideStatus}
             icon="🌊"
             details={[
-              `Phase: ${score?.factors?.tideAndCurrent?.phase ?? 'unknown'}`,
+              `Phase: ${score?.factors?.tideAndCurrent?.phase ?? 'unknown'} (${tidePhase === 'flood' ? '+' : tidePhase === 'ebb' ? '−' : '~'} current)`,
+              // Show previous tide with styled label
+              ...((() => {
+                // Determine which previous tide is most recent (the one we just passed)
+                const prevHigh = tide?.previousHigh ? { label: 'Prev high', timestamp: new Date(tide.previousHigh.timestamp), heightFeet: tide.previousHigh.heightFeet } : null;
+                const prevLow = tide?.previousLow ? { label: 'Prev low', timestamp: new Date(tide.previousLow.timestamp), heightFeet: tide.previousLow.heightFeet } : null;
+                // Show the most recent previous tide
+                const mostRecentPrev = prevHigh && prevLow
+                  ? (prevHigh.timestamp > prevLow.timestamp ? prevHigh : prevLow)
+                  : (prevHigh || prevLow);
+                return mostRecentPrev
+                  ? [`↩ ${mostRecentPrev.label}: ${mostRecentPrev.timestamp.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} (${mostRecentPrev.heightFeet.toFixed(1)} ft)`]
+                  : [];
+              })()),
               // Sort next high/low by timestamp - show whichever comes first
               ...((() => {
                 const tideEvents = [];
@@ -386,7 +402,7 @@ export default function CurrentConditions() {
                 // Sort by timestamp (earliest first)
                 tideEvents.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
                 return tideEvents.map(event =>
-                  `${event.label}: ${event.timestamp.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} (${event.heightFeet.toFixed(1)} ft)`
+                  `→ ${event.label}: ${event.timestamp.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} (${event.heightFeet.toFixed(1)} ft)`
                 );
               })()),
               latestTideCurrentTimestamp ? `Updated: ${latestTideCurrentTimestamp.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} PST${isUsingCachedTideData ? ' (cached)' : ''}` : '',

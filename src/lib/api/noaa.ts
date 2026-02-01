@@ -351,21 +351,27 @@ export async function fetchWaveData(buoyId: string = WAVE_BUOY_ID): Promise<Wave
 export async function fetchCurrentTidePrediction(): Promise<TidePrediction | null> {
   try {
     const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
     const [currentTide, predictions] = await Promise.all([
       fetchCurrentTide(),
-      fetchTidePredictions(now, tomorrow),
+      fetchTidePredictions(yesterday, tomorrow),
     ]);
 
     if (!currentTide || !predictions || predictions.length === 0) {
       return null;
     }
 
-    // Find next high and low tides
+    // Find next high and low tides (future only)
     const futureTides = predictions.filter(p => p.timestamp > now);
     const nextHigh = futureTides.find(p => p.type === 'high');
     const nextLow = futureTides.find(p => p.type === 'low');
+
+    // Find previous high and low tides (past only, most recent first)
+    const pastTides = predictions.filter(p => p.timestamp <= now).reverse();
+    const previousHigh = pastTides.find(p => p.type === 'high');
+    const previousLow = pastTides.find(p => p.type === 'low');
 
     // Determine current phase
     let currentPhase: 'flood' | 'ebb' | 'slack' = 'slack';
@@ -393,6 +399,8 @@ export async function fetchCurrentTidePrediction(): Promise<TidePrediction | nul
       ...currentTide,
       nextHigh,
       nextLow,
+      previousHigh,
+      previousLow,
       currentPhase,
       changeRateFeetPerHour: changeRate,
     };
