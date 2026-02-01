@@ -7,7 +7,7 @@ import { useConditionsCache } from '@/hooks/useConditionsCache';
 import { SAFETY_THRESHOLDS } from '@/config/thresholds';
 import { calculateSwimScore } from '@/lib/algorithms/swim-score';
 import SwimScore from './SwimScore';
-import ConditionsCard from './ConditionsCard';
+import ConditionsCard, { type ThresholdSegment } from './ConditionsCard';
 
 // Raw data type for client-side recalculation
 interface RawConditionsData {
@@ -364,7 +364,12 @@ export default function CurrentConditions() {
             unit="ft"
             secondaryValue={`${currentSpeed >= 0 ? '+' : ''}${currentSpeed.toFixed(2)}`}
             secondaryUnit="kt"
-            threshold={`Slack <${SAFETY_THRESHOLDS.current.slack}kt, Moderate <${SAFETY_THRESHOLDS.current.moderate}kt, Strong <${SAFETY_THRESHOLDS.current.strong}kt, Dangerous >${SAFETY_THRESHOLDS.current.veryStrong}kt`}
+            thresholds={[
+              { label: 'Slack', value: `<${SAFETY_THRESHOLDS.current.slack}kt`, status: 'good' },
+              { label: 'Moderate', value: `<${SAFETY_THRESHOLDS.current.moderate}kt`, status: 'info' },
+              { label: 'Strong', value: `<${SAFETY_THRESHOLDS.current.strong}kt`, status: 'warning' },
+              { label: 'Dangerous', value: `>${SAFETY_THRESHOLDS.current.veryStrong}kt`, status: 'danger' },
+            ] as ThresholdSegment[]}
             status={tideStatus}
             icon="🌊"
             details={[
@@ -416,7 +421,12 @@ export default function CurrentConditions() {
             title="Waves"
             value={waveHeight.toFixed(1)}
             unit="ft"
-            threshold={`Calm <${SAFETY_THRESHOLDS.waves.calm}ft, Safe <${SAFETY_THRESHOLDS.waves.safe}ft, Moderate <${SAFETY_THRESHOLDS.waves.moderate}ft, Rough <${SAFETY_THRESHOLDS.waves.rough}ft`}
+            thresholds={[
+              { label: 'Calm', value: `<${SAFETY_THRESHOLDS.waves.calm}ft`, status: 'good' },
+              { label: 'Safe', value: `<${SAFETY_THRESHOLDS.waves.safe}ft`, status: 'good' },
+              { label: 'Moderate', value: `<${SAFETY_THRESHOLDS.waves.moderate}ft`, status: 'warning' },
+              { label: 'Rough', value: `<${SAFETY_THRESHOLDS.waves.rough}ft`, status: 'danger' },
+            ] as ThresholdSegment[]}
             status={waveStatus}
             icon="🌊"
             details={[
@@ -438,7 +448,12 @@ export default function CurrentConditions() {
             title="Wind"
             value={windSpeed.toFixed(0)}
             unit="mph"
-            threshold={`Calm <${SAFETY_THRESHOLDS.wind.calm}mph, Light <${SAFETY_THRESHOLDS.wind.light}mph, Moderate <${SAFETY_THRESHOLDS.wind.moderate}mph, Strong <${SAFETY_THRESHOLDS.wind.strong}mph`}
+            thresholds={[
+              { label: 'Calm', value: `<${SAFETY_THRESHOLDS.wind.calm}mph`, status: 'good' },
+              { label: 'Light', value: `<${SAFETY_THRESHOLDS.wind.light}mph`, status: 'good' },
+              { label: 'Moderate', value: `<${SAFETY_THRESHOLDS.wind.moderate}mph`, status: 'warning' },
+              { label: 'Strong', value: `<${SAFETY_THRESHOLDS.wind.strong}mph`, status: 'danger' },
+            ] as ThresholdSegment[]}
             status={weatherStatus}
             icon="💨"
             details={[
@@ -467,7 +482,12 @@ export default function CurrentConditions() {
           <ConditionsCard
             title="Water Quality"
             value={(score?.factors?.waterQuality?.status ?? 'unknown').toUpperCase()}
-            threshold={`Enterococcus: Safe ≤${SAFETY_THRESHOLDS.waterQuality.enterococcus.safe}, Advisory ≤${SAFETY_THRESHOLDS.waterQuality.enterococcus.advisory}, Warning ≤${SAFETY_THRESHOLDS.waterQuality.enterococcus.dangerous}, Dangerous >${SAFETY_THRESHOLDS.waterQuality.enterococcus.dangerous} | Coliform: Safe ≤${SAFETY_THRESHOLDS.waterQuality.coliform.safe}, Advisory ≤${SAFETY_THRESHOLDS.waterQuality.coliform.advisory}, Warning ≤${SAFETY_THRESHOLDS.waterQuality.coliform.dangerous}, Dangerous >${SAFETY_THRESHOLDS.waterQuality.coliform.dangerous} MPN/100ml`}
+            thresholds={[
+              { label: 'Safe', value: `≤${SAFETY_THRESHOLDS.waterQuality.enterococcus.safe}`, status: 'good' },
+              { label: 'Advisory', value: `≤${SAFETY_THRESHOLDS.waterQuality.enterococcus.advisory}`, status: 'warning' },
+              { label: 'Warning', value: `≤${SAFETY_THRESHOLDS.waterQuality.enterococcus.dangerous}`, status: 'warning' },
+              { label: 'Dangerous', value: `>${SAFETY_THRESHOLDS.waterQuality.enterococcus.dangerous} MPN`, status: 'danger' },
+            ] as ThresholdSegment[]}
             status={waterQualityStatus}
             icon="💧"
             details={[
@@ -502,7 +522,12 @@ export default function CurrentConditions() {
               ? Math.round(score.factors.damReleases.totalFlowCFS / 1000).toString() + 'k'
               : '0'}
             unit="CFS"
-            threshold={`Low <${SAFETY_THRESHOLDS.damReleases.moderate.toLocaleString()}CFS, Moderate <${SAFETY_THRESHOLDS.damReleases.high.toLocaleString()}CFS, High <${SAFETY_THRESHOLDS.damReleases.extreme.toLocaleString()}CFS`}
+            thresholds={[
+              { label: 'Low', value: `<${SAFETY_THRESHOLDS.damReleases.moderate.toLocaleString()}`, status: 'good' },
+              { label: 'Moderate', value: `<${SAFETY_THRESHOLDS.damReleases.high.toLocaleString()}`, status: 'info' },
+              { label: 'High', value: `<${SAFETY_THRESHOLDS.damReleases.extreme.toLocaleString()}`, status: 'warning' },
+              { label: 'Extreme', value: `>${SAFETY_THRESHOLDS.damReleases.extreme.toLocaleString()}`, status: 'danger' },
+            ] as ThresholdSegment[]}
             status={damReleasesStatus}
             icon="🏔️"
             details={[

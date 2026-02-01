@@ -1,5 +1,11 @@
 'use client';
 
+export interface ThresholdSegment {
+  label: string;
+  value: string;
+  status: 'good' | 'warning' | 'danger' | 'info';
+}
+
 interface ConditionsCardProps {
   title: string;
   value: string | number;
@@ -7,6 +13,7 @@ interface ConditionsCardProps {
   secondaryValue?: string | number;
   secondaryUnit?: string;
   threshold?: string;
+  thresholds?: ThresholdSegment[];
   status?: 'good' | 'warning' | 'danger' | 'info';
   details?: string[];
   icon?: string;
@@ -19,6 +26,7 @@ export default function ConditionsCard({
   secondaryValue,
   secondaryUnit,
   threshold,
+  thresholds,
   status = 'info',
   details,
   icon,
@@ -35,6 +43,13 @@ export default function ConditionsCard({
     warning: 'text-yellow-800 dark:text-yellow-200',
     danger: 'text-red-800 dark:text-red-200',
     info: 'text-blue-800 dark:text-blue-200',
+  };
+
+  const thresholdTextColors = {
+    good: 'text-green-600 dark:text-green-400',
+    warning: 'text-yellow-600 dark:text-yellow-400',
+    danger: 'text-red-600 dark:text-red-400',
+    info: 'text-blue-600 dark:text-blue-400',
   };
 
   return (
@@ -58,7 +73,16 @@ export default function ConditionsCard({
         )}
       </div>
 
-      {threshold && (
+      {thresholds && thresholds.length > 0 && (
+        <div className="mt-1 text-xs flex flex-wrap gap-x-1">
+          {thresholds.map((t, idx) => (
+            <span key={idx} className={thresholdTextColors[t.status]}>
+              {t.label} {t.value}{idx < thresholds.length - 1 ? ',' : ''}
+            </span>
+          ))}
+        </div>
+      )}
+      {threshold && !thresholds && (
         <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
           {threshold}
         </div>
