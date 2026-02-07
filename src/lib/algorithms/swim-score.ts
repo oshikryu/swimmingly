@@ -14,6 +14,7 @@ import type {
   SwimScore,
   SwimScoreFactors,
   TidePhasePreferences,
+  ScoreWeights,
 } from '@/types/conditions';
 import { SAFETY_THRESHOLDS, SCORE_WEIGHTS, SCORE_RANGES } from '@/config/thresholds';
 
@@ -28,7 +29,8 @@ export function calculateSwimScore(
   waterQuality: WaterQuality,
   recentSSOs: SSOEvent[],
   damReleases: DamReleaseData | null,
-  customTidePreferences?: TidePhasePreferences
+  customTidePreferences?: TidePhasePreferences,
+  customWeights?: ScoreWeights
 ): SwimScore {
   // Calculate individual factor scores
   const waterQualityFactor = scoreWaterQuality(waterQuality, recentSSOs);
@@ -38,13 +40,15 @@ export function calculateSwimScore(
   const damReleasesFactor = scoreDamReleases(damReleases);
 
   // Calculate weighted overall score
+  const weights = customWeights || SCORE_WEIGHTS;
+  const weightSum = weights.waterQuality + weights.tideAndCurrent + weights.waves + weights.weather + weights.damReleases;
   let overallScore = Math.round(
-    (waterQualityFactor.score * SCORE_WEIGHTS.waterQuality +
-      tideCurrentFactor.score * SCORE_WEIGHTS.tideAndCurrent +
-      waveFactor.score * SCORE_WEIGHTS.waves +
-      weatherFactor.score * SCORE_WEIGHTS.weather +
-      damReleasesFactor.score * SCORE_WEIGHTS.damReleases) /
-      100
+    (waterQualityFactor.score * weights.waterQuality +
+      tideCurrentFactor.score * weights.tideAndCurrent +
+      waveFactor.score * weights.waves +
+      weatherFactor.score * weights.weather +
+      damReleasesFactor.score * weights.damReleases) /
+      weightSum
   );
 
   // Cap overall score based on critical danger conditions

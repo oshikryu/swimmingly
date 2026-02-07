@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import type { CurrentConditions as CurrentConditionsType, TidePhasePreferences } from '@/types/conditions';
+import type { CurrentConditions as CurrentConditionsType, TidePhasePreferences, ScoreWeights } from '@/types/conditions';
 import { useTidePreference } from '@/hooks/useTidePreference';
+import { useScoreWeights } from '@/hooks/useScoreWeights';
 import { useConditionsCache } from '@/hooks/useConditionsCache';
 import { SAFETY_THRESHOLDS } from '@/config/thresholds';
 import { calculateSwimScore } from '@/lib/algorithms/swim-score';
@@ -46,8 +47,9 @@ export default function CurrentConditions() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { preference, setPreference, isLoaded } = useTidePreference();
+  const { weights, setWeights, resetWeights, isCustom: isWeightsCustom } = useScoreWeights();
   const { cachedData, setCachedData, isCacheValid } = useConditionsCache();
-  // Store raw data for client-side recalculation on GitHub Pages
+  // Store raw data for client-side recalculation
   const rawDataRef = useRef<RawConditionsData | null>(null);
 
   // Helper to check if we're using static data (GitHub Pages or static build mode)
@@ -66,8 +68,8 @@ export default function CurrentConditions() {
     };
   };
 
-  // Recalculate score client-side using raw data (for GitHub Pages)
-  const recalculateScore = (rawData: RawConditionsData, tidePreference: string | null): CurrentConditionsType => {
+  // Recalculate score client-side using raw data
+  const recalculateScore = (rawData: RawConditionsData, tidePreference: string | null, customWeights?: ScoreWeights): CurrentConditionsType => {
     const customTidePreferences = buildTidePreferences(tidePreference);
     const newScore = calculateSwimScore(
       rawData.tide,
@@ -77,7 +79,8 @@ export default function CurrentConditions() {
       rawData.waterQuality,
       rawData.recentSSOs || [],
       rawData.damReleases ?? null,
-      customTidePreferences
+      customTidePreferences,
+      customWeights
     );
     return {
       timestamp: new Date(),
@@ -98,9 +101,9 @@ export default function CurrentConditions() {
   useEffect(() => {
     // Only fetch when preference is loaded to avoid double-fetching
     if (isLoaded) {
-      // On GitHub Pages with cached raw data, recalculate instead of refetching
-      if (isStaticMode && rawDataRef.current) {
-        const recalculated = recalculateScore(rawDataRef.current, preference);
+      // When raw data is available, recalculate client-side instead of refetching
+      if (rawDataRef.current) {
+        const recalculated = recalculateScore(rawDataRef.current, preference, isWeightsCustom ? weights : undefined);
         setConditions(recalculated);
         return;
       }
@@ -152,20 +155,26 @@ export default function CurrentConditions() {
       // Only update cache and state if we have valid data
       // Don't overwrite good cached data with null/missing data
       if (data && data.tide && data.score) {
-        // On GitHub Pages, store raw data and recalculate with user's preference
-        if (isStaticMode) {
-          rawDataRef.current = {
-            tide: data.tide,
-            current: data.current,
-            weather: data.weather,
-            waves: data.waves,
-            waterQuality: data.waterQuality,
-            waterTemperature: data.waterTemperature,
-            recentSSOs: data.recentSSOs,
-            damReleases: data.damReleases,
-            dataFreshness: data.dataFreshness,
-          };
-          // Recalculate score with user's tide preference
+        // Always store raw data for client-side recalculation
+        rawDataRef.current = {
+          tide: data.tide,
+          current: data.current,
+          weather: data.weather,
+          waves: data.waves,
+          waterQuality: data.waterQuality,
+          waterTemperature: data.waterTemperature,
+          recentSSOs: data.recentSSOs,
+          damReleases: data.damReleases,
+          dataFreshness: data.dataFreshness,
+        };
+
+        // Re-apply custom weights if set
+        if (isWeightsCustom) {
+          const recalculated = recalculateScore(rawDataRef.current, tidePreference, weights);
+          setCachedData(recalculated);
+          setConditions(recalculated);
+        } else if (isStaticMode) {
+          // Static mode: recalculate with tide preference
           const recalculated = recalculateScore(rawDataRef.current, tidePreference);
           setCachedData(recalculated);
           setConditions(recalculated);
@@ -190,21 +199,39 @@ export default function CurrentConditions() {
     }
   }
 
-  // Handle tide preference change from SwimScore component
+  // Handle tide preference change - always recalculate client-side when raw data available
   const handleTidePreferenceChange = (newPreference: typeof preference) => {
-    // Update localStorage and state
     setPreference(newPreference);
 
-    // In static mode, recalculate score client-side instead of re-fetching
-    if (isStaticMode && rawDataRef.current) {
-      const recalculated = recalculateScore(rawDataRef.current, newPreference);
+    if (rawDataRef.current) {
+      const recalculated = recalculateScore(rawDataRef.current, newPreference, isWeightsCustom ? weights : undefined);
       setConditions(recalculated);
       return;
     }
 
-    // In dynamic mode, refetch with new preference
+    // Fallback: refetch from API
     setLoading(true);
     fetchConditions(newPreference);
+  };
+
+  // Handle weight changes - always recalculate client-side
+  const handleWeightsChange = (newWeights: ScoreWeights) => {
+    setWeights(newWeights);
+
+    if (rawDataRef.current) {
+      const recalculated = recalculateScore(rawDataRef.current, preference, newWeights);
+      setConditions(recalculated);
+    }
+  };
+
+  // Handle weight reset
+  const handleWeightsReset = () => {
+    resetWeights();
+
+    if (rawDataRef.current) {
+      const recalculated = recalculateScore(rawDataRef.current, preference);
+      setConditions(recalculated);
+    }
   };
 
   if (loading) {
@@ -353,6 +380,10 @@ export default function CurrentConditions() {
             tidePreference={preference}
             onTidePreferenceChange={handleTidePreferenceChange}
             isPreferenceLoaded={isLoaded}
+            weights={weights}
+            onWeightsChange={handleWeightsChange}
+            onWeightsReset={handleWeightsReset}
+            isWeightsCustom={isWeightsCustom}
           />
         </div>
 

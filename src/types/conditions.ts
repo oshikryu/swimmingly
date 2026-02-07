@@ -246,6 +246,14 @@ export interface HistoricalPattern {
  */
 export type TidePhaseType = 'slack' | 'flood' | 'ebb';
 
+export interface ScoreWeights {
+  waterQuality: number;
+  tideAndCurrent: number;
+  waves: number;
+  weather: number;
+  damReleases: number;
+}
+
 export interface TidePhasePreferences {
   slack: number;   // Preference score 0-100
   flood: number;   // Preference score 0-100

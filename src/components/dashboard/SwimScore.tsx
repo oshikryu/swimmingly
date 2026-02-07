@@ -1,27 +1,45 @@
 'use client';
 
-import type { SwimScore as SwimScoreType, TidePhaseType } from '@/types/conditions';
+import type { SwimScore as SwimScoreType, TidePhaseType, ScoreWeights } from '@/types/conditions';
 import { SCORE_RANGES } from '@/config/thresholds';
-import TidePhaseToggle from './TidePhaseToggle';
+import TidePreferenceSlider from './TidePreferenceSlider';
+import ScoreWeightSliders from './ScoreWeightSliders';
 
 interface SwimScoreProps {
   score: SwimScoreType;
   tidePreference: TidePhaseType;
   onTidePreferenceChange: (preference: TidePhaseType) => void;
   isPreferenceLoaded: boolean;
+  weights: ScoreWeights;
+  onWeightsChange: (weights: ScoreWeights) => void;
+  onWeightsReset: () => void;
+  isWeightsCustom: boolean;
 }
 
 export default function SwimScore({
   score,
   tidePreference,
   onTidePreferenceChange,
-  isPreferenceLoaded
+  isPreferenceLoaded,
+  weights,
+  onWeightsChange,
+  onWeightsReset,
+  isWeightsCustom,
 }: SwimScoreProps) {
   const { overallScore, rating, warnings, recommendations } = score;
 
   // Get color based on rating
   const scoreRange = SCORE_RANGES[rating];
   const color = scoreRange.color;
+
+  // Extract factor scores for weight sliders
+  const factorScores = {
+    waterQuality: score.factors.waterQuality.score,
+    tideAndCurrent: score.factors.tideAndCurrent.score,
+    waves: score.factors.waves.score,
+    weather: score.factors.weather.score,
+    damReleases: score.factors.damReleases.score,
+  };
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
@@ -82,12 +100,23 @@ export default function SwimScore({
         </div>
       )}
 
-      {/* Tide Phase Preference Toggle */}
+      {/* Tide Phase Preference Slider */}
       <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-        <TidePhaseToggle
+        <TidePreferenceSlider
           preference={tidePreference}
           onChange={onTidePreferenceChange}
           isLoading={!isPreferenceLoaded}
+        />
+      </div>
+
+      {/* Score Weight Sliders */}
+      <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <ScoreWeightSliders
+          weights={weights}
+          onChange={onWeightsChange}
+          onReset={onWeightsReset}
+          isCustom={isWeightsCustom}
+          factorScores={factorScores}
         />
       </div>
 

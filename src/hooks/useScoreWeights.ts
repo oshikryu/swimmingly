@@ -1,0 +1,88 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import type { ScoreWeights } from '@/types/conditions';
+import { SCORE_WEIGHTS } from '@/config/thresholds';
+
+const STORAGE_KEY = 'swimmingly-score-weights';
+
+const DEFAULT_WEIGHTS: ScoreWeights = {
+  waterQuality: SCORE_WEIGHTS.waterQuality,
+  tideAndCurrent: SCORE_WEIGHTS.tideAndCurrent,
+  waves: SCORE_WEIGHTS.waves,
+  weather: SCORE_WEIGHTS.weather,
+  damReleases: SCORE_WEIGHTS.damReleases,
+};
+
+interface UseScoreWeightsReturn {
+  weights: ScoreWeights;
+  setWeights: (weights: ScoreWeights) => void;
+  resetWeights: () => void;
+  isLoaded: boolean;
+  isCustom: boolean;
+}
+
+function isValidWeights(value: unknown): value is ScoreWeights {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const keys: (keyof ScoreWeights)[] = ['waterQuality', 'tideAndCurrent', 'waves', 'weather', 'damReleases'];
+  for (const key of keys) {
+    if (typeof obj[key] !== 'number' || obj[key] < 0 || obj[key] > 100) return false;
+  }
+  const sum = keys.reduce((s, k) => s + (obj[k] as number), 0);
+  return Math.abs(sum - 100) < 2; // allow small rounding drift
+}
+
+function areWeightsEqual(a: ScoreWeights, b: ScoreWeights): boolean {
+  return (
+    a.waterQuality === b.waterQuality &&
+    a.tideAndCurrent === b.tideAndCurrent &&
+    a.waves === b.waves &&
+    a.weather === b.weather &&
+    a.damReleases === b.damReleases
+  );
+}
+
+export function useScoreWeights(): UseScoreWeightsReturn {
+  const [weights, setWeightsState] = useState<ScoreWeights>(DEFAULT_WEIGHTS);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (isValidWeights(parsed)) {
+          setWeightsState(parsed);
+        }
+      }
+    } catch {
+      console.warn('Failed to load score weights from localStorage');
+    } finally {
+      setIsLoaded(true);
+    }
+  }, []);
+
+  const setWeights = (newWeights: ScoreWeights) => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newWeights));
+      setWeightsState(newWeights);
+    } catch {
+      console.warn('Failed to save score weights to localStorage');
+      setWeightsState(newWeights);
+    }
+  };
+
+  const resetWeights = () => {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+    setWeightsState(DEFAULT_WEIGHTS);
+  };
+
+  const isCustom = !areWeightsEqual(weights, DEFAULT_WEIGHTS);
+
+  return { weights, setWeights, resetWeights, isLoaded, isCustom };
+}
