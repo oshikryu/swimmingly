@@ -26,6 +26,23 @@ let cacheTimestamp: number = 0;
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
 /**
+ * Helper: Parse water quality data values that may contain "<" prefix
+ * (e.g., "<10" means below detection limit, which is a very low/safe reading)
+ * Returns the numeric value, treating "<X" as X (conservative upper bound).
+ */
+function parseWQValue(value: string): number | null {
+  if (value == null) return null;
+  const trimmed = value.trim();
+  // Handle "<10", "< 10", etc. — treat as the detection limit value
+  const belowDetection = trimmed.match(/^<\s*(\d+\.?\d*)$/);
+  if (belowDetection) {
+    return parseFloat(belowDetection[1]);
+  }
+  const num = parseFloat(trimmed);
+  return isNaN(num) ? null : num;
+}
+
+/**
  * Helper: Format sample age for UI display
  */
 function formatSampleAge(sampleDate: Date): string {
@@ -80,13 +97,14 @@ async function fetchFromSFGov(): Promise<WaterQuality | null> {
     console.log(`SF Gov API: Retrieved ${response.data.length} records for locations 210/211 (Hyde St Pier & Aquatic Park)`);
 
     // Find the most recent Enterococcus measurements from both locations
+    // Note: data values can be "<10" (below detection limit) which is valid
     const aquaticParkRecord = response.data.find(
       (record: any) =>
         record.source === 'BAY#211_SL' &&
         record.analyte === 'ENTERO' &&
         record.data !== null &&
         record.data !== undefined &&
-        !isNaN(parseFloat(record.data))
+        parseWQValue(record.data) !== null
     );
 
     const hydePierRecord = response.data.find(
@@ -95,7 +113,7 @@ async function fetchFromSFGov(): Promise<WaterQuality | null> {
         record.analyte === 'ENTERO' &&
         record.data !== null &&
         record.data !== undefined &&
-        !isNaN(parseFloat(record.data))
+        parseWQValue(record.data) !== null
     );
 
     if (!aquaticParkRecord && !hydePierRecord) {
@@ -125,7 +143,7 @@ async function fetchFromSFGov(): Promise<WaterQuality | null> {
     }
 
     const sampleDate = new Date(selectedRecord.sample_date);
-    const enterococcus = parseFloat(selectedRecord.data);
+    const enterococcus = parseWQValue(selectedRecord.data)!;
 
     console.log(`SF Gov: Found Enterococcus ${enterococcus} MPN/100ml from ${sampleDate.toLocaleDateString()} (${selectedRecord.source} - ${locationName})`);
 
