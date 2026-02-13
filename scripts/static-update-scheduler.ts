@@ -89,7 +89,7 @@ async function updateStaticSite() {
 
     // Step 3: Build static site using isolated build (uses .next-static instead of .next)
     log('Building static site (isolated)...', colors.dim);
-    const { stdout: buildOutput, stderr: buildError } = await execAsync(
+    const { stderr: buildError } = await execAsync(
       'npm run build:static:isolated',
       { cwd: CONFIG.projectDir, maxBuffer: 1024 * 1024 * 10 }
     );

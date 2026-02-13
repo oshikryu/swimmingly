@@ -4,7 +4,7 @@
  * without HTTP overhead
  */
 
-import type { CurrentConditions, TidePhaseType, TidePhasePreferences } from '@/types/conditions';
+import type { CurrentConditions, CurrentData, TidePrediction, TidePhaseType, TidePhasePreferences } from '@/types/conditions';
 import { fetchCurrentTidePrediction, fetchCurrentWeather, fetchWaveData, fetchCurrents } from '@/lib/api/noaa';
 import { fetchWaterQuality } from '@/lib/api/beachwatch';
 import { fetchRecentSSOs } from '@/lib/api/sfpuc';
@@ -18,7 +18,7 @@ import { fetchWaterTemperature } from '@/lib/api/seatemperature';
  * Fetch all data sources and calculate swim score
  * Returns serializable JSON (all Dates converted to ISO strings)
  */
-export async function fetchStaticData(tidePhasePreference?: TidePhaseType): Promise<any> {
+export async function fetchStaticData(tidePhasePreference?: TidePhaseType): Promise<CurrentConditions> {
   try {
     console.log('Fetching static data for build...');
 
@@ -175,7 +175,7 @@ export async function fetchStaticData(tidePhasePreference?: TidePhaseType): Prom
  * Calculate estimated current speed from tide change rate
  * Uses tide rate as a proxy when direct current measurements are unavailable
  */
-function calculateCurrentFromTide(tide: any, timestamp: Date): any {
+function calculateCurrentFromTide(tide: TidePrediction, timestamp: Date): CurrentData {
   const TIDE_RATE_TO_CURRENT_MULTIPLIER = 0.4;
   const estimatedSpeedKnots = Math.abs(tide.changeRateFeetPerHour) * TIDE_RATE_TO_CURRENT_MULTIPLIER;
 

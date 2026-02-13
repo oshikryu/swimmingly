@@ -42,7 +42,7 @@ export async function fetchTidePredictions(
       throw new Error('No tide predictions data received from NOAA');
     }
 
-    return response.data.predictions.map((pred: any) => ({
+    return response.data.predictions.map((pred: { t: string; v: string; type?: string }) => ({
       timestamp: new Date(pred.t),
       heightFeet: parseFloat(pred.v),
       type: pred.type === 'H' ? 'high' : pred.type === 'L' ? 'low' : 'normal',
@@ -173,7 +173,7 @@ export async function fetchWeatherForecast(): Promise<WeatherData[]> {
 
     const periods = forecastResponse.data.properties.periods;
 
-    return periods.slice(0, 72).map((period: any) => ({
+    return periods.slice(0, 72).map((period: { startTime: string; temperature: number; windSpeed: string; windDirection: string; windGust?: string; shortForecast: string }) => ({
       timestamp: new Date(period.startTime),
       temperatureF: period.temperature,
       windSpeedMph: parseWindSpeed(period.windSpeed),

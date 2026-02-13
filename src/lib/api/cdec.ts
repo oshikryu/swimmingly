@@ -303,7 +303,7 @@ function parseCDECTimestamp(dateTimeStr: string): Date | undefined {
     const minute = parseInt(timePart.substring(2, 4), 10);
 
     return new Date(year, month, day, hour, minute);
-  } catch (error) {
+  } catch {
     return undefined;
   }
 }

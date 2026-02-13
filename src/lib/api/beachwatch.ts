@@ -99,7 +99,7 @@ async function fetchFromSFGov(): Promise<WaterQuality | null> {
     // Find the most recent Enterococcus measurements from both locations
     // Note: data values can be "<10" (below detection limit) which is valid
     const aquaticParkRecord = response.data.find(
-      (record: any) =>
+      (record: { source: string; analyte: string; data: string | null; sample_date?: string }) =>
         record.source === 'BAY#211_SL' &&
         record.analyte === 'ENTERO' &&
         record.data !== null &&
@@ -108,7 +108,7 @@ async function fetchFromSFGov(): Promise<WaterQuality | null> {
     );
 
     const hydePierRecord = response.data.find(
-      (record: any) =>
+      (record: { source: string; analyte: string; data: string | null; sample_date?: string }) =>
         record.source === 'BAY#210.1_SL' &&
         record.analyte === 'ENTERO' &&
         record.data !== null &&
@@ -188,12 +188,12 @@ async function fetchFromCaliforniaAPI(): Promise<WaterQuality | null> {
 
     // Find the most recent Enterococcus measurement
     const enterococcusRecord = records.find(
-      (r: any) => r.Analyte === 'Enterococcus' && r.Result !== null
+      (r: { Analyte: string; Result: number | null }) => r.Analyte === 'Enterococcus' && r.Result !== null
     );
 
     // Find the most recent Total Coliform measurement
     const coliformRecord = records.find(
-      (r: any) => r.Analyte === 'Coliform, Total' && r.Result !== null
+      (r: { Analyte: string; Result: number | null }) => r.Analyte === 'Coliform, Total' && r.Result !== null
     );
 
     if (!enterococcusRecord && !coliformRecord) {
@@ -408,7 +408,7 @@ export async function fetchWaterQuality(): Promise<WaterQuality | null> {
 /**
  * Fetch bacteria count data
  */
-export async function fetchBacteriaCount(beachId: string, date?: Date): Promise<{
+export async function fetchBacteriaCount(_beachId: string, date?: Date): Promise<{
   enterococcus?: number;
   coliform?: number;
   sampleDate: Date;

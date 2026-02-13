@@ -32,7 +32,7 @@ export async function fetchRecentSSOs(daysBack: number = 7): Promise<SSOEvent[]>
       return [];
     }
 
-    return response.data.map((event: any) => {
+    return response.data.map((event: { incident_id?: string; incident_date: string; location?: string; volume?: string; status?: string; close_date?: string; description?: string; latitude?: string; longitude?: string }) => {
       const distance = event.latitude && event.longitude
         ? calculateDistance(
             AQUATIC_PARK_LAT,
