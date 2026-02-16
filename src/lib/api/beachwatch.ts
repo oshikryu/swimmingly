@@ -96,63 +96,63 @@ async function fetchFromSFGov(): Promise<WaterQuality | null> {
 
     console.log(`SF Gov API: Retrieved ${response.data.length} records for locations 210/211 (Hyde St Pier & Aquatic Park)`);
 
-    // Find the most recent Enterococcus measurements from both locations
-    // Note: data values can be "<10" (below detection limit) which is valid
-    const aquaticParkRecord = response.data.find(
-      (record: { source: string; analyte: string; data: string | null; sample_date?: string }) =>
-        record.source === 'BAY#211_SL' &&
-        record.analyte === 'ENTERO' &&
-        record.data !== null &&
-        record.data !== undefined &&
-        parseWQValue(record.data) !== null
-    );
+    // Type for SF Gov API records
+    type SFGovRecord = { source: string; analyte: string; data: string | null; sample_date: string };
 
-    const hydePierRecord = response.data.find(
-      (record: { source: string; analyte: string; data: string | null; sample_date?: string }) =>
-        record.source === 'BAY#210.1_SL' &&
-        record.analyte === 'ENTERO' &&
-        record.data !== null &&
-        record.data !== undefined &&
-        parseWQValue(record.data) !== null
-    );
+    // Helper: find most recent valid record for a given analyte across both locations
+    const findMostRecentRecord = (analyte: string): { record: SFGovRecord; location: string } | null => {
+      const aquaticParkRecord = response.data.find(
+        (r: SFGovRecord) =>
+          r.source === 'BAY#211_SL' && r.analyte === analyte && r.data != null && parseWQValue(r.data) !== null
+      );
+      const hydePierRecord = response.data.find(
+        (r: SFGovRecord) =>
+          r.source === 'BAY#210.1_SL' && r.analyte === analyte && r.data != null && parseWQValue(r.data) !== null
+      );
 
-    if (!aquaticParkRecord && !hydePierRecord) {
-      console.warn('No ENTERO (Enterococcus) data found in SF Gov API response for either location');
-      return null;
-    }
-
-    // Use the most recent data between the two locations
-    let selectedRecord = aquaticParkRecord;
-    let locationName = 'Aquatic Park';
-
-    if (aquaticParkRecord && hydePierRecord) {
-      const aquaticDate = new Date(aquaticParkRecord.sample_date).getTime();
-      const hydeDate = new Date(hydePierRecord.sample_date).getTime();
-
-      if (hydeDate > aquaticDate) {
-        selectedRecord = hydePierRecord;
-        locationName = 'Hyde St Pier';
+      if (!aquaticParkRecord && !hydePierRecord) return null;
+      if (aquaticParkRecord && hydePierRecord) {
+        return new Date(hydePierRecord.sample_date).getTime() > new Date(aquaticParkRecord.sample_date).getTime()
+          ? { record: hydePierRecord, location: 'Hyde St Pier' }
+          : { record: aquaticParkRecord, location: 'Aquatic Park' };
       }
-    } else if (hydePierRecord && !aquaticParkRecord) {
-      selectedRecord = hydePierRecord;
-      locationName = 'Hyde St Pier';
-    }
+      return aquaticParkRecord
+        ? { record: aquaticParkRecord, location: 'Aquatic Park' }
+        : { record: hydePierRecord!, location: 'Hyde St Pier' };
+    };
 
-    if (!selectedRecord) {
+    // Find most recent records for all three bacterial indicators
+    const enteroResult = findMostRecentRecord('ENTERO');
+    const eColiResult = findMostRecentRecord('COLI_E');
+    const coliformResult = findMostRecentRecord('COLI_TOTAL');
+
+    if (!enteroResult && !eColiResult && !coliformResult) {
+      console.warn('No bacterial data found in SF Gov API response for either location');
       return null;
     }
 
-    const sampleDate = new Date(selectedRecord.sample_date);
-    const enterococcus = parseWQValue(selectedRecord.data)!;
+    // Use the Enterococcus record as primary (or fall back to whichever is available)
+    const primaryResult = enteroResult || eColiResult || coliformResult;
+    if (!primaryResult) return null;
 
-    console.log(`SF Gov: Found Enterococcus ${enterococcus} MPN/100ml from ${sampleDate.toLocaleDateString()} (${selectedRecord.source} - ${locationName})`);
+    const sampleDate = new Date(primaryResult.record.sample_date);
+    const locationName = primaryResult.location;
+    const stationId = primaryResult.record.source;
+
+    const enterococcus = enteroResult ? parseWQValue(enteroResult.record.data!)! : undefined;
+    const eColi = eColiResult ? parseWQValue(eColiResult.record.data!)! : undefined;
+    const coliform = coliformResult ? parseWQValue(coliformResult.record.data!)! : undefined;
+
+    console.log(`SF Gov: Enterococcus=${enterococcus ?? 'N/A'}, E.coli=${eColi ?? 'N/A'}, Total Coliform=${coliform ?? 'N/A'} MPN/100ml from ${sampleDate.toLocaleDateString()} (${stationId} - ${locationName})`);
 
     return {
       timestamp: sampleDate,
       enterococcusCount: enterococcus,
-      status: assessWaterQualityStatus(enterococcus, undefined),
+      eColiCount: eColi,
+      coliformCount: coliform,
+      status: assessWaterQualityStatus(enterococcus, eColi, coliform),
       source: `SF Beach Water Quality (${locationName})`,
-      stationId: selectedRecord.source,
+      stationId,
       notes: `Sampled ${formatSampleAge(sampleDate)}`,
     };
   } catch (error) {
@@ -212,7 +212,7 @@ async function fetchFromCaliforniaAPI(): Promise<WaterQuality | null> {
       timestamp: sampleDate,
       enterococcusCount: enterococcus,
       coliformCount: coliform,
-      status: assessWaterQualityStatus(enterococcus, coliform),
+      status: assessWaterQualityStatus(enterococcus, undefined, coliform),
       source: 'California Water Quality Data',
       notes: `Sampled ${formatSampleAge(sampleDate)}`,
     };
@@ -440,31 +440,51 @@ export async function fetchBacteriaCount(_beachId: string, date?: Date): Promise
  */
 export function assessWaterQualityStatus(
   enterococcus?: number,
+  eColi?: number,
   coliform?: number
 ): 'safe' | 'advisory' | 'warning' | 'closed' {
   // Enterococcus thresholds (primary indicator for marine water)
-  const ENTERO_SAFE = 104;      // Below this is safe
-  const ENTERO_ADVISORY = 500;  // Above this is advisory/warning
-  const ENTERO_DANGEROUS = 1000; // Above this is dangerous/closed
+  const ENTERO_SAFE = 104;
+  const ENTERO_ADVISORY = 500;
+  const ENTERO_DANGEROUS = 1000;
 
-  // Total Coliform thresholds (secondary indicator)
-  const COLIFORM_SAFE = 200;
-  const COLIFORM_ADVISORY = 1000;
-  const COLIFORM_DANGEROUS = 2000;
+  // E.coli thresholds
+  const ECOLI_SAFE = 400;
+  const ECOLI_ADVISORY = 800;
+  const ECOLI_DANGEROUS = 2000;
+
+  // Total Coliform thresholds
+  const COLIFORM_SAFE = 10000;
+  const COLIFORM_ADVISORY = 50000;
+  const COLIFORM_DANGEROUS = 100000;
+
+  // Return the worst status across all indicators
+  let worstStatus: 'safe' | 'advisory' | 'warning' | 'closed' = 'safe';
+
+  const elevate = (status: 'safe' | 'advisory' | 'warning' | 'closed') => {
+    const rank = { safe: 0, advisory: 1, warning: 2, closed: 3 };
+    if (rank[status] > rank[worstStatus]) worstStatus = status;
+  };
 
   if (enterococcus !== undefined) {
-    if (enterococcus > ENTERO_DANGEROUS) return 'closed';
-    if (enterococcus > ENTERO_ADVISORY) return 'warning';
-    if (enterococcus > ENTERO_SAFE) return 'advisory';
+    if (enterococcus > ENTERO_DANGEROUS) elevate('closed');
+    else if (enterococcus > ENTERO_ADVISORY) elevate('warning');
+    else if (enterococcus > ENTERO_SAFE) elevate('advisory');
+  }
+
+  if (eColi !== undefined) {
+    if (eColi > ECOLI_DANGEROUS) elevate('closed');
+    else if (eColi > ECOLI_ADVISORY) elevate('warning');
+    else if (eColi > ECOLI_SAFE) elevate('advisory');
   }
 
   if (coliform !== undefined) {
-    if (coliform > COLIFORM_DANGEROUS) return 'closed';
-    if (coliform > COLIFORM_ADVISORY) return 'warning';
-    if (coliform > COLIFORM_SAFE) return 'advisory';
+    if (coliform > COLIFORM_DANGEROUS) elevate('closed');
+    else if (coliform > COLIFORM_ADVISORY) elevate('warning');
+    else if (coliform > COLIFORM_SAFE) elevate('advisory');
   }
 
-  return 'safe';
+  return worstStatus;
 }
 
 /**

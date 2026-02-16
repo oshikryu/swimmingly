@@ -61,8 +61,9 @@ export interface WaveData {
 
 export interface WaterQuality {
   timestamp: Date;
-  coliformCount?: number; // MPN/100ml
-  enterococcusCount?: number; // MPN/100ml
+  coliformCount?: number; // Total Coliform MPN/100ml
+  eColiCount?: number; // E.coli MPN/100ml
+  enterococcusCount?: number; // Enterococcus MPN/100ml
   status: 'safe' | 'advisory' | 'warning' | 'closed';
   notes?: string;
   source?: string;

@@ -514,20 +514,37 @@ export default function CurrentConditions() {
             title="Water Quality"
             value={(score?.factors?.waterQuality?.status ?? 'unknown').toUpperCase()}
             thresholds={[
-              { label: 'Safe', value: `≤${SAFETY_THRESHOLDS.waterQuality.enterococcus.safe}`, status: 'good' },
-              { label: 'Advisory', value: `≤${SAFETY_THRESHOLDS.waterQuality.enterococcus.advisory}`, status: 'warning' },
-              { label: 'Warning', value: `≤${SAFETY_THRESHOLDS.waterQuality.enterococcus.dangerous}`, status: 'warning' },
-              { label: 'Dangerous', value: `>${SAFETY_THRESHOLDS.waterQuality.enterococcus.dangerous} MPN`, status: 'danger' },
+              ...(waterQuality?.enterococcusCount !== undefined ? [{
+                label: 'Entero',
+                value: `${waterQuality.enterococcusCount.toFixed(0)}/${SAFETY_THRESHOLDS.waterQuality.enterococcus.safe}`,
+                status: (waterQuality.enterococcusCount > SAFETY_THRESHOLDS.waterQuality.enterococcus.dangerous ? 'danger'
+                  : waterQuality.enterococcusCount > SAFETY_THRESHOLDS.waterQuality.enterococcus.safe ? 'warning' : 'good') as ThresholdSegment['status'],
+              }] : []),
+              ...(waterQuality?.eColiCount !== undefined ? [{
+                label: 'E.coli',
+                value: `${waterQuality.eColiCount.toFixed(0)}/${SAFETY_THRESHOLDS.waterQuality.eColi.safe}`,
+                status: (waterQuality.eColiCount > SAFETY_THRESHOLDS.waterQuality.eColi.dangerous ? 'danger'
+                  : waterQuality.eColiCount > SAFETY_THRESHOLDS.waterQuality.eColi.safe ? 'warning' : 'good') as ThresholdSegment['status'],
+              }] : []),
+              ...(waterQuality?.coliformCount !== undefined ? [{
+                label: 'Coliform',
+                value: `${waterQuality.coliformCount >= 1000 ? Math.round(waterQuality.coliformCount / 1000) + 'k' : waterQuality.coliformCount.toFixed(0)}/${SAFETY_THRESHOLDS.waterQuality.coliform.safe / 1000}k`,
+                status: (waterQuality.coliformCount > SAFETY_THRESHOLDS.waterQuality.coliform.dangerous ? 'danger'
+                  : waterQuality.coliformCount > SAFETY_THRESHOLDS.waterQuality.coliform.safe ? 'warning' : 'good') as ThresholdSegment['status'],
+              }] : []),
             ] as ThresholdSegment[]}
             status={waterQualityStatus}
             icon="💧"
             details={[
               `Bacteria: ${score?.factors?.waterQuality?.bacteriaLevel ?? 'unknown'}`,
               waterQuality?.enterococcusCount !== undefined
-                ? `Enterococcus: ${waterQuality.enterococcusCount.toFixed(0)} MPN/100ml`
+                ? `Enterococcus: ${waterQuality.enterococcusCount.toFixed(0)} MPN/100ml (limit: ${SAFETY_THRESHOLDS.waterQuality.enterococcus.safe})`
+                : '',
+              waterQuality?.eColiCount !== undefined
+                ? `E.coli: ${waterQuality.eColiCount.toFixed(0)} MPN/100ml (limit: ${SAFETY_THRESHOLDS.waterQuality.eColi.safe})`
                 : '',
               waterQuality?.coliformCount !== undefined
-                ? `Total Coliform: ${waterQuality.coliformCount.toFixed(0)} MPN/100ml`
+                ? `Total Coliform: ${waterQuality.coliformCount.toLocaleString()} MPN/100ml (limit: ${SAFETY_THRESHOLDS.waterQuality.coliform.safe.toLocaleString()})`
                 : '',
               score?.factors?.waterQuality?.recentSSO
                 ? `SSO ${score?.factors?.waterQuality?.daysSinceSSO ?? '?'} days ago`

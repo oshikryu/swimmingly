@@ -13,10 +13,15 @@ export const SAFETY_THRESHOLDS = {
       advisory: 500,       // 501-1000: warning
       dangerous: 1000,     // > 1000: closed (do not swim)
     },
-    coliform: {
-      safe: 200,           // ≤ 200: safe | 201-1000: advisory
-      advisory: 1000,      // 1001-2000: warning
+    eColi: {
+      safe: 400,           // ≤ 400: safe | 401-800: advisory
+      advisory: 800,       // 801-2000: warning
       dangerous: 2000,     // > 2000: closed (do not swim)
+    },
+    coliform: {
+      safe: 10000,         // ≤ 10,000: safe | 10,001-50,000: advisory
+      advisory: 50000,     // 50,001-100,000: warning
+      dangerous: 100000,   // > 100,000: closed (do not swim)
     },
   },
 
