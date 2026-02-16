@@ -13,7 +13,8 @@
     "generate-static-data": "tsx src/lib/static/generateStaticData.ts",
     "generate-static-data:isolated": "STATIC_DATA_DIR=.static-build tsx src/lib/static/generateStaticData.ts",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "publish:static": "tsx scripts/publish-static.ts"
   },
   "dependencies": {
     "@deck.gl/core": "^9.1.1",
