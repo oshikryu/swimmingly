@@ -361,16 +361,18 @@ export default function CurrentConditions() {
 
   return (
     <div className="space-y-6">
-      {/* Clear Cache Button */}
-      <div className="flex justify-end">
-        <button
-          onClick={handleClearCache}
-          className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-md transition-colors border border-gray-300 dark:border-gray-600"
-          title="Clear cached data and refresh"
-        >
-          🗑️ Clear Cache
-        </button>
-      </div>
+      {/* Clear Cache Button - hidden on static site */}
+      {!isStaticMode && (
+        <div className="flex justify-end">
+          <button
+            onClick={handleClearCache}
+            className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-md transition-colors border border-gray-300 dark:border-gray-600"
+            title="Clear cached data and refresh"
+          >
+            🗑️ Clear Cache
+          </button>
+        </div>
+      )}
 
       {/* Swim Score */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -41,6 +41,12 @@ elif [ -f "public/static-data.json" ]; then
   cp "public/static-data.json" out/
 fi
 
+# Copy favicon (Next.js generates this from src/app/icon.svg via a route,
+# but the static export needs it as a plain file)
+if [ -f "src/app/icon.svg" ]; then
+  cp "src/app/icon.svg" out/icon.svg
+fi
+
 # Disable Jekyll for GitHub Pages
 touch out/.nojekyll
 
