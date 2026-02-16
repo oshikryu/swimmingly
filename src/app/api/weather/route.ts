@@ -4,7 +4,8 @@
  */
 
 import { NextResponse } from 'next/server';
-import { fetchCurrentWeather, fetchWeatherForecast } from '@/lib/api/noaa';
+import { fetchWeatherForecast } from '@/lib/api/noaa';
+import { fetchWindData } from '@/lib/api/open-meteo';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 900; // Cache for 15 minutes
@@ -12,7 +13,7 @@ export const revalidate = 900; // Cache for 15 minutes
 export async function GET() {
   try {
     const [current, forecast] = await Promise.all([
-      fetchCurrentWeather(),
+      fetchWindData(),
       fetchWeatherForecast(),
     ]);
 

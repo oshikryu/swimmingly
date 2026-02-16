@@ -5,9 +5,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import type { CurrentConditions, TidePhaseType, TidePhasePreferences, TidePrediction, CurrentData } from '@/types/conditions';
-import { fetchCurrentTidePrediction, fetchCurrentWeather, fetchWaveData, fetchCurrents } from '@/lib/api/noaa';
+import { fetchCurrentTidePrediction, fetchWaveData, fetchCurrents } from '@/lib/api/noaa';
 import { fetchWaterQuality } from '@/lib/api/beachwatch';
-import { fetchRecentSSOs } from '@/lib/api/sfpuc';
 import { calculateSwimScore } from '@/lib/algorithms/swim-score';
 import { fetchWindData } from '@/lib/api/open-meteo';
 import { fetchDamReleases } from '@/lib/api/cdec';
@@ -53,13 +52,11 @@ export async function GET(request: NextRequest) {
     };
 
     // Fetch all data sources in parallel
-    const [tide, current, weather, waves, waterQuality, recentSSOs, windData, damReleases, waterTemp] = await Promise.allSettled([
+    const [tide, current, waves, waterQuality, windData, damReleases, waterTemp] = await Promise.allSettled([
       fetchCurrentTidePrediction(),
       fetchCurrents(),
-      fetchCurrentWeather(),
       fetchWaveDataWithFallback(),
       fetchWaterQuality(),
-      fetchRecentSSOs(7),
       fetchWindData(),
       fetchDamReleases(),
       fetchWaterTemperature(),
@@ -68,10 +65,8 @@ export async function GET(request: NextRequest) {
     // Extract successful results or use fallbacks
     const tideData = tide.status === 'fulfilled' ? tide.value : null;
     const currentData = current.status === 'fulfilled' ? current.value : null;
-    const weatherData = weather.status === 'fulfilled' ? weather.value : null;
     const waveData = waves.status === 'fulfilled' ? waves.value : null;
     const waterQualityData = waterQuality.status === 'fulfilled' ? waterQuality.value : null;
-    const ssoData = recentSSOs.status === 'fulfilled' ? recentSSOs.value : [];
     const windDataResult = windData.status === 'fulfilled' ? windData.value : null;
     const damReleasesData = damReleases.status === 'fulfilled' ? damReleases.value : null;
     const waterTempData = waterTemp.status === 'fulfilled' ? waterTemp.value : null;
@@ -84,7 +79,6 @@ export async function GET(request: NextRequest) {
           error: 'Unable to fetch critical tide data',
           details: {
             tide: tide.status === 'rejected' ? tide.reason?.message : 'missing',
-            weather: weather.status === 'rejected' ? weather.reason?.message : (!weatherData ? 'missing' : 'ok'),
             waves: waves.status === 'rejected' ? waves.reason?.message : (!waveData ? 'missing' : 'ok'),
             waterQuality: waterQuality.status === 'rejected' ? waterQuality.reason?.message : (!waterQualityData ? 'missing' : 'ok'),
           },
@@ -94,45 +88,23 @@ export async function GET(request: NextRequest) {
     }
 
     // Log warnings for missing non-critical data
-    if (!weatherData) console.warn('Weather data unavailable - using defaults');
     if (!waveData) console.warn('Wave data unavailable - using defaults');
     if (!waterQualityData) console.warn('Water quality data unavailable - using defaults');
-
-    // Log wind data source for debugging
-    if (windDataResult) {
-      console.log('Using Open-Meteo for wind data');
-    } else if (weatherData) {
-      console.log('Using NOAA for wind data (Open-Meteo unavailable)');
-    } else {
-      console.warn('No wind data available from any source');
-    }
+    if (!windDataResult) console.warn('Wind data unavailable from Open-Meteo');
 
     const now = new Date();
 
-    // Provide fallbacks for missing data
-    // Hybrid approach: prefer Open-Meteo wind data with NOAA temperature/conditions
-    const weatherWithFallback = weatherData || {
+    // Weather data from Open-Meteo (wind, temperature)
+    const weatherWithFallback = {
       timestamp: windDataResult?.timestamp || now,
       temperatureF: windDataResult?.temperatureF ?? 60,
       windSpeedMph: windDataResult?.windSpeedMph || 0,
       windDirection: windDataResult?.windDirection || 0,
       windGustMph: windDataResult?.windGustMph,
       visibilityMiles: 10,
-      conditions: 'unavailable',
+      conditions: 'unavailable' as string,
       source: windDataResult ? 'open-meteo' : 'unavailable',
     };
-
-    // If we have both NOAA weather and Open-Meteo wind, prefer Open-Meteo for wind
-    // and use NOAA for temperature if available
-    if (weatherData && windDataResult) {
-      weatherWithFallback.windSpeedMph = windDataResult.windSpeedMph;
-      weatherWithFallback.windDirection = windDataResult.windDirection;
-      weatherWithFallback.windGustMph = windDataResult.windGustMph;
-      weatherWithFallback.source = 'NOAA-NWS+open-meteo-wind';
-    } else if (!weatherData && windDataResult?.temperatureF) {
-      // If NOAA weather is unavailable but Open-Meteo has temperature, use it
-      weatherWithFallback.temperatureF = windDataResult.temperatureF;
-    }
 
     const wavesWithFallback = waveData || {
       timestamp: now,
@@ -156,7 +128,7 @@ export async function GET(request: NextRequest) {
       weatherWithFallback,
       wavesWithFallback,
       waterQualityWithFallback,
-      ssoData,
+      [],
       damReleasesData,
       customTidePreferences
     );
@@ -171,15 +143,15 @@ export async function GET(request: NextRequest) {
       waves: wavesWithFallback,
       waterQuality: waterQualityWithFallback,
       waterTemperature: waterTempData || undefined,
-      recentSSOs: ssoData,
+      recentSSOs: [],
       damReleases: damReleasesData || undefined,
       dataFreshness: {
         tide: tideData.timestamp,
-        weather: weatherData?.timestamp || now,
+        weather: windDataResult?.timestamp || now,
         waves: waveData?.timestamp || now,
         waterQuality: waterQualityData?.timestamp || now,
         waterTemperature: waterTempData?.timestamp || undefined,
-        sso: ssoData.length > 0 ? ssoData[0].reportedAt : now,
+        sso: now,
         damReleases: damReleasesData?.timestamp || undefined,
       },
     };
