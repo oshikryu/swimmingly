@@ -5,7 +5,6 @@
  * Fallbacks: California Water Quality Data, Water Quality Portal
  */
 
-import axios from 'axios';
 import type { WaterQuality } from '@/types/conditions';
 import { AQUATIC_PARK_LAT, AQUATIC_PARK_LON } from '@/config/aquatic-park';
 
@@ -80,32 +79,40 @@ function daysAgo(days: number): Date {
  */
 async function fetchFromSFGov(): Promise<WaterQuality | null> {
   try {
-    const response = await axios.get(SF_BEACH_WQ_API, {
-      params: {
-        $where: "source like '%210%' OR source like '%211%'",
-        $order: 'sample_date DESC',
-        $limit: 200,
-      },
-      timeout: 10000,
+    const params = new URLSearchParams({
+      $where: "source like '%210%' OR source like '%211%'",
+      $order: 'sample_date DESC',
+      $limit: '200',
     });
 
-    if (!response.data || !Array.isArray(response.data) || response.data.length === 0) {
+    const response = await fetch(`${SF_BEACH_WQ_API}?${params}`, {
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      console.error('SF Gov API fetch failed:', response.status, response.statusText);
+      return null;
+    }
+
+    const data = await response.json();
+
+    if (!data || !Array.isArray(data) || data.length === 0) {
       console.warn('No data from SF Gov Beach Water Quality API for locations 210/211');
       return null;
     }
 
-    console.log(`SF Gov API: Retrieved ${response.data.length} records for locations 210/211 (Hyde St Pier & Aquatic Park)`);
+    console.log(`SF Gov API: Retrieved ${data.length} records for locations 210/211 (Hyde St Pier & Aquatic Park)`);
 
     // Type for SF Gov API records
     type SFGovRecord = { source: string; analyte: string; data: string | null; sample_date: string };
 
     // Helper: find most recent valid record for a given analyte across both locations
     const findMostRecentRecord = (analyte: string): { record: SFGovRecord; location: string } | null => {
-      const aquaticParkRecord = response.data.find(
+      const aquaticParkRecord = data.find(
         (r: SFGovRecord) =>
           r.source === 'BAY#211_SL' && r.analyte === analyte && r.data != null && parseWQValue(r.data) !== null
       );
-      const hydePierRecord = response.data.find(
+      const hydePierRecord = data.find(
         (r: SFGovRecord) =>
           r.source === 'BAY#210.1_SL' && r.analyte === analyte && r.data != null && parseWQValue(r.data) !== null
       );
@@ -156,11 +163,7 @@ async function fetchFromSFGov(): Promise<WaterQuality | null> {
       notes: `Sampled ${formatSampleAge(sampleDate)}`,
     };
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      console.error('SF Gov API fetch failed:', error.message, error.response?.status);
-    } else {
-      console.error('SF Gov API fetch failed:', error);
-    }
+    console.error('SF Gov API fetch failed:', error);
     return null;
   }
 }
@@ -170,21 +173,29 @@ async function fetchFromSFGov(): Promise<WaterQuality | null> {
  */
 async function fetchFromCaliforniaAPI(): Promise<WaterQuality | null> {
   try {
-    const response = await axios.get(CA_BEACHES_API_URL, {
-      params: {
-        resource_id: CA_MEASUREMENTS_RESOURCE_ID,
-        q: 'Aquatic Park',
-        sort: 'SampleDate desc',
-        limit: 50, // Get enough records to find Enterococcus
-      },
-      timeout: 10000, // 10s timeout
+    const params = new URLSearchParams({
+      resource_id: CA_MEASUREMENTS_RESOURCE_ID,
+      q: 'Aquatic Park',
+      sort: 'SampleDate desc',
+      limit: '50',
     });
 
-    if (!response.data?.success || !response.data?.result?.records) {
+    const response = await fetch(`${CA_BEACHES_API_URL}?${params}`, {
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      console.error('California API fetch failed:', response.status);
       return null;
     }
 
-    const records = response.data.result.records;
+    const responseData = await response.json();
+
+    if (!responseData?.success || !responseData?.result?.records) {
+      return null;
+    }
+
+    const records = responseData.result.records;
 
     // Find the most recent Enterococcus measurement
     const enterococcusRecord = records.find(
@@ -232,20 +243,28 @@ async function discoverWQPStation(): Promise<string | null> {
   }
 
   try {
-    const response = await axios.get(WQP_STATION_API, {
-      params: {
-        countrycode: 'US',
-        statecode: 'US:06',
-        countycode: 'US:06:075', // SF County
-        characteristicName: 'Enterococcus',
-        mimeType: 'csv',
-        zip: 'no',
-      },
-      timeout: 10000,
+    const params = new URLSearchParams({
+      countrycode: 'US',
+      statecode: 'US:06',
+      countycode: 'US:06:075',
+      characteristicName: 'Enterococcus',
+      mimeType: 'csv',
+      zip: 'no',
     });
 
+    const response = await fetch(`${WQP_STATION_API}?${params}`, {
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      console.error('WQP station discovery failed:', response.status);
+      return null;
+    }
+
+    const text = await response.text();
+
     // Parse CSV response to find Aquatic Park station
-    const lines = response.data.split('\n');
+    const lines = text.split('\n');
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i];
       if (line.includes('AQUATIC PARK') || line.includes('Aquatic Park')) {
@@ -260,19 +279,26 @@ async function discoverWQPStation(): Promise<string | null> {
     }
 
     // If not found by name, try nearby coordinates
-    const coordResponse = await axios.get(WQP_STATION_API, {
-      params: {
-        lat: AQUATIC_PARK_LAT.toString(),
-        long: AQUATIC_PARK_LON.toString(),
-        within: '0.5', // 0.5 miles radius
-        characteristicName: 'Enterococcus',
-        mimeType: 'csv',
-        zip: 'no',
-      },
-      timeout: 10000,
+    const coordParams = new URLSearchParams({
+      lat: AQUATIC_PARK_LAT.toString(),
+      long: AQUATIC_PARK_LON.toString(),
+      within: '0.5',
+      characteristicName: 'Enterococcus',
+      mimeType: 'csv',
+      zip: 'no',
     });
 
-    const coordLines = coordResponse.data.split('\n');
+    const coordResponse = await fetch(`${WQP_STATION_API}?${coordParams}`, {
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!coordResponse.ok) {
+      console.warn('WQP coordinate search failed:', coordResponse.status);
+      return null;
+    }
+
+    const coordText = await coordResponse.text();
+    const coordLines = coordText.split('\n');
     if (coordLines.length > 1) {
       const parts = coordLines[1].split(',');
       if (parts.length > 2) {
@@ -301,19 +327,27 @@ async function fetchFromWQP(): Promise<WaterQuality | null> {
       return null;
     }
 
-    const response = await axios.get(WQP_RESULT_API, {
-      params: {
-        siteid: stationId,
-        characteristicName: 'Enterococcus',
-        startDateLo: formatDateForWQP(daysAgo(90)), // Last 90 days
-        mimeType: 'csv',
-        zip: 'no',
-      },
-      timeout: 10000,
+    const params = new URLSearchParams({
+      siteid: stationId,
+      characteristicName: 'Enterococcus',
+      startDateLo: formatDateForWQP(daysAgo(90)),
+      mimeType: 'csv',
+      zip: 'no',
     });
 
+    const response = await fetch(`${WQP_RESULT_API}?${params}`, {
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      console.error('WQP fetch failed:', response.status);
+      return null;
+    }
+
+    const text = await response.text();
+
     // Parse CSV response
-    const lines = response.data.split('\n');
+    const lines = text.split('\n');
     if (lines.length < 2) {
       return null; // No data
     }

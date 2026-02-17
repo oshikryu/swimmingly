@@ -4,7 +4,6 @@
  * Now with 48-hour historical data for time-lag modeling
  */
 
-import axios from 'axios';
 import type { DamReleaseData } from '@/types/conditions';
 
 const CDEC_BASE_URL = 'https://cdec.water.ca.gov/dynamicapp/req/CSVDataServlet';
@@ -120,12 +119,18 @@ async function fetchDamFlowHistory(
     url.searchParams.append('Start', formatDate(startDate));
     url.searchParams.append('End', formatDate(endDate));
 
-    const response = await axios.get(url.toString(), {
-      timeout: 15000, // Increased timeout for larger data
+    const response = await fetch(url.toString(), {
+      signal: AbortSignal.timeout(15000),
     });
 
+    if (!response.ok) {
+      console.warn(`CDEC fetch failed for ${stationId}: ${response.status}`);
+      return { name, stationId, data: [] };
+    }
+
+    const text = await response.text();
     const data: FlowDataPoint[] = [];
-    const lines = response.data.split('\n');
+    const lines = text.split('\n');
 
     // Parse all lines (not just most recent)
     for (let i = 1; i < lines.length; i++) {

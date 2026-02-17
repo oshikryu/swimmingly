@@ -14,6 +14,9 @@
 /.next-static/
 /out/
 
+# cloudflare
+/.open-next/
+
 # isolated static build artifacts
 /.static-build/
 

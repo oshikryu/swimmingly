@@ -3,7 +3,6 @@
  * Scrapes wave height data from openwaterlog.com
  */
 
-import axios from 'axios';
 import type { WaveData } from '@/types/conditions';
 
 const OPENWATERLOG_URL = 'https://openwaterlog.com/locations/aquatic-park/';
@@ -26,14 +25,19 @@ export async function fetchOpenWaterLogWaveData(): Promise<WaveData | null> {
     console.log('Fetching wave data from OpenWaterLog...');
 
     // Fetch the HTML page
-    const response = await axios.get(OPENWATERLOG_URL, {
+    const response = await fetch(OPENWATERLOG_URL, {
       headers: {
         'User-Agent': 'Swimmingly/1.0 (contact@swimmingly.app)',
       },
-      timeout: 10000, // 10 second timeout
+      signal: AbortSignal.timeout(10000),
     });
 
-    const html = response.data;
+    if (!response.ok) {
+      console.error('OpenWaterLog fetch failed:', response.status, response.statusText);
+      return null;
+    }
+
+    const html = await response.text();
 
     // Extract the waveData JavaScript variable from the HTML
     // Look for pattern: var waveData = [{...}];
@@ -83,10 +87,6 @@ export async function fetchOpenWaterLogWaveData(): Promise<WaveData | null> {
     };
   } catch (error) {
     console.error('Error fetching wave data from OpenWaterLog:', error);
-    if (axios.isAxiosError(error)) {
-      console.error('  Status:', error.response?.status);
-      console.error('  Message:', error.message);
-    }
     return null;
   }
 }

@@ -3,7 +3,6 @@
  * Fetches Sanitary Sewer Overflow (SSO) data
  */
 
-import axios from 'axios';
 import type { SSOEvent } from '@/types/conditions';
 import { AQUATIC_PARK_LAT, AQUATIC_PARK_LON } from '@/config/aquatic-park';
 
@@ -20,19 +19,34 @@ export async function fetchRecentSSOs(daysBack: number = 7): Promise<SSOEvent[]>
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - daysBack);
 
-    const response = await axios.get(`${SFPUC_BASE_URL}/${SSO_DATASET_ID}.json`, {
-      params: {
-        $where: `incident_date >= '${startDate.toISOString()}'`,
-        $order: 'incident_date DESC',
-        $limit: 100,
-      },
+    const params = new URLSearchParams({
+      $where: `incident_date >= '${startDate.toISOString()}'`,
+      $order: 'incident_date DESC',
+      $limit: '100',
     });
 
-    if (!Array.isArray(response.data)) {
+    const response = await fetch(`${SFPUC_BASE_URL}/${SSO_DATASET_ID}.json?${params}`, {
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        console.warn('SSO dataset not found - dataset ID may be invalid or API endpoint changed');
+        console.warn(`Attempted URL: ${SFPUC_BASE_URL}/${SSO_DATASET_ID}.json`);
+        console.warn('Check https://data.sfgov.org for current SSO datasets');
+      } else {
+        console.error('Error fetching SSO events:', response.status, response.statusText);
+      }
       return [];
     }
 
-    return response.data.map((event: { incident_id?: string; incident_date: string; location?: string; volume?: string; status?: string; close_date?: string; description?: string; latitude?: string; longitude?: string }) => {
+    const data = await response.json();
+
+    if (!Array.isArray(data)) {
+      return [];
+    }
+
+    return data.map((event: { incident_id?: string; incident_date: string; location?: string; volume?: string; status?: string; close_date?: string; description?: string; latitude?: string; longitude?: string }) => {
       const distance = event.latitude && event.longitude
         ? calculateDistance(
             AQUATIC_PARK_LAT,
@@ -55,17 +69,7 @@ export async function fetchRecentSSOs(daysBack: number = 7): Promise<SSOEvent[]>
       };
     });
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      if (error.response?.status === 404) {
-        console.warn('SSO dataset not found - dataset ID may be invalid or API endpoint changed');
-        console.warn(`Attempted URL: ${SFPUC_BASE_URL}/${SSO_DATASET_ID}.json`);
-        console.warn('Check https://data.sfgov.org for current SSO datasets');
-      } else {
-        console.error('Error fetching SSO events:', error.message);
-      }
-    } else {
-      console.error('Error fetching SSO events:', error);
-    }
+    console.error('Error fetching SSO events:', error);
     // Return empty array on error to allow app to continue
     return [];
   }

@@ -6,7 +6,6 @@
  * No API key required - completely free for non-commercial use
  */
 
-import axios from 'axios';
 import { AQUATIC_PARK_LAT, AQUATIC_PARK_LON } from '@/config/aquatic-park';
 
 const OPEN_METEO_BASE_URL = 'https://api.open-meteo.com/v1/forecast';
@@ -30,19 +29,26 @@ export interface OpenMeteoWindData {
  */
 export async function fetchWindData(): Promise<OpenMeteoWindData | null> {
   try {
-    const response = await axios.get(OPEN_METEO_BASE_URL, {
-      params: {
-        latitude: AQUATIC_PARK_LAT,
-        longitude: AQUATIC_PARK_LON,
-        current: 'wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m',
-        wind_speed_unit: 'mph',
-        temperature_unit: 'fahrenheit',
-        timezone: 'America/Los_Angeles',
-      },
-      timeout: 5000, // 5 second timeout
+    const params = new URLSearchParams({
+      latitude: String(AQUATIC_PARK_LAT),
+      longitude: String(AQUATIC_PARK_LON),
+      current: 'wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m',
+      wind_speed_unit: 'mph',
+      temperature_unit: 'fahrenheit',
+      timezone: 'America/Los_Angeles',
     });
 
-    const current = response.data?.current;
+    const response = await fetch(`${OPEN_METEO_BASE_URL}?${params}`, {
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (!response.ok) {
+      console.error('Open-Meteo API error:', response.status, response.statusText);
+      return null;
+    }
+
+    const data = await response.json();
+    const current = data?.current;
 
     // Validate required fields
     if (!current ||
@@ -69,14 +75,7 @@ export async function fetchWindData(): Promise<OpenMeteoWindData | null> {
       source: 'open-meteo',
     };
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      console.error('Open-Meteo API error:', error.message);
-      if (error.response) {
-        console.error('Response status:', error.response.status);
-      }
-    } else {
-      console.error('Error fetching Open-Meteo wind data:', error);
-    }
+    console.error('Error fetching Open-Meteo wind data:', error);
     return null;
   }
 }
@@ -89,19 +88,26 @@ export async function fetchWindData(): Promise<OpenMeteoWindData | null> {
  */
 export async function fetchWindForecast(hours: number = 48): Promise<OpenMeteoWindData[] | null> {
   try {
-    const response = await axios.get(OPEN_METEO_BASE_URL, {
-      params: {
-        latitude: AQUATIC_PARK_LAT,
-        longitude: AQUATIC_PARK_LON,
-        hourly: 'wind_speed_10m,wind_direction_10m,wind_gusts_10m',
-        wind_speed_unit: 'mph',
-        timezone: 'America/Los_Angeles',
-        forecast_days: Math.ceil(hours / 24),
-      },
-      timeout: 5000,
+    const params = new URLSearchParams({
+      latitude: String(AQUATIC_PARK_LAT),
+      longitude: String(AQUATIC_PARK_LON),
+      hourly: 'wind_speed_10m,wind_direction_10m,wind_gusts_10m',
+      wind_speed_unit: 'mph',
+      timezone: 'America/Los_Angeles',
+      forecast_days: String(Math.ceil(hours / 24)),
     });
 
-    const hourly = response.data?.hourly;
+    const response = await fetch(`${OPEN_METEO_BASE_URL}?${params}`, {
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (!response.ok) {
+      console.error('Open-Meteo forecast API error:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    const hourly = data?.hourly;
 
     if (!hourly || !hourly.time || !hourly.wind_speed_10m) {
       console.warn('Open-Meteo: Missing hourly forecast data');

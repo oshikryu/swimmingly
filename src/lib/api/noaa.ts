@@ -3,13 +3,16 @@
  * Integrates with NOAA's Tides & Currents API, National Weather Service, and NDBC (Buoy) APIs
  */
 
-import axios from 'axios';
 import { TIDE_STATION_ID, WAVE_BUOY_ID, AQUATIC_PARK_LAT, AQUATIC_PARK_LON, CURRENT_STATION_ID } from '@/config/aquatic-park';
 import type { TideData, TidePrediction, WeatherData, WaveData, CurrentData } from '@/types/conditions';
 
 const NOAA_TIDES_BASE_URL = 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter';
 const NOAA_WEATHER_BASE_URL = 'https://api.weather.gov';
 const NDBC_BASE_URL = 'https://www.ndbc.noaa.gov/data/realtime2';
+
+const NWS_HEADERS = {
+  'User-Agent': '(Swimmingly, contact@swimmingly.app)',
+};
 
 /**
  * Fetch tide predictions for a given time range
@@ -23,26 +26,34 @@ export async function fetchTidePredictions(
     const startStr = formatNOAADate(startDate);
     const endStr = formatNOAADate(endDate);
 
-    const response = await axios.get(NOAA_TIDES_BASE_URL, {
-      params: {
-        product: 'predictions',
-        application: 'Swimmingly',
-        begin_date: startStr,
-        end_date: endStr,
-        datum: 'MLLW', // Mean Lower Low Water
-        station: stationId,
-        time_zone: 'lst_ldt', // Local Standard Time / Local Daylight Time
-        units: 'english',
-        interval: 'hilo', // High and low tides only
-        format: 'json',
-      },
+    const params = new URLSearchParams({
+      product: 'predictions',
+      application: 'Swimmingly',
+      begin_date: startStr,
+      end_date: endStr,
+      datum: 'MLLW',
+      station: stationId,
+      time_zone: 'lst_ldt',
+      units: 'english',
+      interval: 'hilo',
+      format: 'json',
     });
 
-    if (!response.data?.predictions) {
+    const response = await fetch(`${NOAA_TIDES_BASE_URL}?${params}`, {
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`NOAA tide predictions HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (!data?.predictions) {
       throw new Error('No tide predictions data received from NOAA');
     }
 
-    return response.data.predictions.map((pred: { t: string; v: string; type?: string }) => ({
+    return data.predictions.map((pred: { t: string; v: string; type?: string }) => ({
       timestamp: new Date(pred.t),
       heightFeet: parseFloat(pred.v),
       type: pred.type === 'H' ? 'high' : pred.type === 'L' ? 'low' : 'normal',
@@ -62,26 +73,35 @@ export async function fetchCurrentTide(stationId: string = TIDE_STATION_ID): Pro
     const now = new Date();
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
 
-    const response = await axios.get(NOAA_TIDES_BASE_URL, {
-      params: {
-        product: 'water_level',
-        application: 'Swimmingly',
-        begin_date: formatNOAADate(oneHourAgo),
-        end_date: formatNOAADate(now),
-        datum: 'MLLW',
-        station: stationId,
-        time_zone: 'lst_ldt',
-        units: 'english',
-        format: 'json',
-      },
+    const params = new URLSearchParams({
+      product: 'water_level',
+      application: 'Swimmingly',
+      begin_date: formatNOAADate(oneHourAgo),
+      end_date: formatNOAADate(now),
+      datum: 'MLLW',
+      station: stationId,
+      time_zone: 'lst_ldt',
+      units: 'english',
+      format: 'json',
     });
 
-    if (!response.data?.data || response.data.data.length === 0) {
+    const response = await fetch(`${NOAA_TIDES_BASE_URL}?${params}`, {
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      console.error('NOAA current tide HTTP error:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+
+    if (!data?.data || data.data.length === 0) {
       return null;
     }
 
     // Get the most recent observation
-    const latest = response.data.data[response.data.data.length - 1];
+    const latest = data.data[data.data.length - 1];
 
     return {
       timestamp: new Date(latest.t),
@@ -105,20 +125,28 @@ export async function fetchCurrents(
     const now = new Date();
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
 
-    const response = await axios.get(NOAA_TIDES_BASE_URL, {
-      params: {
-        product: 'currents_predictions',
-        application: 'Swimmingly',
-        begin_date: formatNOAADate(oneHourAgo),
-        end_date: formatNOAADate(now),
-        station: stationId,
-        time_zone: 'lst_ldt',
-        units: 'english',
-        format: 'json',
-      },
+    const params = new URLSearchParams({
+      product: 'currents_predictions',
+      application: 'Swimmingly',
+      begin_date: formatNOAADate(oneHourAgo),
+      end_date: formatNOAADate(now),
+      station: stationId,
+      time_zone: 'lst_ldt',
+      units: 'english',
+      format: 'json',
     });
 
-    const predictions = response.data?.current_predictions?.cp;
+    const response = await fetch(`${NOAA_TIDES_BASE_URL}?${params}`, {
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      console.error('NOAA currents HTTP error:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    const predictions = data?.current_predictions?.cp;
     if (!predictions || predictions.length === 0) {
       return null;
     }
@@ -153,25 +181,33 @@ export async function fetchCurrents(
 export async function fetchWeatherForecast(): Promise<WeatherData[]> {
   try {
     // First, get the grid endpoint for our location
-    const pointResponse = await axios.get(
+    const pointResponse = await fetch(
       `${NOAA_WEATHER_BASE_URL}/points/${AQUATIC_PARK_LAT},${AQUATIC_PARK_LON}`,
       {
-        headers: {
-          'User-Agent': '(Swimmingly, contact@swimmingly.app)',
-        },
+        headers: NWS_HEADERS,
+        signal: AbortSignal.timeout(10000),
       }
     );
 
-    const forecastHourlyUrl = pointResponse.data.properties.forecastHourly;
+    if (!pointResponse.ok) {
+      throw new Error(`NWS points HTTP ${pointResponse.status}`);
+    }
+
+    const pointData = await pointResponse.json();
+    const forecastHourlyUrl = pointData.properties.forecastHourly;
 
     // Fetch hourly forecast
-    const forecastResponse = await axios.get(forecastHourlyUrl, {
-      headers: {
-        'User-Agent': '(Swimmingly, contact@swimmingly.app)',
-      },
+    const forecastResponse = await fetch(forecastHourlyUrl, {
+      headers: NWS_HEADERS,
+      signal: AbortSignal.timeout(10000),
     });
 
-    const periods = forecastResponse.data.properties.periods;
+    if (!forecastResponse.ok) {
+      throw new Error(`NWS forecast HTTP ${forecastResponse.status}`);
+    }
+
+    const forecastData = await forecastResponse.json();
+    const periods = forecastData.properties.periods;
 
     return periods.slice(0, 72).map((period: { startTime: string; temperature: number; windSpeed: string; windDirection: string; windGust?: string; shortForecast: string }) => ({
       timestamp: new Date(period.startTime),
@@ -195,34 +231,47 @@ export async function fetchWeatherForecast(): Promise<WeatherData[]> {
 export async function fetchCurrentWeather(): Promise<WeatherData | null> {
   try {
     // Get observations from the nearest station
-    const pointResponse = await axios.get(
+    const pointResponse = await fetch(
       `${NOAA_WEATHER_BASE_URL}/points/${AQUATIC_PARK_LAT},${AQUATIC_PARK_LON}`,
       {
-        headers: {
-          'User-Agent': '(Swimmingly, contact@swimmingly.app)',
-        },
+        headers: NWS_HEADERS,
+        signal: AbortSignal.timeout(10000),
       }
     );
 
-    const observationStationsUrl = pointResponse.data.properties.observationStations;
-    const stationsResponse = await axios.get(observationStationsUrl, {
-      headers: {
-        'User-Agent': '(Swimmingly, contact@swimmingly.app)',
-      },
+    if (!pointResponse.ok) {
+      throw new Error(`NWS points HTTP ${pointResponse.status}`);
+    }
+
+    const pointData = await pointResponse.json();
+    const observationStationsUrl = pointData.properties.observationStations;
+
+    const stationsResponse = await fetch(observationStationsUrl, {
+      headers: NWS_HEADERS,
+      signal: AbortSignal.timeout(10000),
     });
 
-    const nearestStation = stationsResponse.data.features[0]?.id;
+    if (!stationsResponse.ok) {
+      throw new Error(`NWS stations HTTP ${stationsResponse.status}`);
+    }
+
+    const stationsData = await stationsResponse.json();
+    const nearestStation = stationsData.features[0]?.id;
     if (!nearestStation) {
       throw new Error('No nearby observation station found');
     }
 
-    const obsResponse = await axios.get(`${nearestStation}/observations/latest`, {
-      headers: {
-        'User-Agent': '(Swimmingly, contact@swimmingly.app)',
-      },
+    const obsResponse = await fetch(`${nearestStation}/observations/latest`, {
+      headers: NWS_HEADERS,
+      signal: AbortSignal.timeout(10000),
     });
 
-    const obs = obsResponse.data.properties;
+    if (!obsResponse.ok) {
+      throw new Error(`NWS observations HTTP ${obsResponse.status}`);
+    }
+
+    const obsData = await obsResponse.json();
+    const obs = obsData.properties;
 
     // Ensure we have critical weather data
     const temperature = obs.temperature?.value;
@@ -261,11 +310,17 @@ export async function fetchCurrentWeather(): Promise<WeatherData | null> {
 export async function fetchWaveData(buoyId: string = WAVE_BUOY_ID): Promise<WaveData | null> {
   try {
     // NDBC provides real-time data in text format
-    const response = await axios.get(`${NDBC_BASE_URL}/${buoyId}.txt`, {
-      responseType: 'text',
+    const response = await fetch(`${NDBC_BASE_URL}/${buoyId}.txt`, {
+      signal: AbortSignal.timeout(10000),
     });
 
-    const lines = response.data.split('\n');
+    if (!response.ok) {
+      console.error(`NDBC buoy ${buoyId} HTTP error:`, response.status);
+      return null;
+    }
+
+    const text = await response.text();
+    const lines = text.split('\n');
     if (lines.length < 3) {
       throw new Error('Insufficient data from buoy');
     }

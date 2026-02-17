@@ -3,7 +3,6 @@
  * Scrapes water temperature data from seatemperature.info for Aquatic Park
  */
 
-import axios from 'axios';
 import type { WaterTemperature } from '@/types/conditions';
 
 const SEATEMPERATURE_URL = 'https://seatemperature.info/aquatic-park-water-temperature.html';
@@ -16,18 +15,23 @@ export async function fetchWaterTemperature(): Promise<WaterTemperature | null> 
   try {
     console.log('Fetching water temperature from seatemperature.info...');
 
-    const response = await axios.get(SEATEMPERATURE_URL, {
+    const response = await fetch(SEATEMPERATURE_URL, {
       headers: {
         'User-Agent': 'Swimmingly/1.0 (contact@swimmingly.app)',
       },
-      timeout: 10000,
+      signal: AbortSignal.timeout(10000),
     });
 
-    const html = response.data;
+    if (!response.ok) {
+      console.error('SeaTemperature fetch failed:', response.status, response.statusText);
+      return null;
+    }
+
+    const html = await response.text();
 
     // Try to extract from JSON-LD schema first (more reliable)
     // Look for: "Water temperature in Aquatic Park today is XX.X&deg;F"
-    // Note: HTML uses &deg; entity, not the ° character
+    // Note: HTML uses &deg; entity, not the degree character
     const schemaMatch = html.match(/Water temperature in Aquatic Park today is ([\d.]+)&deg;F/i);
 
     if (schemaMatch) {
@@ -66,10 +70,6 @@ export async function fetchWaterTemperature(): Promise<WaterTemperature | null> 
     return null;
   } catch (error) {
     console.error('Error fetching water temperature from seatemperature.info:', error);
-    if (axios.isAxiosError(error)) {
-      console.error('  Status:', error.response?.status);
-      console.error('  Message:', error.message);
-    }
     return null;
   }
 }
