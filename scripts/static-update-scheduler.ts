@@ -29,6 +29,13 @@ const CONFIG = {
   enabled: process.env.ENABLE_STATIC_UPDATES !== 'false', // Enabled by default
 };
 
+// Sleep detection & self-healing
+const HEARTBEAT_INTERVAL_MS = 30_000; // check every 30s
+const SLEEP_THRESHOLD_MS = 60_000; // if 60s+ passed in a 30s interval, we slept
+let lastHeartbeat = Date.now();
+let lastSuccessfulUpdate = 0;
+let updateInProgress = false;
+
 // Colors for console output
 const colors = {
   reset: '\x1b[0m',
@@ -46,6 +53,11 @@ function log(message: string, color: string = colors.reset) {
 }
 
 async function updateStaticSite() {
+  if (updateInProgress) {
+    log('⏳ Update already in progress, skipping', colors.yellow);
+    return;
+  }
+  updateInProgress = true;
   const startTime = Date.now();
   log('🌊 Starting static site update...', colors.blue);
 
@@ -134,6 +146,7 @@ async function updateStaticSite() {
     await execAsync(`rm -rf "${buildDir}/.git"`, { cwd: CONFIG.projectDir });
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+    lastSuccessfulUpdate = Date.now();
     log(`✅ Static site update complete in ${duration}s`, colors.bright + colors.green);
     log('', '');
 
@@ -141,7 +154,32 @@ async function updateStaticSite() {
     log('❌ Error updating static site:', colors.red);
     console.error(error);
     log('', '');
+  } finally {
+    updateInProgress = false;
   }
+}
+
+/**
+ * Heartbeat loop that detects when the computer wakes from sleep.
+ *
+ * It runs a timer every HEARTBEAT_INTERVAL_MS. If the actual elapsed time
+ * since the last tick is much larger than expected, the machine was asleep.
+ * In that case we immediately trigger an update so the static site stays fresh.
+ */
+function startSleepDetection() {
+  log('💓 Sleep-detection heartbeat started', colors.dim);
+
+  setInterval(async () => {
+    const now = Date.now();
+    const elapsed = now - lastHeartbeat;
+    lastHeartbeat = now;
+
+    if (elapsed > SLEEP_THRESHOLD_MS) {
+      const sleptFor = Math.round(elapsed / 1000);
+      log(`😴 Sleep detected (${sleptFor}s gap) — triggering recovery update`, colors.yellow);
+      await updateStaticSite();
+    }
+  }, HEARTBEAT_INTERVAL_MS);
 }
 
 // Main
@@ -173,6 +211,9 @@ async function main() {
   cron.schedule(CONFIG.schedule, async () => {
     await updateStaticSite();
   });
+
+  // Start heartbeat to detect wake-from-sleep and self-heal
+  startSleepDetection();
 
   // Keep process alive
   log('Press Ctrl+C to stop', colors.dim);
