@@ -91,6 +91,16 @@ export const SAFETY_THRESHOLDS = {
     },
   },
 
+  // Rainfall thresholds (inches accumulated over 72 hours)
+  // EPA recommends avoiding swimming for 72 hours after significant rainfall
+  // due to increased bacteria, turbidity, and debris from runoff
+  rainfall: {
+    light: 0.1,        // < 0.1" — no concern
+    moderate: 0.5,     // 0.1-0.5" — advisory, bacteria levels may rise
+    heavy: 1.0,        // 0.5-1.0" — warning, expect poor water quality
+    extreme: 2.0,      // > 2.0" — dangerous, do not swim (major runoff)
+  },
+
   // Dam release thresholds (CFS - cubic feet per second)
   // Combined flow from all monitored dams affecting SF Bay
   damReleases: {

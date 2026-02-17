@@ -147,6 +147,97 @@ export async function fetchWindForecast(hours: number = 48): Promise<OpenMeteoWi
 }
 
 /**
+ * Recent rainfall data aggregated over multiple time windows
+ */
+export interface RecentRainfallData {
+  timestamp: Date;
+  last24hInches: number;
+  last48hInches: number;
+  last72hInches: number;
+  source: string;
+}
+
+/**
+ * Fetch recent rainfall totals from Open-Meteo (past 72 hours)
+ *
+ * Uses hourly precipitation data with past_days=3 to get 72 hours of history.
+ * Precipitation is returned in mm and converted to inches.
+ *
+ * @returns Rainfall totals for 24h/48h/72h windows, or null if fetch fails
+ */
+export async function fetchRecentRainfall(retries: number = 2): Promise<RecentRainfallData | null> {
+  const params = new URLSearchParams({
+    latitude: String(AQUATIC_PARK_LAT),
+    longitude: String(AQUATIC_PARK_LON),
+    hourly: 'precipitation',
+    past_days: '3',
+    forecast_days: '0',
+    timezone: 'America/Los_Angeles',
+  });
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      if (attempt > 0) {
+        console.log(`Open-Meteo rainfall: retry attempt ${attempt}/${retries}...`);
+        await new Promise(r => setTimeout(r, 1000 * attempt));
+      }
+
+      const response = await fetch(`${OPEN_METEO_BASE_URL}?${params}`, {
+        signal: AbortSignal.timeout(5000),
+      });
+
+      if (!response.ok) {
+        console.error('Open-Meteo rainfall API error:', response.status, response.statusText);
+        continue;
+      }
+
+      const data = await response.json();
+      const hourly = data?.hourly;
+
+      if (!hourly?.time || !hourly?.precipitation) {
+        console.warn('Open-Meteo: Missing hourly precipitation data');
+        continue;
+      }
+
+      const now = Date.now();
+      const MM_TO_INCHES = 0.0393701;
+
+      let last24h = 0;
+      let last48h = 0;
+      let last72h = 0;
+
+      for (let i = 0; i < hourly.time.length; i++) {
+        const precip = hourly.precipitation[i];
+        if (precip == null || isNaN(precip)) continue;
+
+        const hourTime = new Date(hourly.time[i]).getTime();
+        const hoursAgo = (now - hourTime) / (1000 * 60 * 60);
+
+        if (hoursAgo >= 0 && hoursAgo <= 72) {
+          const inches = precip * MM_TO_INCHES;
+          last72h += inches;
+          if (hoursAgo <= 48) last48h += inches;
+          if (hoursAgo <= 24) last24h += inches;
+        }
+      }
+
+      return {
+        timestamp: new Date(),
+        last24hInches: Math.round(last24h * 100) / 100,
+        last48hInches: Math.round(last48h * 100) / 100,
+        last72hInches: Math.round(last72h * 100) / 100,
+        source: 'open-meteo',
+      };
+    } catch (error) {
+      console.error(`Open-Meteo rainfall fetch failed (attempt ${attempt + 1}/${retries + 1}):`, error);
+    }
+  }
+
+  console.error('Open-Meteo rainfall: all retry attempts exhausted');
+  return null;
+}
+
+/**
  * Map WMO weather code to a human-readable condition string
  * https://open-meteo.com/en/docs#weathervariables
  */

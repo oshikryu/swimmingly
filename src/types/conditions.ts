@@ -88,6 +88,14 @@ export interface WaterTemperature {
   source: string;
 }
 
+export interface RainfallData {
+  timestamp: Date;
+  last24hInches: number;
+  last48hInches: number;
+  last72hInches: number;
+  source: string;
+}
+
 export interface DamReleaseData {
   timestamp: Date;
 
@@ -186,6 +194,7 @@ export interface CurrentConditions {
   waterTemperature?: WaterTemperature;
   recentSSOs: SSOEvent[];
   damReleases?: DamReleaseData;
+  rainfall?: RainfallData;
   dataFreshness: {
     tide: Date;
     weather: Date;
@@ -194,6 +203,7 @@ export interface CurrentConditions {
     waterTemperature?: Date;
     sso: Date;
     damReleases?: Date;
+    rainfall?: Date;
   };
 }
 

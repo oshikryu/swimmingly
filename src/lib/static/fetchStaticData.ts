@@ -8,7 +8,7 @@ import type { CurrentConditions, CurrentData, TidePrediction, TidePhaseType, Tid
 import { fetchCurrentTidePrediction, fetchWaveData, fetchCurrents } from '@/lib/api/noaa';
 import { fetchWaterQuality } from '@/lib/api/beachwatch';
 import { calculateSwimScore } from '@/lib/algorithms/swim-score';
-import { fetchWindData } from '@/lib/api/open-meteo';
+import { fetchWindData, fetchRecentRainfall } from '@/lib/api/open-meteo';
 import { fetchDamReleases } from '@/lib/api/cdec';
 import { fetchOpenWaterLogWaveData } from '@/lib/api/openwaterlog';
 import { fetchWaterTemperature } from '@/lib/api/seatemperature';
@@ -51,7 +51,7 @@ export async function fetchStaticData(tidePhasePreference?: TidePhaseType): Prom
     };
 
     // Fetch all data sources in parallel
-    const [tide, current, waves, waterQuality, windData, damReleases, waterTemp] = await Promise.allSettled([
+    const [tide, current, waves, waterQuality, windData, damReleases, waterTemp, rainfall] = await Promise.allSettled([
       fetchCurrentTidePrediction(),
       fetchCurrents(),
       fetchWaveDataWithFallback(),
@@ -59,6 +59,7 @@ export async function fetchStaticData(tidePhasePreference?: TidePhaseType): Prom
       fetchWindData(),
       fetchDamReleases(),
       fetchWaterTemperature(),
+      fetchRecentRainfall(),
     ]);
 
     // Extract successful results or use fallbacks
@@ -69,6 +70,7 @@ export async function fetchStaticData(tidePhasePreference?: TidePhaseType): Prom
     const windDataResult = windData.status === 'fulfilled' ? windData.value : null;
     const damReleasesData = damReleases.status === 'fulfilled' ? damReleases.value : null;
     const waterTempData = waterTemp.status === 'fulfilled' ? waterTemp.value : null;
+    const rainfallData = rainfall.status === 'fulfilled' ? rainfall.value : null;
 
     // Check if we have minimum required data (tide is critical)
     if (!tideData) {
@@ -80,6 +82,7 @@ export async function fetchStaticData(tidePhasePreference?: TidePhaseType): Prom
     if (!waveData) console.warn('Wave data unavailable - using defaults');
     if (!waterQualityData) console.warn('Water quality data unavailable - using defaults');
     if (!windDataResult) console.warn('Wind data unavailable from Open-Meteo');
+    if (!rainfallData) console.warn('Rainfall data unavailable from Open-Meteo');
 
     const now = new Date();
 
@@ -119,7 +122,9 @@ export async function fetchStaticData(tidePhasePreference?: TidePhaseType): Prom
       waterQualityWithFallback,
       [],
       damReleasesData,
-      customTidePreferences
+      customTidePreferences,
+      undefined, // customWeights
+      rainfallData
     );
 
     // Construct response with fallbacks for missing data
@@ -134,6 +139,7 @@ export async function fetchStaticData(tidePhasePreference?: TidePhaseType): Prom
       waterTemperature: waterTempData || undefined,
       recentSSOs: [],
       damReleases: damReleasesData || undefined,
+      rainfall: rainfallData || undefined,
       dataFreshness: {
         tide: tideData.timestamp,
         weather: windDataResult?.timestamp || now,
@@ -142,6 +148,7 @@ export async function fetchStaticData(tidePhasePreference?: TidePhaseType): Prom
         waterTemperature: waterTempData?.timestamp || undefined,
         sso: now,
         damReleases: damReleasesData?.timestamp || undefined,
+        rainfall: rainfallData?.timestamp || undefined,
       },
     };
 

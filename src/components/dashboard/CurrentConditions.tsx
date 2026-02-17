@@ -20,6 +20,7 @@ interface RawConditionsData {
   waterTemperature: CurrentConditionsType['waterTemperature'];
   recentSSOs: CurrentConditionsType['recentSSOs'];
   damReleases: CurrentConditionsType['damReleases'];
+  rainfall: CurrentConditionsType['rainfall'];
   dataFreshness: CurrentConditionsType['dataFreshness'];
 }
 
@@ -80,7 +81,8 @@ export default function CurrentConditions() {
       rawData.recentSSOs || [],
       rawData.damReleases ?? null,
       customTidePreferences,
-      customWeights
+      customWeights,
+      rawData.rainfall ?? null
     );
     return {
       timestamp: new Date(),
@@ -165,6 +167,7 @@ export default function CurrentConditions() {
           waterTemperature: data.waterTemperature,
           recentSSOs: data.recentSSOs,
           damReleases: data.damReleases,
+          rainfall: data.rainfall,
           dataFreshness: data.dataFreshness,
         };
 
@@ -266,7 +269,7 @@ export default function CurrentConditions() {
     return null;
   }
 
-  const { score, tide, current, weather, waves, waterQuality, damReleases } = conditions;
+  const { score, tide, current, weather, waves, waterQuality, damReleases, rainfall } = conditions;
 
   // Get values from score factors with safe defaults (ensures sync with score calculation)
   const waveHeight = score?.factors?.waves?.heightFeet ?? 0;
@@ -550,6 +553,22 @@ export default function CurrentConditions() {
                 : '',
               score?.factors?.waterQuality?.recentSSO
                 ? `SSO ${score?.factors?.waterQuality?.daysSinceSSO ?? '?'} days ago`
+                : '',
+              // Rainfall impact on water quality
+              rainfall?.last72hInches !== undefined && rainfall.last72hInches >= SAFETY_THRESHOLDS.rainfall.moderate
+                ? `🌧️ Recent rainfall: ${rainfall.last72hInches.toFixed(1)}" (72h) — runoff may affect water quality`
+                : rainfall?.last72hInches !== undefined && rainfall.last72hInches > 0
+                ? `🌧️ Recent rainfall: ${rainfall.last72hInches.toFixed(2)}" (72h)`
+                : rainfall?.last72hInches !== undefined
+                ? '☀️ No recent rainfall — good water clarity expected'
+                : '',
+              // Water clarity estimate based on rainfall
+              rainfall?.last48hInches !== undefined && rainfall.last48hInches >= SAFETY_THRESHOLDS.rainfall.heavy
+                ? '👁️ Water clarity: Poor (heavy rain runoff)'
+                : rainfall?.last48hInches !== undefined && rainfall.last48hInches >= SAFETY_THRESHOLDS.rainfall.moderate
+                ? '👁️ Water clarity: Reduced (rain runoff)'
+                : rainfall?.last48hInches !== undefined
+                ? '👁️ Water clarity: Clear'
                 : '',
               waterQuality?.notes || '', // Shows "Sampled X days ago"
               waterQuality?.source ? `Source: ${waterQuality.source}` : '', // Show which API

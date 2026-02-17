@@ -11,6 +11,7 @@ import type {
   WaterQuality,
   SSOEvent,
   DamReleaseData,
+  RainfallData,
   SwimScore,
   SwimScoreFactors,
   TidePhasePreferences,
@@ -30,10 +31,11 @@ export function calculateSwimScore(
   recentSSOs: SSOEvent[],
   damReleases: DamReleaseData | null,
   customTidePreferences?: TidePhasePreferences,
-  customWeights?: ScoreWeights
+  customWeights?: ScoreWeights,
+  rainfall?: RainfallData | null
 ): SwimScore {
   // Calculate individual factor scores
-  const waterQualityFactor = scoreWaterQuality(waterQuality, recentSSOs);
+  const waterQualityFactor = scoreWaterQuality(waterQuality, recentSSOs, rainfall);
   const tideCurrentFactor = scoreTideAndCurrent(tide, current, customTidePreferences);
   const waveFactor = scoreWaves(waves);
   const weatherFactor = scoreWeather(weather);
@@ -108,7 +110,8 @@ export function calculateSwimScore(
  */
 function scoreWaterQuality(
   waterQuality: WaterQuality,
-  recentSSOs: SSOEvent[]
+  recentSSOs: SSOEvent[],
+  rainfall?: RainfallData | null
 ): SwimScoreFactors['waterQuality'] {
   let score = 100;
   const issues: string[] = [];
@@ -162,6 +165,28 @@ function scoreWaterQuality(
     score = Math.min(score, 60);
     if (status === 'safe') status = 'advisory';
     issues.push(`Recent sewer overflow ${daysSince} days ago`);
+  }
+
+  // Rainfall penalty: recent rain increases bacteria before weekly testing catches it
+  // This acts as a real-time proxy for water quality degradation
+  if (rainfall) {
+    const rain72h = rainfall.last72hInches;
+    const thresholds = SAFETY_THRESHOLDS.rainfall;
+
+    if (rain72h >= thresholds.extreme) {
+      score = Math.min(score, 15);
+      status = 'dangerous';
+      issues.push(`Heavy rainfall (${rain72h.toFixed(1)}" in 72h) — expect dangerous runoff`);
+    } else if (rain72h >= thresholds.heavy) {
+      score = Math.min(score, 35);
+      if (status === 'safe' || status === 'advisory') status = 'warning';
+      issues.push(`Significant rainfall (${rain72h.toFixed(1)}" in 72h) — elevated bacteria likely`);
+    } else if (rain72h >= thresholds.moderate) {
+      score = Math.min(score, 60);
+      if (status === 'safe') status = 'advisory';
+      issues.push(`Moderate rainfall (${rain72h.toFixed(1)}" in 72h) — bacteria levels may be elevated`);
+    }
+    // light rainfall (<0.1") — no penalty
   }
 
   return {
@@ -456,6 +481,16 @@ function generateAdvice(
     warnings.push('Rough seas - not recommended');
   } else if (factors.waves.heightFeet < 2) {
     recommendations.push('Calm water conditions');
+  }
+
+  // Rainfall-related warnings (embedded in water quality issues)
+  const rainfallIssue = factors.waterQuality.issues.find(i => i.includes('rainfall'));
+  if (rainfallIssue) {
+    if (rainfallIssue.includes('dangerous') || rainfallIssue.includes('Heavy')) {
+      warnings.push('Heavy recent rainfall — avoid swimming for 72 hours');
+    } else if (rainfallIssue.includes('Significant')) {
+      warnings.push('Recent rainfall may have degraded water quality');
+    }
   }
 
   // Weather advisories
