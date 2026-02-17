@@ -1,4 +1,5 @@
 import CurrentConditions from '@/components/dashboard/CurrentConditions';
+import HeaderTimestamp from '@/components/HeaderTimestamp';
 
 export default function Home() {
   return (
@@ -15,21 +16,7 @@ export default function Home() {
                 Aquatic Park, San Francisco Bay
               </p>
             </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {new Date().toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  month: 'long',
-                  day: 'numeric',
-                })}
-              </p>
-              <p className="text-lg font-semibold text-gray-700 dark:text-gray-300">
-                {new Date().toLocaleTimeString('en-US', {
-                  hour: 'numeric',
-                  minute: '2-digit',
-                })}
-              </p>
-            </div>
+            <HeaderTimestamp />
           </div>
         </div>
       </header>

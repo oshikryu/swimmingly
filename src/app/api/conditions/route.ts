@@ -98,8 +98,8 @@ export async function GET(request: NextRequest) {
     const weatherWithFallback = {
       timestamp: windDataResult?.timestamp || now,
       temperatureF: windDataResult?.temperatureF ?? 60,
-      windSpeedMph: windDataResult?.windSpeedMph || 0,
-      windDirection: windDataResult?.windDirection || 0,
+      windSpeedMph: windDataResult?.windSpeedMph ?? 0,
+      windDirection: windDataResult?.windDirection ?? 0,
       windGustMph: windDataResult?.windGustMph,
       visibilityMiles: 10,
       conditions: 'unavailable' as string,

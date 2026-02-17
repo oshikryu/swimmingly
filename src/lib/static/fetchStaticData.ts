@@ -87,8 +87,8 @@ export async function fetchStaticData(tidePhasePreference?: TidePhaseType): Prom
     const weatherWithFallback = {
       timestamp: windDataResult?.timestamp || now,
       temperatureF: windDataResult?.temperatureF ?? 60,
-      windSpeedMph: windDataResult?.windSpeedMph || 0,
-      windDirection: windDataResult?.windDirection || 0,
+      windSpeedMph: windDataResult?.windSpeedMph ?? 0,
+      windDirection: windDataResult?.windDirection ?? 0,
       windGustMph: windDataResult?.windGustMph,
       visibilityMiles: 10,
       conditions: 'unavailable' as string,

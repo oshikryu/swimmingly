@@ -27,57 +27,66 @@ export interface OpenMeteoWindData {
  *
  * @returns Wind data or null if fetch fails
  */
-export async function fetchWindData(): Promise<OpenMeteoWindData | null> {
-  try {
-    const params = new URLSearchParams({
-      latitude: String(AQUATIC_PARK_LAT),
-      longitude: String(AQUATIC_PARK_LON),
-      current: 'wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m',
-      wind_speed_unit: 'mph',
-      temperature_unit: 'fahrenheit',
-      timezone: 'America/Los_Angeles',
-    });
+export async function fetchWindData(retries: number = 2): Promise<OpenMeteoWindData | null> {
+  const params = new URLSearchParams({
+    latitude: String(AQUATIC_PARK_LAT),
+    longitude: String(AQUATIC_PARK_LON),
+    current: 'wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m',
+    wind_speed_unit: 'mph',
+    temperature_unit: 'fahrenheit',
+    timezone: 'America/Los_Angeles',
+  });
 
-    const response = await fetch(`${OPEN_METEO_BASE_URL}?${params}`, {
-      signal: AbortSignal.timeout(5000),
-    });
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      if (attempt > 0) {
+        console.log(`Open-Meteo: retry attempt ${attempt}/${retries}...`);
+        await new Promise(r => setTimeout(r, 1000 * attempt));
+      }
 
-    if (!response.ok) {
-      console.error('Open-Meteo API error:', response.status, response.statusText);
-      return null;
+      const response = await fetch(`${OPEN_METEO_BASE_URL}?${params}`, {
+        signal: AbortSignal.timeout(5000),
+      });
+
+      if (!response.ok) {
+        console.error('Open-Meteo API error:', response.status, response.statusText);
+        continue;
+      }
+
+      const data = await response.json();
+      const current = data?.current;
+
+      // Validate required fields
+      if (!current ||
+          current.wind_speed_10m === undefined ||
+          current.wind_direction_10m === undefined) {
+        console.warn('Open-Meteo: Missing required wind data fields');
+        continue;
+      }
+
+      // Check for NaN values
+      if (isNaN(current.wind_speed_10m) || isNaN(current.wind_direction_10m)) {
+        console.warn('Open-Meteo: Invalid wind data values (NaN)');
+        continue;
+      }
+
+      return {
+        timestamp: new Date(current.time),
+        windSpeedMph: current.wind_speed_10m,
+        windDirection: current.wind_direction_10m,
+        windGustMph: current.wind_gusts_10m || undefined,
+        temperatureF: current.temperature_2m !== undefined && !isNaN(current.temperature_2m)
+          ? current.temperature_2m
+          : undefined,
+        source: 'open-meteo',
+      };
+    } catch (error) {
+      console.error(`Open-Meteo fetch failed (attempt ${attempt + 1}/${retries + 1}):`, error);
     }
-
-    const data = await response.json();
-    const current = data?.current;
-
-    // Validate required fields
-    if (!current ||
-        current.wind_speed_10m === undefined ||
-        current.wind_direction_10m === undefined) {
-      console.warn('Open-Meteo: Missing required wind data fields');
-      return null;
-    }
-
-    // Check for NaN values
-    if (isNaN(current.wind_speed_10m) || isNaN(current.wind_direction_10m)) {
-      console.warn('Open-Meteo: Invalid wind data values (NaN)');
-      return null;
-    }
-
-    return {
-      timestamp: new Date(current.time),
-      windSpeedMph: current.wind_speed_10m,
-      windDirection: current.wind_direction_10m,
-      windGustMph: current.wind_gusts_10m || undefined,
-      temperatureF: current.temperature_2m !== undefined && !isNaN(current.temperature_2m)
-        ? current.temperature_2m
-        : undefined,
-      source: 'open-meteo',
-    };
-  } catch (error) {
-    console.error('Error fetching Open-Meteo wind data:', error);
-    return null;
   }
+
+  console.error('Open-Meteo: all retry attempts exhausted');
+  return null;
 }
 
 /**
