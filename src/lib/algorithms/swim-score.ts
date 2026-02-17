@@ -291,8 +291,8 @@ function scoreWeather(weather: WeatherData): SwimScoreFactors['weather'] {
   const windSpeed = weather?.windSpeedMph ?? 0;
   const temperature = weather?.temperatureF ?? 0;
 
-  // Handle null/undefined wind data
-  if (windSpeed === 0 && !weather?.windSpeedMph) {
+  // Handle missing wind data (check source rather than value, since 0 mph is a valid reading)
+  if (!weather || weather.source === 'unavailable') {
     score = 50;
     windCondition = 'moderate';
     issues.push('No wind data available');
