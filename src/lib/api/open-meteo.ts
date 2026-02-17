@@ -19,6 +19,7 @@ export interface OpenMeteoWindData {
   windDirection: number; // degrees 0-360
   windGustMph?: number;
   temperatureF?: number; // Air temperature in Fahrenheit
+  conditions?: string; // Weather conditions (e.g., "clear", "partly cloudy", "rain")
   source: string;
 }
 
@@ -31,7 +32,7 @@ export async function fetchWindData(retries: number = 2): Promise<OpenMeteoWindD
   const params = new URLSearchParams({
     latitude: String(AQUATIC_PARK_LAT),
     longitude: String(AQUATIC_PARK_LON),
-    current: 'wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m',
+    current: 'wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m,weather_code',
     wind_speed_unit: 'mph',
     temperature_unit: 'fahrenheit',
     timezone: 'America/Los_Angeles',
@@ -77,6 +78,9 @@ export async function fetchWindData(retries: number = 2): Promise<OpenMeteoWindD
         windGustMph: current.wind_gusts_10m || undefined,
         temperatureF: current.temperature_2m !== undefined && !isNaN(current.temperature_2m)
           ? current.temperature_2m
+          : undefined,
+        conditions: current.weather_code !== undefined
+          ? wmoCodeToCondition(current.weather_code)
           : undefined,
         source: 'open-meteo',
       };
@@ -140,4 +144,21 @@ export async function fetchWindForecast(hours: number = 48): Promise<OpenMeteoWi
     console.error('Error fetching Open-Meteo wind forecast:', error);
     return null;
   }
+}
+
+/**
+ * Map WMO weather code to a human-readable condition string
+ * https://open-meteo.com/en/docs#weathervariables
+ */
+function wmoCodeToCondition(code: number): string {
+  if (code === 0) return 'clear';
+  if (code <= 3) return 'partly cloudy';
+  if (code <= 49) return 'fog';
+  if (code <= 59) return 'drizzle';
+  if (code <= 69) return 'rain';
+  if (code <= 79) return 'snow';
+  if (code <= 84) return 'rain showers';
+  if (code <= 86) return 'snow showers';
+  if (code >= 95) return 'thunderstorm';
+  return 'cloudy';
 }

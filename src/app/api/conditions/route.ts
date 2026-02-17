@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
 
     const now = new Date();
 
-    // Weather data from Open-Meteo (wind, temperature)
+    // Weather data from Open-Meteo (wind, temperature, conditions)
     const weatherWithFallback = {
       timestamp: windDataResult?.timestamp || now,
       temperatureF: windDataResult?.temperatureF ?? 60,
@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
       windDirection: windDataResult?.windDirection ?? 0,
       windGustMph: windDataResult?.windGustMph,
       visibilityMiles: 10,
-      conditions: 'unavailable' as string,
+      conditions: windDataResult?.conditions ?? 'unavailable',
       source: windDataResult ? 'open-meteo' : 'unavailable',
     };
 
