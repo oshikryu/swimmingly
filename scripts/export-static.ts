@@ -98,6 +98,8 @@ for (const entry of fs.readdirSync(OUT_DIR)) {
   let content = fs.readFileSync(filePath, 'utf-8');
   content = content.replace(/"\/_next\//g, `"/${REPO_NAME}/_next/`);
   content = content.replace(/'\/_next\//g, `'/${REPO_NAME}/_next/`);
+  // Rewrite icon/favicon paths for GitHub Pages subdirectory
+  content = content.replace(/href="\/icon\.svg"/g, `href="/${REPO_NAME}/icon.svg"`);
   fs.writeFileSync(filePath, content, 'utf-8');
 }
 
