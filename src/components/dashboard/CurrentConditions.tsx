@@ -459,7 +459,7 @@ export default function CurrentConditions() {
             unit="ft"
             thresholds={[
               { label: 'Calm', value: `<${SAFETY_THRESHOLDS.waves.calm}ft`, status: 'good' },
-              { label: 'Safe', value: `<${SAFETY_THRESHOLDS.waves.safe}ft`, status: 'good' },
+              { label: 'Safe', value: `<${SAFETY_THRESHOLDS.waves.safe}ft`, status: 'info' },
               { label: 'Moderate', value: `<${SAFETY_THRESHOLDS.waves.moderate}ft`, status: 'warning' },
               { label: 'Rough', value: `<${SAFETY_THRESHOLDS.waves.rough}ft`, status: 'danger' },
             ] as ThresholdSegment[]}
@@ -486,7 +486,7 @@ export default function CurrentConditions() {
             unit="mph"
             thresholds={[
               { label: 'Calm', value: `<${SAFETY_THRESHOLDS.wind.calm}mph`, status: 'good' },
-              { label: 'Light', value: `<${SAFETY_THRESHOLDS.wind.light}mph`, status: 'good' },
+              { label: 'Light', value: `<${SAFETY_THRESHOLDS.wind.light}mph`, status: 'info' },
               { label: 'Moderate', value: `<${SAFETY_THRESHOLDS.wind.moderate}mph`, status: 'warning' },
               { label: 'Strong', value: `<${SAFETY_THRESHOLDS.wind.strong}mph`, status: 'danger' },
             ] as ThresholdSegment[]}
