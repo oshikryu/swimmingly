@@ -236,7 +236,7 @@ The app supports dual deployment: a dynamic server with API routes AND a static 
 ### Architecture
 
 - **Main Server**: Runs with full API routes, real-time data fetching
-- **GitHub Pages**: Static snapshot with pre-fetched data, updated every 10 minutes by integrated scheduler
+- **GitHub Pages**: Static snapshot with pre-fetched data, updated every 20 minutes by integrated scheduler
 - **Build Mode Detection**: `NEXT_PUBLIC_BUILD_MODE` env var controls static vs dynamic behavior
 
 ### Static Export Process
@@ -255,7 +255,7 @@ The app supports dual deployment: a dynamic server with API routes AND a static 
    - `CurrentConditions.tsx` detects static mode via `process.env.NEXT_PUBLIC_BUILD_MODE`
    - In static mode: fetches from `/static-data.json` instead of `/api/conditions`
    - Disables auto-refresh in static mode
-   - `page.tsx` shows banner: "Static Snapshot - updated every 10 minutes"
+   - `page.tsx` shows banner: "Static Snapshot - updated every 20 minutes"
 
 4. **Build Process**:
    ```bash
@@ -277,7 +277,7 @@ The app supports dual deployment: a dynamic server with API routes AND a static 
 - When you run `npm run dev`, two processes start:
   1. Next.js dev server (port 3000)
   2. Static site update scheduler (background)
-- Scheduler automatically updates GitHub Pages every 10 minutes
+- Scheduler automatically updates GitHub Pages every 20 minutes
 - Both stop together when you Ctrl+C the dev server
 
 **Setup**:
@@ -308,7 +308,7 @@ npm run dev:no-updates   # Alias for dev:server
 **Configuration** (via environment variables in `.env.local`):
 ```bash
 ENABLE_STATIC_UPDATES="true"              # Toggle on/off
-STATIC_UPDATE_SCHEDULE="*/10 * * * *"     # Cron expression
+STATIC_UPDATE_SCHEDULE="*/20 * * * *"     # Cron expression
 GITHUB_REPO="git@github.com:user/repo.git"
 GITHUB_BRANCH="gh-pages"
 RUN_IMMEDIATELY="false"                   # Run update on startup
@@ -367,7 +367,7 @@ RUN_IMMEDIATELY="false"                   # Run update on startup
 npm run dev
     ├─ Next.js Dev Server (localhost:3000)
     └─ Node.js Scheduler (background)
-           ↓ every 10 minutes
+           ↓ every 20 minutes
        Check API availability
            ↓
        Fetch /api/conditions
@@ -442,4 +442,4 @@ npx serve out
 - NOAA APIs are free but rate-limited - implement caching (Redis/localStorage) for production
 - Water quality data sources can be unreliable - always show data freshness timestamps to users
 - Dam release time-lag modeling uses rough estimates (24-48 hours) - actual transit times vary by water flow and dam location
-- **Static site on GitHub Pages**: Shows snapshot data updated every 10 minutes, not real-time. Main server provides live data.
+- **Static site on GitHub Pages**: Shows snapshot data updated every 20 minutes, not real-time. Main server provides live data.
