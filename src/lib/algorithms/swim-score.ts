@@ -169,21 +169,21 @@ function scoreWaterQuality(
 
   // Rainfall penalty: recent rain increases bacteria before weekly testing catches it
   // This acts as a real-time proxy for water quality degradation
+  // NOTE: Rainfall only reduces the WQ factor score — it does NOT escalate the WQ status.
+  // Status changes (warning/dangerous) trigger overall score safety caps, which would be
+  // too aggressive for an indirect proxy indicator without confirmed bacteria data.
   if (rainfall) {
     const rain72h = rainfall.last72hInches;
     const thresholds = SAFETY_THRESHOLDS.rainfall;
 
     if (rain72h >= thresholds.extreme) {
       score = Math.min(score, 15);
-      status = 'dangerous';
       issues.push(`Heavy rainfall (${rain72h.toFixed(1)}" in 72h) — expect dangerous runoff`);
     } else if (rain72h >= thresholds.heavy) {
       score = Math.min(score, 35);
-      if (status === 'safe' || status === 'advisory') status = 'warning';
       issues.push(`Significant rainfall (${rain72h.toFixed(1)}" in 72h) — elevated bacteria likely`);
     } else if (rain72h >= thresholds.moderate) {
       score = Math.min(score, 60);
-      if (status === 'safe') status = 'advisory';
       issues.push(`Moderate rainfall (${rain72h.toFixed(1)}" in 72h) — bacteria levels may be elevated`);
     }
     // light rainfall (<0.1") — no penalty

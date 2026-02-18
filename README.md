@@ -492,14 +492,14 @@ Evaluates bacteria levels and recent sewer overflow events.
 
 **Rainfall Adjustments (72-hour accumulation):**
 
-Rainfall acts as a real-time proxy for water quality degradation, since weekly bacteria testing may not capture post-rain spikes (EPA recommends avoiding swimming for 72 hours after significant rainfall).
+Rainfall acts as a real-time proxy for water quality degradation, since weekly bacteria testing may not capture post-rain spikes. Unlike bacteria readings and SSO events, rainfall only reduces the water quality **score** — it does not change the water quality **status**. This prevents the overall score safety caps from triggering on an indirect proxy indicator.
 
-| Rainfall (inches / 72h) | Max Score | Status | Description |
-|--------------------------|-----------|--------|-------------|
-| < 0.1 | — | — | No penalty |
-| 0.1 - 0.5 | 60 | Advisory | Bacteria levels may be elevated |
-| 0.5 - 1.0 | 35 | Warning | Expect poor water quality |
-| > 2.0 | 15 | Dangerous | Major runoff — do not swim |
+| Rainfall (inches / 72h) | Max WQ Score | Description |
+|--------------------------|--------------|-------------|
+| < 0.1 | — | No penalty |
+| 0.1 - 0.5 | 60 | Bacteria levels may be elevated |
+| 0.5 - 1.0 | 35 | Expect poor water quality |
+| > 2.0 | 15 | Major runoff — expect dangerous conditions |
 
 **Response Fields:**
 ```json
