@@ -7,7 +7,7 @@ A Next.js web application that helps swimmers determine optimal swimming times a
 
 - **Real-time Conditions Dashboard**: Current swim score and environmental conditions
 - **Intelligent Swim Scoring**: Weighted algorithm considering:
-  - Water Quality (30%) - Bacteria levels and sewer overflow events
+  - Water Quality (30%) - Bacteria levels, sewer overflow events, and rainfall indicators
   - Tides & Currents (25%) - Optimal timing for slack tide with customizable preferences
   - Waves (20%) - Swell height and period
   - Weather (15%) - Wind, temperature, precipitation
@@ -27,11 +27,12 @@ A Next.js web application that helps swimmers determine optimal swimming times a
   - NOAA Tides & Currents API
   - NOAA National Weather Service API
   - NOAA NDBC (Buoy data)
-  - Open-Meteo (Weather backup)
+  - Open-Meteo (Wind data, temperature, rainfall)
   - CDEC - California Data Exchange Center (Dam releases)
   - SF Beach Water Quality Monitoring (Primary water quality source - locations BAY#211_SL & BAY#210.1_SL)
   - CA Water Quality Portal (Water quality fallback)
   - SF Open Data (Sewer overflow alerts)
+  - SeaTemperature.info (Water temperature)
 
 ## Getting Started
 
@@ -115,7 +116,7 @@ swimmingly/
 
 ### `GET /api/conditions`
 
-Returns current conditions including swim score, tide, weather, waves, water quality, and dam releases.
+Returns current conditions including swim score, tide, weather, waves, water quality, water temperature, rainfall, and dam releases.
 
 **Query Parameters:**
 | Parameter | Type | Default | Description |
@@ -265,13 +266,27 @@ curl "http://localhost:3000/api/conditions?tidePhasePreference=slack"
     "latestDataTimestamp": "2026-01-15T08:00:00.000Z",
     "source": "CDEC"
   },
+  "waterTemperature": {
+    "timestamp": "2026-01-15T22:00:00.000Z",
+    "temperatureF": 54.3,
+    "source": "seatemperature.info"
+  },
+  "rainfall": {
+    "timestamp": "2026-01-15T22:20:05.245Z",
+    "last24hInches": 0.0,
+    "last48hInches": 0.0,
+    "last72hInches": 0.0,
+    "source": "open-meteo"
+  },
   "dataFreshness": {
     "tide": "2026-01-15T22:12:00.000Z",
     "weather": "2026-01-15T22:20:05.245Z",
     "waves": "2026-01-15T20:00:00.000Z",
     "waterQuality": "2026-01-12T08:00:00.000Z",
+    "waterTemperature": "2026-01-15T22:00:00.000Z",
     "sso": "2026-01-15T22:20:05.245Z",
-    "damReleases": "2026-01-15T22:20:03.732Z"
+    "damReleases": "2026-01-15T22:20:03.732Z",
+    "rainfall": "2026-01-15T22:20:05.245Z"
   }
 }
 ```
@@ -340,7 +355,7 @@ curl "http://localhost:3000/api/tides?hours=24"
 
 ### `GET /api/weather`
 
-Returns current weather and 72-hour forecast from NOAA/Open-Meteo.
+Returns current weather from Open-Meteo and 72-hour forecast from NOAA NWS.
 
 **Example Request:**
 ```bash
@@ -356,9 +371,8 @@ curl "http://localhost:3000/api/weather"
     "windSpeedMph": 8.5,
     "windDirection": 12,
     "windGustMph": 9.4,
-    "visibilityMiles": 10,
     "conditions": "Partly Cloudy",
-    "source": "NOAA-NWS"
+    "source": "open-meteo"
   },
   "forecast": [
     {
@@ -378,7 +392,7 @@ curl "http://localhost:3000/api/weather"
 
 ### `GET /api/waves`
 
-Returns current wave and swell data from OpenWaterLog or NOAA buoy (fallback).
+Returns current wave and swell data from NOAA buoy. (Note: the `/api/conditions` endpoint uses OpenWaterLog as the primary wave source with NOAA as fallback.)
 
 **Example Request:**
 ```bash
@@ -393,7 +407,7 @@ curl "http://localhost:3000/api/waves"
     "waveHeightFeet": 0.6,
     "swellPeriodSeconds": 12,
     "swellDirection": 285,
-    "source": "OpenWaterLog"
+    "source": "NOAA-NDBC"
   },
   "timestamp": "2026-01-15T22:20:00.000Z"
 }
@@ -414,14 +428,28 @@ All endpoints return errors in this format:
 
 ```json
 {
-  "error": "Error message describing what went wrong"
+  "error": "Error message describing what went wrong",
+  "message": "Detailed error info (on 500 only)"
+}
+```
+
+The `/api/conditions` endpoint includes a `details` object on 503 errors showing which data sources failed:
+
+```json
+{
+  "error": "Unable to fetch critical tide data",
+  "details": {
+    "tide": "missing",
+    "waves": "ok",
+    "waterQuality": "ok"
+  }
 }
 ```
 
 | Status Code | Description |
 |-------------|-------------|
 | `500` | Internal server error (API fetch failed) |
-| `503` | Service unavailable (data source unavailable) |
+| `503` | Service unavailable (critical tide data unavailable) |
 
 ## Swim Score Algorithm
 
@@ -461,6 +489,17 @@ Evaluates bacteria levels and recent sewer overflow events.
 **SSO (Sewer Overflow) Adjustments:**
 - Active SSO nearby: Score capped at 20, status = dangerous
 - SSO within 3 days: Score capped at 60, status = advisory
+
+**Rainfall Adjustments (72-hour accumulation):**
+
+Rainfall acts as a real-time proxy for water quality degradation, since weekly bacteria testing may not capture post-rain spikes (EPA recommends avoiding swimming for 72 hours after significant rainfall).
+
+| Rainfall (inches / 72h) | Max Score | Status | Description |
+|--------------------------|-----------|--------|-------------|
+| < 0.1 | — | — | No penalty |
+| 0.1 - 0.5 | 60 | Advisory | Bacteria levels may be elevated |
+| 0.5 - 1.0 | 35 | Warning | Expect poor water quality |
+| > 2.0 | 15 | Dangerous | Major runoff — do not swim |
 
 **Response Fields:**
 ```json
@@ -618,6 +657,23 @@ scoringFlow = max(weightedAvgFlow, peakComponent)
 
 ---
 
+### Overall Score Safety Caps
+
+Certain critical danger conditions override the weighted average, capping the overall score regardless of other factors:
+
+| Condition | Max Overall Score | Rating Cap |
+|-----------|-------------------|------------|
+| Dangerous water quality | 19 | Dangerous |
+| Water quality warning | 39 | Poor |
+| Very strong current (≥ 2.0 knots) | 39 | Poor |
+| Strong current (≥ 1.5 knots) | 59 | Fair |
+| Dangerous waves | 19 | Dangerous |
+| Rough waves | 39 | Poor |
+
+These caps ensure that a single life-threatening condition cannot be masked by high scores in other factors.
+
+---
+
 ### Score Ranges
 
 | Range | Rating | Color | Description |
@@ -638,16 +694,23 @@ The algorithm generates contextual advice based on factor scores:
 - "Excellent time - slack tide"
 - "Calm water conditions"
 - "Normal dam operations"
+- "Moderate dam releases - be aware of currents"
 - "Excellent/Good/Fair conditions for swimming"
 
 **Warnings (negative):**
 - "Do not swim - dangerous water quality"
 - "Water quality warning in effect"
 - "Recent sewer overflow - use caution"
+- "Heavy recent rainfall — avoid swimming for 72 hours"
+- "Recent rainfall may have degraded water quality"
 - "Strong currents - experienced swimmers only"
 - "Dangerous wave conditions"
+- "Rough seas - not recommended"
 - "Strong winds present"
 - "Extreme dam releases - very strong currents expected"
+- "High dam releases - strong bay currents"
+- "Poor conditions - not recommended"
+- "Dangerous conditions - do not swim"
 
 ---
 
@@ -691,6 +754,7 @@ All thresholds are configured in `src/config/thresholds.ts`:
 | Wind | Calm / Light / Moderate / Strong | < 5 / < 10 / < 15 / < 20 mph |
 | Current | Slack / Slow / Moderate / Strong | < 0.3 / < 0.5 / < 1.0 / < 1.5 kts |
 | Dam Releases | Low / Moderate / High / Extreme | < 30k / < 50k / < 80k / > 100k CFS |
+| Rainfall (72h) | Light / Moderate / Heavy / Extreme | < 0.1 / < 0.5 / < 1.0 / > 2.0 in |
 | SSO | Caution / Warning | 3 days / 7 days |
 | Water Temp | Cold / Cool / Moderate / Comfortable | < 55 / < 60 / < 65 / > 70 °F |
 
@@ -702,11 +766,13 @@ All thresholds are configured in `src/config/thresholds.ts`:
 - [x] SF Open Data API client (sewer overflows)
 - [x] CA Water Quality Portal integration
 - [x] CDEC API client (dam releases with 48-hour historical data)
-- [x] Open-Meteo weather backup integration
+- [x] Open-Meteo weather integration (primary wind data + rainfall)
 - [x] Swim score algorithm with customizable tide preferences
 - [x] Current conditions dashboard
 - [x] Real-time data fetching with localStorage caching
 - [x] 48-hour dam release tracking with time-lag modeling
+- [x] Water temperature monitoring (SeaTemperature.info)
+- [x] Rainfall-based water quality proxy (72-hour accumulation)
 
 ### Next Steps 🚀
 
@@ -743,11 +809,12 @@ All thresholds are configured in `src/config/thresholds.ts`:
 - **NOAA Tides & Currents**: Tide predictions for Station 9414290 (San Francisco) and current data from Station 9414290
 - **NOAA National Weather Service**: Point forecast and observations for Aquatic Park
 - **NOAA NDBC**: Wave data from Buoy 46237 (San Francisco offshore) and Buoy 46026 (backup)
-- **Open-Meteo**: Weather data backup (wind speed, direction, gusts, air temperature)
+- **Open-Meteo**: Primary wind data (speed, direction, gusts), air temperature, and 72-hour rainfall accumulation
 - **CDEC (California Data Exchange Center)**: 48 hours of hourly dam release data from Shasta, Oroville, Folsom, Pardee, and Camanche dams
 - **SF Beach Water Quality Monitoring** (Primary): Real-time Enterococcus measurements for Aquatic Park (BAY#211_SL) and Hyde Street Pier (BAY#210.1_SL) via SF Gov Open Data API - uses most recent data from either location
 - **CA Water Quality Portal** (Fallback): Historical water quality monitoring when SF data unavailable
 - **SF Open Data**: Sewer overflow alerts and incident tracking
+- **SeaTemperature.info**: Real-time water temperature for San Francisco Bay
 
 ## Contributing
 
