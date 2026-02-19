@@ -9,6 +9,13 @@ import { SAFETY_THRESHOLDS } from '@/config/thresholds';
 import { calculateSwimScore } from '@/lib/algorithms/swim-score';
 import SwimScore from './SwimScore';
 import ConditionsCard, { type ThresholdSegment } from './ConditionsCard';
+import {
+  mapTideCurrentStatus,
+  mapWaveStatus,
+  mapWeatherStatus,
+  mapWaterQualityStatus,
+  mapDamReleasesStatus,
+} from '@/lib/card-status';
 
 // Raw data type for client-side recalculation
 interface RawConditionsData {
@@ -302,53 +309,11 @@ export default function CurrentConditions() {
     : null;
   const isUsingCachedTideData = tideDataAge && tideDataAge > 5; // More than 5 minutes old = likely cached
 
-  // Map score factor statuses to card statuses
-  const mapWaveStatus = (status: string): 'good' | 'warning' | 'danger' | 'info' => {
-    if (status === 'calm') return 'good';
-    if (status === 'moderate') return 'warning';
-    if (status === 'rough' || status === 'dangerous') return 'danger';
-    return 'info';
-  };
-
-  const mapWeatherStatus = (condition: string): 'good' | 'warning' | 'danger' | 'info' => {
-    if (condition === 'calm' || condition === 'light') return 'good';
-    if (condition === 'moderate') return 'warning';
-    if (condition === 'strong') return 'danger';
-    return 'info';
-  };
-
-  const mapWaterQualityStatus = (status: string): 'good' | 'warning' | 'danger' | 'info' => {
-    if (status === 'safe') return 'good';
-    if (status === 'advisory') return 'warning';
-    if (status === 'warning' || status === 'dangerous') return 'danger';
-    return 'info';
-  };
-
-  const mapDamReleasesStatus = (level: string): 'good' | 'warning' | 'danger' | 'info' => {
-    if (level === 'low') return 'good';
-    if (level === 'moderate') return 'info';
-    if (level === 'high') return 'warning';
-    if (level === 'extreme') return 'danger';
-    return 'info';
-  };
-
-  // Map current speed to status, considering both favorability and actual speed
-  const mapTideCurrentStatus = (): 'good' | 'warning' | 'danger' | 'info' => {
-    const speed = currentSpeed;
-    // Very strong current (>2.0 knots) is always dangerous
-    if (speed >= SAFETY_THRESHOLDS.current.veryStrong) return 'danger';
-    // Strong current (1.5-2.0 knots) is a warning
-    if (speed >= SAFETY_THRESHOLDS.current.strong) return 'warning';
-    // Moderate current (1.0-1.5 knots) - warning if not favorable, otherwise info
-    if (speed >= SAFETY_THRESHOLDS.current.moderate) {
-      return score?.factors?.tideAndCurrent?.favorable ? 'info' : 'warning';
-    }
-    // Slower currents - good if favorable, info otherwise
-    return score?.factors?.tideAndCurrent?.favorable ? 'good' : 'info';
-  };
-
   // Use statuses from score factors with safe defaults (ensures sync with score calculation)
-  const tideStatus = mapTideCurrentStatus();
+  const tideStatus = mapTideCurrentStatus(
+    currentSpeedRaw,
+    score?.factors?.tideAndCurrent?.favorable ?? true,
+  );
   const waveStatus = mapWaveStatus(score?.factors?.waves?.status ?? 'calm');
   const weatherStatus = mapWeatherStatus(score?.factors?.weather?.windCondition ?? 'calm');
   const waterQualityStatus = mapWaterQualityStatus(score?.factors?.waterQuality?.status ?? 'safe');
