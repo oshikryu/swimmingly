@@ -26,7 +26,7 @@ export default function Home() {
         <div className="bg-blue-100 dark:bg-blue-900/30 border-b-2 border-blue-300 dark:border-blue-700 py-3">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <p className="text-center text-sm text-blue-800 dark:text-blue-200">
-              📸 <strong>Static Snapshot</strong> - This is a cached version updated every 20 minutes.{' '}
+              📸 <strong>Static Snapshot</strong> - This is a cached version updated every 15 minutes.{' '}
               {process.env.NEXT_PUBLIC_MAIN_SITE_URL && (
                 <>
                   For live data, visit{' '}
@@ -72,7 +72,7 @@ export default function Home() {
           </p>
           <p className="text-center text-xs text-gray-400 dark:text-gray-500 mt-1">
             {process.env.NEXT_PUBLIC_BUILD_MODE === 'static'
-              ? 'Static snapshot — updated every 20 minutes'
+              ? 'Static snapshot — updated every 15 minutes'
               : 'Auto-refreshes every 5 minutes • API cached for 5 minutes'}
           </p>
         </div>

@@ -177,7 +177,7 @@ export interface SwimScoreFactors {
 export interface SwimScore {
   timestamp: Date;
   overallScore: number; // 0-100
-  rating: 'excellent' | 'good' | 'fair' | 'poor' | 'dangerous';
+  rating:  'calm' | 'mild' | 'active' | 'exciting' | 'challenging';
   factors: SwimScoreFactors;
   recommendations: string[];
   warnings: string[];

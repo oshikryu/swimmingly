@@ -26,12 +26,16 @@ export const SAFETY_THRESHOLDS = {
   },
 
   // Wave height thresholds (feet)
+  // Calibrated for Aquatic Park — a sheltered cove protected by the Municipal Pier
+  // wave baffles and Hyde Street Pier. The breakwater reduces open-bay waves by ~60-80%.
+  // Typical conditions: 0.5-1.0 ft; storm peak inside cove rarely exceeds 2.5 ft.
+  // Sources: OpenWaterLog historic data, USGS SF Bay wave modeling, GGTC swim reports
   waves: {
-    calm: 2,              // < 2 feet = calm
-    safe: 3,              // 2-3 feet = safe
-    moderate: 5,          // 3-5 feet = moderate/caution
-    rough: 8,             // 5-8 feet = rough (not recommended)
-    // > 8 feet = dangerous
+    calm: 0.5,            // < 0.5 feet = calm (glassy to light ripple)
+    safe: 1.0,            // 0.5-1.0 feet = safe (light chop, comfortable for all)
+    moderate: 1.5,        // 1.0-1.5 feet = moderate/caution (noticeable chop)
+    rough: 2.5,           // 1.5-2.5 feet = rough (not recommended for beginners)
+    // > 2.5 feet = dangerous (rare storm conditions inside the cove)
   },
 
   // Wind speed thresholds (mph)
@@ -127,9 +131,9 @@ export const SCORE_WEIGHTS = {
  * Swim score interpretations
  */
 export const SCORE_RANGES = {
-  excellent: { min: 80, max: 100, label: 'Excellent', color: '#22c55e' },
-  good: { min: 60, max: 79, label: 'Good', color: '#3b82f6' },
-  fair: { min: 40, max: 59, label: 'Fair', color: '#f59e0b' },
-  poor: { min: 20, max: 39, label: 'Poor', color: '#ef4444' },
-  dangerous: { min: 0, max: 19, label: 'Dangerous', color: '#991b1b' },
+  calm: { min: 80, max: 100, label: 'Excellent', color: '#22c55e' },
+  mild: { min: 60, max: 79, label: 'Good', color: '#3b82f6' },
+  active: { min: 40, max: 59, label: 'Fair', color: '#f59e0b' },
+  exciting: { min: 20, max: 39, label: 'Poor', color: '#ef4444' },
+  challenging: { min: 0, max: 19, label: 'Dangerous', color: '#991b1b' },
 } as const;

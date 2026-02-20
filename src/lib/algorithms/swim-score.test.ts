@@ -57,7 +57,7 @@ function makeWeather(overrides: Partial<WeatherData> = {}): WeatherData {
 function makeWaves(overrides: Partial<WaveData> = {}): WaveData {
   return {
     timestamp: now,
-    waveHeightFeet: 1.0,
+    waveHeightFeet: 0.3,
     source: 'OpenWaterLog',
     ...overrides,
   };
@@ -155,10 +155,10 @@ describe('calculateSwimScore', () => {
   // Ideal / baseline conditions
   // -------------------------------------------------------------------------
   describe('ideal conditions', () => {
-    it('returns excellent (100) when all factors are perfect', () => {
+    it('returns calm (100) when all factors are perfect', () => {
       const result = scoreWith();
       expect(result.overallScore).toBe(100);
-      expect(result.rating).toBe('excellent');
+      expect(result.rating).toBe('calm');
     });
 
     it('returns score between 0 and 100', () => {
@@ -280,7 +280,7 @@ describe('calculateSwimScore', () => {
       const result = scoreWith({ rainfall: { last72hInches: 1.0 } });
       // Weighted: (35*30 + 100*25 + 100*20 + 100*15 + 100*10) / 100 = 80.5 → 81
       expect(result.overallScore).toBeGreaterThanOrEqual(80);
-      expect(result.rating).toBe('excellent');
+      expect(result.rating).toBe('calm');
     });
 
     it('rainfall adds issues but bacteria status takes precedence', () => {
@@ -404,43 +404,43 @@ describe('calculateSwimScore', () => {
   // Wave scoring
   // -------------------------------------------------------------------------
   describe('waves', () => {
-    it('scores 100 for calm waves (< 2 ft)', () => {
-      const result = scoreWith({ waves: { waveHeightFeet: 1.0 } });
+    it('scores 100 for calm waves (< 0.5 ft)', () => {
+      const result = scoreWith({ waves: { waveHeightFeet: 0.3 } });
       expect(result.factors.waves.score).toBe(100);
       expect(result.factors.waves.status).toBe('calm');
     });
 
-    it('scores 85 for small waves (2–3 ft)', () => {
-      const result = scoreWith({ waves: { waveHeightFeet: 2.5 } });
+    it('scores 85 for safe waves (0.5–1.0 ft)', () => {
+      const result = scoreWith({ waves: { waveHeightFeet: 0.7 } });
       expect(result.factors.waves.score).toBe(85);
       expect(result.factors.waves.status).toBe('calm');
     });
 
-    it('scores 60 for moderate waves (3–5 ft)', () => {
-      const result = scoreWith({ waves: { waveHeightFeet: 4.0 } });
+    it('scores 60 for moderate waves (1.0–1.5 ft)', () => {
+      const result = scoreWith({ waves: { waveHeightFeet: 1.2 } });
       expect(result.factors.waves.score).toBe(60);
       expect(result.factors.waves.status).toBe('moderate');
     });
 
-    it('scores 30 for rough waves (5–8 ft)', () => {
-      const result = scoreWith({ waves: { waveHeightFeet: 6.5 } });
+    it('scores 30 for rough waves (1.5–2.5 ft)', () => {
+      const result = scoreWith({ waves: { waveHeightFeet: 2.0 } });
       expect(result.factors.waves.score).toBe(30);
       expect(result.factors.waves.status).toBe('rough');
     });
 
-    it('scores 10 for dangerous waves (> 8 ft)', () => {
-      const result = scoreWith({ waves: { waveHeightFeet: 10.0 } });
+    it('scores 10 for dangerous waves (> 2.5 ft)', () => {
+      const result = scoreWith({ waves: { waveHeightFeet: 3.0 } });
       expect(result.factors.waves.score).toBe(10);
       expect(result.factors.waves.status).toBe('dangerous');
     });
 
-    it('scores at boundary: exactly 2 ft is calm (score 85)', () => {
-      const result = scoreWith({ waves: { waveHeightFeet: 2.0 } });
+    it('scores at boundary: exactly 0.5 ft is safe (score 85)', () => {
+      const result = scoreWith({ waves: { waveHeightFeet: 0.5 } });
       expect(result.factors.waves.score).toBe(85);
     });
 
-    it('scores at boundary: exactly 8 ft is dangerous (score 10)', () => {
-      const result = scoreWith({ waves: { waveHeightFeet: 8.0 } });
+    it('scores at boundary: exactly 2.5 ft is dangerous (score 10)', () => {
+      const result = scoreWith({ waves: { waveHeightFeet: 2.5 } });
       expect(result.factors.waves.score).toBe(10);
       expect(result.factors.waves.status).toBe('dangerous');
     });
@@ -500,6 +500,27 @@ describe('calculateSwimScore', () => {
       const result = scoreWith({ weather: { source: 'unavailable' } });
       expect(result.factors.weather.score).toBe(50);
       expect(result.factors.weather.windCondition).toBe('moderate');
+    });
+
+    it('factors in wind gusts to effective wind calculation', () => {
+      // 8 mph sustained + 20 mph gusts → effective = 8*0.7 + 20*0.3 = 11.6 → moderate (score 80)
+      const result = scoreWith({ weather: { windSpeedMph: 8, windGustMph: 20 } });
+      expect(result.factors.weather.score).toBe(80);
+      expect(result.factors.weather.windCondition).toBe('moderate');
+    });
+
+    it('ignores gusts when lower than sustained speed', () => {
+      // 7 mph sustained, 5 mph gust → effective = 7 (gust not higher, so no blend)
+      const result = scoreWith({ weather: { windSpeedMph: 7, windGustMph: 5 } });
+      expect(result.factors.weather.score).toBe(95);
+      expect(result.factors.weather.windCondition).toBe('light');
+    });
+
+    it('downgrades calm wind to light when gusts are significant', () => {
+      // 3 mph sustained + 12 mph gusts → effective = 3*0.7 + 12*0.3 = 5.7 → light (score 95)
+      const result = scoreWith({ weather: { windSpeedMph: 3, windGustMph: 12 } });
+      expect(result.factors.weather.score).toBe(95);
+      expect(result.factors.weather.windCondition).toBe('light');
     });
   });
 
@@ -566,13 +587,13 @@ describe('calculateSwimScore', () => {
     it('caps overall at 19 for dangerous water quality', () => {
       const result = scoreWith({ waterQuality: { enterococcusCount: 1500 } });
       expect(result.overallScore).toBeLessThanOrEqual(19);
-      expect(result.rating).toBe('dangerous');
+      expect(result.rating).toBe('challenging');
     });
 
     it('caps overall at 39 for water quality warning', () => {
       const result = scoreWith({ waterQuality: { enterococcusCount: 800 } });
       expect(result.overallScore).toBeLessThanOrEqual(39);
-      expect(result.rating).toBe('poor');
+      expect(result.rating).toBe('exciting');
     });
 
     it('caps overall at 39 for very strong current (>= 2.0 knots)', () => {
@@ -590,13 +611,13 @@ describe('calculateSwimScore', () => {
     });
 
     it('caps overall at 19 for dangerous waves', () => {
-      const result = scoreWith({ waves: { waveHeightFeet: 10.0 } });
+      const result = scoreWith({ waves: { waveHeightFeet: 3.0 } });
       expect(result.overallScore).toBeLessThanOrEqual(19);
-      expect(result.rating).toBe('dangerous');
+      expect(result.rating).toBe('challenging');
     });
 
     it('caps overall at 39 for rough waves', () => {
-      const result = scoreWith({ waves: { waveHeightFeet: 6.5 } });
+      const result = scoreWith({ waves: { waveHeightFeet: 2.0 } });
       expect(result.overallScore).toBeLessThanOrEqual(39);
     });
 
@@ -604,10 +625,10 @@ describe('calculateSwimScore', () => {
       const result = scoreWith({
         waterQuality: { enterococcusCount: 1500 }, // dangerous → cap 19
         current: { speedKnots: 2.5 },               // very strong → cap 39
-        waves: { waveHeightFeet: 10 },               // dangerous → cap 19
+        waves: { waveHeightFeet: 3.0 },              // dangerous → cap 19
       });
       expect(result.overallScore).toBeLessThanOrEqual(19);
-      expect(result.rating).toBe('dangerous');
+      expect(result.rating).toBe('challenging');
     });
   });
 
@@ -615,12 +636,12 @@ describe('calculateSwimScore', () => {
   // Score ranges / rating
   // -------------------------------------------------------------------------
   describe('score rating mapping', () => {
-    it('maps 80–100 to excellent', () => {
+    it('maps 80–100 to calm', () => {
       const result = scoreWith(); // all ideal → 100
-      expect(result.rating).toBe('excellent');
+      expect(result.rating).toBe('calm');
     });
 
-    it('maps 60–79 to good', () => {
+    it('maps 60–79 to mild', () => {
       // Heavy rain reduces WQ to 35, overall ~81 weighted. Add moderate wind to drop below 80.
       const result = scoreWith({
         rainfall: { last72hInches: 1.0 },
@@ -628,33 +649,33 @@ describe('calculateSwimScore', () => {
       });
       expect(result.overallScore).toBeGreaterThanOrEqual(60);
       expect(result.overallScore).toBeLessThanOrEqual(79);
-      expect(result.rating).toBe('good');
+      expect(result.rating).toBe('mild');
     });
 
-    it('maps 40–59 to fair', () => {
+    it('maps 40–59 to active', () => {
       const result = scoreWith({
         current: { speedKnots: 1.6 }, // strong → overall cap 59
       });
       expect(result.overallScore).toBeGreaterThanOrEqual(40);
       expect(result.overallScore).toBeLessThanOrEqual(59);
-      expect(result.rating).toBe('fair');
+      expect(result.rating).toBe('active');
     });
 
-    it('maps 20–39 to poor', () => {
+    it('maps 20–39 to exciting', () => {
       const result = scoreWith({
         current: { speedKnots: 2.5 }, // very strong → overall cap 39
       });
       expect(result.overallScore).toBeGreaterThanOrEqual(20);
       expect(result.overallScore).toBeLessThanOrEqual(39);
-      expect(result.rating).toBe('poor');
+      expect(result.rating).toBe('exciting');
     });
 
-    it('maps 0–19 to dangerous', () => {
+    it('maps 0–19 to challenging', () => {
       const result = scoreWith({
         waterQuality: { enterococcusCount: 1500 },
       });
       expect(result.overallScore).toBeLessThanOrEqual(19);
-      expect(result.rating).toBe('dangerous');
+      expect(result.rating).toBe('challenging');
     });
   });
 
@@ -664,12 +685,12 @@ describe('calculateSwimScore', () => {
   describe('weighted score formula', () => {
     it('correctly weights: WQ=30%, Tide=25%, Waves=20%, Weather=15%, Dam=10%', () => {
       // Manually set known factor scores via threshold values
-      // WQ: 70 (enterococcus 200), Tide: 85 (ebb low rate), Waves: 60 (4ft), Weather: 80 (12mph), Dam: 100 (20k)
+      // WQ: 70 (enterococcus 200), Tide: 85 (ebb low rate), Waves: 60 (1.2ft), Weather: 80 (12mph), Dam: 100 (20k)
       const result = scoreWith({
         waterQuality: { enterococcusCount: 200 },
         tide: { currentPhase: 'ebb', changeRateFeetPerHour: 0.5 },
         current: { speedKnots: 0.2 },
-        waves: { waveHeightFeet: 4.0 },
+        waves: { waveHeightFeet: 1.2 },
         weather: { windSpeedMph: 12 },
       });
 
@@ -714,12 +735,12 @@ describe('calculateSwimScore', () => {
     });
 
     it('warns about dangerous waves', () => {
-      const result = scoreWith({ waves: { waveHeightFeet: 10 } });
+      const result = scoreWith({ waves: { waveHeightFeet: 3.0 } });
       expect(result.warnings).toContain('Dangerous wave conditions');
     });
 
     it('warns about rough waves', () => {
-      const result = scoreWith({ waves: { waveHeightFeet: 6.5 } });
+      const result = scoreWith({ waves: { waveHeightFeet: 2.0 } });
       expect(result.warnings).toContain('Rough seas - not recommended');
     });
 
@@ -729,7 +750,7 @@ describe('calculateSwimScore', () => {
     });
 
     it('recommends calm water conditions', () => {
-      const result = scoreWith({ waves: { waveHeightFeet: 1.0 } });
+      const result = scoreWith({ waves: { waveHeightFeet: 0.3 } });
       expect(result.recommendations).toContain('Calm water conditions');
     });
 
@@ -759,20 +780,20 @@ describe('calculateSwimScore', () => {
       // Rain 0.8" (>= 0.5 moderate) caps WQ at 60, wind 14mph gives weather 80, rest 100
       // (60*30 + 100*25 + 100*20 + 80*15 + 100*10) / 100 = 85
       expect(result.overallScore).toBe(85);
-      expect(result.rating).toBe('excellent');
+      expect(result.rating).toBe('calm');
     });
 
     it('strong ebb current with moderate waves: multiple factors degrade', () => {
       const result = scoreWith({
         tide: { currentPhase: 'ebb', changeRateFeetPerHour: 1.5 },
         current: { speedKnots: 1.7 },
-        waves: { waveHeightFeet: 4.0 },
+        waves: { waveHeightFeet: 1.2 },
       });
       // Tide/current: moderate rate reduces ebb (85*0.7=59.5, cap 70), then strong current (>1.5) caps at 40
       // Waves: moderate (60), others ideal (100)
       // Strong current (>= 1.5 knots) caps overall at 59
       expect(result.overallScore).toBeLessThanOrEqual(59);
-      expect(result.rating).toBe('fair');
+      expect(result.rating).toBe('active');
     });
 
     it('worst case: all factors at their worst', () => {
@@ -780,25 +801,25 @@ describe('calculateSwimScore', () => {
         waterQuality: { enterococcusCount: 2000 },
         tide: { currentPhase: 'ebb', changeRateFeetPerHour: 3.0 },
         current: { speedKnots: 3.0 },
-        waves: { waveHeightFeet: 12 },
+        waves: { waveHeightFeet: 4.0 },
         weather: { windSpeedMph: 30, conditions: 'storm' },
         damReleases: { historical48h: hist(120000) },
         rainfall: { last72hInches: 5.0 },
         ssos: [makeSSO({ resolved: false })],
       });
       expect(result.overallScore).toBeLessThanOrEqual(19);
-      expect(result.rating).toBe('dangerous');
+      expect(result.rating).toBe('challenging');
       expect(result.warnings.length).toBeGreaterThan(0);
     });
 
     it('good day with one yellow flag: moderate waves only', () => {
       const result = scoreWith({
-        waves: { waveHeightFeet: 4.0 },
+        waves: { waveHeightFeet: 1.2 },
       });
       // WQ=100, Tide=100, Waves=60, Weather=100, Dam=100
       // (100*30 + 100*25 + 60*20 + 100*15 + 100*10) / 100 = 92
       expect(result.overallScore).toBe(92);
-      expect(result.rating).toBe('excellent');
+      expect(result.rating).toBe('calm');
     });
   });
 });

@@ -314,33 +314,40 @@ function scoreWeather(weather: WeatherData): SwimScoreFactors['weather'] {
   const issues: string[] = [];
   let windCondition: 'calm' | 'light' | 'moderate' | 'strong' = 'calm';
   const windSpeed = weather?.windSpeedMph ?? 0;
+  const windGust = weather?.windGustMph ?? 0;
   const temperature = weather?.temperatureF ?? 0;
+
+  // Use effective wind: blend sustained speed with gusts (70/30 weighting)
+  // This accounts for gusts making conditions worse than sustained speed alone
+  const effectiveWind = windGust > windSpeed
+    ? windSpeed * 0.7 + windGust * 0.3
+    : windSpeed;
 
   // Handle missing wind data (check source rather than value, since 0 mph is a valid reading)
   if (!weather || weather.source === 'unavailable') {
     score = 50;
     windCondition = 'moderate';
     issues.push('No wind data available');
-  } else if (windSpeed < SAFETY_THRESHOLDS.wind.calm) {
+  } else if (effectiveWind < SAFETY_THRESHOLDS.wind.calm) {
     windCondition = 'calm';
-  } else if (windSpeed < SAFETY_THRESHOLDS.wind.light) {
+  } else if (effectiveWind < SAFETY_THRESHOLDS.wind.light) {
     score = 95;
     windCondition = 'light';
-  } else if (windSpeed < SAFETY_THRESHOLDS.wind.moderate) {
+  } else if (effectiveWind < SAFETY_THRESHOLDS.wind.moderate) {
     score = 80;
     windCondition = 'moderate';
-  } else if (windSpeed < SAFETY_THRESHOLDS.wind.strong) {
+  } else if (effectiveWind < SAFETY_THRESHOLDS.wind.strong) {
     score = 60;
     windCondition = 'moderate';
-    issues.push(`Moderate winds (${windSpeed.toFixed(0)} mph)`);
-  } else if (windSpeed < SAFETY_THRESHOLDS.wind.veryStrong) {
+    issues.push(`Moderate winds (${windSpeed.toFixed(0)} mph, gusts ${windGust.toFixed(0)} mph)`);
+  } else if (effectiveWind < SAFETY_THRESHOLDS.wind.veryStrong) {
     score = 35;
     windCondition = 'strong';
-    issues.push(`Strong winds (${windSpeed.toFixed(0)} mph)`);
+    issues.push(`Strong winds (${windSpeed.toFixed(0)} mph, gusts ${windGust.toFixed(0)} mph)`);
   } else {
     score = 15;
     windCondition = 'strong';
-    issues.push(`Very strong winds (${windSpeed.toFixed(0)} mph)`);
+    issues.push(`Very strong winds (${windSpeed.toFixed(0)} mph, gusts ${windGust.toFixed(0)} mph)`);
   }
 
   // Check for precipitation
@@ -440,12 +447,12 @@ function scoreDamReleases(
 /**
  * Determine rating from score
  */
-function getScoreRating(score: number): 'excellent' | 'good' | 'fair' | 'poor' | 'dangerous' {
-  if (score >= SCORE_RANGES.excellent.min) return 'excellent';
-  if (score >= SCORE_RANGES.good.min) return 'good';
-  if (score >= SCORE_RANGES.fair.min) return 'fair';
-  if (score >= SCORE_RANGES.poor.min) return 'poor';
-  return 'dangerous';
+function getScoreRating(score: number): 'calm' | 'mild' | 'active' | 'exciting' | 'challenging' {
+  if (score >= SCORE_RANGES.calm.min) return 'calm';
+  if (score >= SCORE_RANGES.mild.min) return 'mild';
+  if (score >= SCORE_RANGES.active.min) return 'active';
+  if (score >= SCORE_RANGES.exciting.min) return 'exciting';
+  return 'challenging';
 }
 
 /**
@@ -479,7 +486,7 @@ function generateAdvice(
     warnings.push('Dangerous wave conditions');
   } else if (factors.waves.status === 'rough') {
     warnings.push('Rough seas - not recommended');
-  } else if (factors.waves.heightFeet < 2) {
+  } else if (factors.waves.heightFeet < SAFETY_THRESHOLDS.waves.safe) {
     recommendations.push('Calm water conditions');
   }
 

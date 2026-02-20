@@ -127,7 +127,7 @@ model SwimScore {
   id                String   @id @default(cuid())
   timestamp         DateTime @unique
   overallScore      Int      // 0-100
-  rating            String   // "excellent", "good", "fair", "poor", "dangerous"
+  rating            String   // "calm", "mild", "active", "exciting", "challenging"
 
   // Individual factor scores
   waterQualityScore Int

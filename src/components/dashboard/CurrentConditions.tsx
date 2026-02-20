@@ -32,6 +32,15 @@ interface RawConditionsData {
 }
 
 /**
+ * Convert wind direction in degrees to cardinal direction (N, NE, E, etc.)
+ */
+function degreesToCardinal(degrees: number): string {
+  const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+  const index = Math.round(((degrees % 360) + 360) % 360 / 22.5) % 16;
+  return directions[index];
+}
+
+/**
  * Format timestamp for display
  * Shows relative time for recent data, absolute time for older data
  */
@@ -460,7 +469,7 @@ export default function CurrentConditions() {
             details={[
               `Condition: ${score?.factors?.weather?.windCondition ?? 'unknown'}`,
               windGust ? `Gusts: ${windGust.toFixed(0)} mph` : '',
-              windDirection !== undefined ? `Direction: ${windDirection}°` : '',
+              windDirection !== undefined ? `Direction: ${windDirection}° ${degreesToCardinal(windDirection)}` : '',
               `Air Temp: ${temperature.toFixed(0)}°F`,
               conditions?.waterTemperature
                 ? `Water Temp: ${conditions.waterTemperature.temperatureF.toFixed(1)}°F (${conditions.waterTemperature.source})`
