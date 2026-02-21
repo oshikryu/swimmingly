@@ -22,7 +22,7 @@ const execAsync = promisify(exec);
 const CONFIG = {
   // Cron schedule: "*/15 * * * *" = every 15 minutes
   schedule: process.env.STATIC_UPDATE_SCHEDULE || '*/15 * * * *',
-  apiUrl: process.env.API_URL || 'http://localhost:3000/api/conditions',
+  apiUrl: process.env.API_URL || 'http://localhost:3333/api/conditions',
   projectDir: process.cwd(),
   githubRepo: process.env.GITHUB_REPO || 'git@github.com:oshikryu/swimmingly.git',
   githubBranch: process.env.GITHUB_BRANCH || 'gh-pages',
