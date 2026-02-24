@@ -500,9 +500,13 @@ function generateAdvice(
     }
   }
 
-  // Weather advisories
+  // Weather advisories - wind-related recommendations
   if (factors.weather.windCondition === 'strong') {
-    warnings.push('Strong winds present');
+    warnings.push("It's howling out there — expect whitecaps and a bumpy ride");
+  } else if (factors.weather.windCondition === 'moderate') {
+    recommendations.push("Get ready for some chop — the bay's got a bit of attitude today");
+  } else if (factors.weather.windCondition === 'light') {
+    recommendations.push('A little breeze on the water — just enough to keep things interesting');
   }
 
   // Dam releases advisories

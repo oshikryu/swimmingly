@@ -744,9 +744,19 @@ describe('calculateSwimScore', () => {
       expect(result.warnings).toContain('Rough seas - not recommended');
     });
 
-    it('warns about strong winds', () => {
+    it('warns about strong winds with chop idiom', () => {
       const result = scoreWith({ weather: { windSpeedMph: 22 } });
-      expect(result.warnings).toContain('Strong winds present');
+      expect(result.warnings).toContain("It's howling out there — expect whitecaps and a bumpy ride");
+    });
+
+    it('recommends chop advisory for moderate winds', () => {
+      const result = scoreWith({ weather: { windSpeedMph: 12 } });
+      expect(result.recommendations).toContain("Get ready for some chop — the bay's got a bit of attitude today");
+    });
+
+    it('recommends light breeze note for light winds', () => {
+      const result = scoreWith({ weather: { windSpeedMph: 7 } });
+      expect(result.recommendations).toContain('A little breeze on the water — just enough to keep things interesting');
     });
 
     it('recommends calm water conditions', () => {
