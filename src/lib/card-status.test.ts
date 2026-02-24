@@ -152,8 +152,8 @@ describe('mapWeatherStatus', () => {
     expect(mapWeatherStatus('calm')).toBe('good');
   });
 
-  it('returns good for light', () => {
-    expect(mapWeatherStatus('light')).toBe('good');
+  it('returns info for light', () => {
+    expect(mapWeatherStatus('light')).toBe('info');
   });
 
   it('returns warning for moderate', () => {
@@ -242,7 +242,7 @@ describe('all cards can produce every status', () => {
 
   it('weather can produce good, info, warning, danger', () => {
     expect(mapWeatherStatus('calm')).toBe('good');
-    expect(mapWeatherStatus('unknown')).toBe('info');
+    expect(mapWeatherStatus('light')).toBe('info');
     expect(mapWeatherStatus('moderate')).toBe('warning');
     expect(mapWeatherStatus('strong')).toBe('danger');
   });

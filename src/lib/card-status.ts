@@ -31,7 +31,8 @@ export function mapWaveStatus(status: string): CardStatus {
 }
 
 export function mapWeatherStatus(condition: string): CardStatus {
-  if (condition === 'calm' || condition === 'light') return 'good';
+  if (condition === 'calm') return 'good';
+  if (condition === 'light') return 'info';
   if (condition === 'moderate') return 'warning';
   if (condition === 'strong') return 'danger';
   return 'info';
