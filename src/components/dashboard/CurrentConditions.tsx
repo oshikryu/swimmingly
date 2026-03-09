@@ -112,6 +112,9 @@ export default function CurrentConditions() {
     if (isCacheValid && cachedData) {
       setConditions(cachedData);
       setLoading(false);
+      window.dispatchEvent(new CustomEvent('conditions-updated', {
+        detail: { timestamp: cachedData.timestamp || new Date().toISOString() }
+      }));
     }
   }, [isCacheValid, cachedData]);
 
@@ -202,6 +205,10 @@ export default function CurrentConditions() {
           setConditions(data);
         }
         setError(null);
+        // Notify header of the data timestamp
+        window.dispatchEvent(new CustomEvent('conditions-updated', {
+          detail: { timestamp: data.timestamp || new Date().toISOString() }
+        }));
       } else {
         console.warn('Received incomplete data from API, keeping cached data');
         // If we have cached data, keep using it

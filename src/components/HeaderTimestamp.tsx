@@ -3,8 +3,7 @@
 import { useEffect, useState } from 'react';
 
 export default function HeaderTimestamp() {
-  const [publishTime, setPublishTime] = useState<string | null>(null);
-  const [now, setNow] = useState<Date | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const isStaticMode = typeof window !== 'undefined' && (
     window.location.hostname.includes('github.io') ||
@@ -12,33 +11,41 @@ export default function HeaderTimestamp() {
   );
 
   useEffect(() => {
-    setNow(new Date());
+    const handleConditionsUpdated = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.timestamp) {
+        setLastUpdated(new Date(detail.timestamp));
+      }
+    };
 
-    if (!isStaticMode) {
-      const timer = setInterval(() => setNow(new Date()), 60_000);
-      return () => clearInterval(timer);
+    window.addEventListener('conditions-updated', handleConditionsUpdated);
+
+    if (isStaticMode) {
+      // In static mode, read buildTimestamp from static-data.json
+      fetch('/swimmingly/static-data.json')
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data?.buildTimestamp) {
+            setLastUpdated(new Date(data.buildTimestamp));
+          }
+        })
+        .catch(() => {});
     }
 
-    // In static mode, read buildTimestamp from static-data.json
-    fetch('/swimmingly/static-data.json')
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (data?.buildTimestamp) {
-          setPublishTime(data.buildTimestamp);
-        }
-      })
-      .catch(() => {});
+    return () => {
+      window.removeEventListener('conditions-updated', handleConditionsUpdated);
+    };
   }, [isStaticMode]);
 
-  if (!now) return null;
+  if (!lastUpdated) return null;
 
-  const date = now.toLocaleDateString('en-US', {
+  const date = lastUpdated.toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
   });
 
-  const time = now.toLocaleTimeString('en-US', {
+  const time = lastUpdated.toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
   });
@@ -47,23 +54,9 @@ export default function HeaderTimestamp() {
     <div className="text-right">
       <p className="text-sm text-gray-500 dark:text-gray-400">{date}</p>
       <p className="text-lg font-semibold text-gray-700 dark:text-gray-300">{time}</p>
-      {isStaticMode && publishTime && (
-        <p className="text-xs text-blue-500 dark:text-blue-400 mt-0.5">
-          Published {formatRelativeTime(new Date(publishTime))}
-        </p>
-      )}
+      <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+        Last updated
+      </p>
     </div>
   );
-}
-
-function formatRelativeTime(date: Date): string {
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMin = Math.floor(diffMs / 60_000);
-
-  if (diffMin < 1) return 'just now';
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHrs = Math.floor(diffMin / 60);
-  if (diffHrs < 24) return `${diffHrs}h ago`;
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
