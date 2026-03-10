@@ -82,7 +82,7 @@ A Next.js web application that helps swimmers determine optimal swimming times a
    ```
 
 6. **Open your browser**
-   Navigate to [http://localhost:3000](http://localhost:3000)
+   Navigate to [http://localhost:3333](http://localhost:3333)
 
 ## Project Structure
 
@@ -125,7 +125,7 @@ Returns current conditions including swim score, tide, weather, waves, water qua
 
 **Example Request:**
 ```bash
-curl "http://localhost:3000/api/conditions?tidePhasePreference=slack"
+curl "http://localhost:3333/api/conditions?tidePhasePreference=slack"
 ```
 
 **Response:**
@@ -304,7 +304,7 @@ Returns tide predictions for a specified time range.
 
 **Example Request:**
 ```bash
-curl "http://localhost:3000/api/tides?hours=24"
+curl "http://localhost:3333/api/tides?hours=24"
 ```
 
 **Response:**
@@ -359,7 +359,7 @@ Returns current weather from Open-Meteo and 72-hour forecast from NOAA NWS.
 
 **Example Request:**
 ```bash
-curl "http://localhost:3000/api/weather"
+curl "http://localhost:3333/api/weather"
 ```
 
 **Response:**
@@ -396,7 +396,7 @@ Returns current wave and swell data from NOAA buoy. (Note: the `/api/conditions`
 
 **Example Request:**
 ```bash
-curl "http://localhost:3000/api/waves"
+curl "http://localhost:3333/api/waves"
 ```
 
 **Response:**

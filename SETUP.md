@@ -8,7 +8,7 @@
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open [http://localhost:3333](http://localhost:3333) in your browser.
 
 ### 2. Testing the Application
 
@@ -52,33 +52,33 @@ For the interactive map feature (future enhancement):
 
 ### Current Conditions
 ```bash
-curl http://localhost:3000/api/conditions
+curl http://localhost:3333/api/conditions
 ```
 
 ### Tide Predictions (next 48 hours)
 ```bash
-curl http://localhost:3000/api/tides?hours=48
+curl http://localhost:3333/api/tides?hours=48
 ```
 
 ### Weather Forecast
 ```bash
-curl http://localhost:3000/api/weather
+curl http://localhost:3333/api/weather
 ```
 
 ### Wave Data
 ```bash
-curl http://localhost:3000/api/waves
+curl http://localhost:3333/api/waves
 ```
 
 ## Common Issues
 
-### Port 3000 Already in Use
+### Port 3333 Already in Use
 ```bash
-# Kill the process using port 3000
-lsof -ti:3000 | xargs kill -9
+# Kill the process using port 3333
+lsof -ti:3333 | xargs kill -9
 
 # Or use a different port
-PORT=3001 npm run dev
+PORT=3334 npm run dev
 ```
 
 ### NOAA API Rate Limiting
@@ -142,7 +142,7 @@ vercel
 docker build -t swimmingly .
 
 # Run container
-docker run -p 3000:3000 swimmingly
+docker run -p 3333:3333 swimmingly
 ```
 
 ## Contributing
