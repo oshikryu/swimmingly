@@ -29,6 +29,7 @@ interface RawConditionsData {
   damReleases: CurrentConditionsType['damReleases'];
   rainfall: CurrentConditionsType['rainfall'];
   dataFreshness: CurrentConditionsType['dataFreshness'];
+  timestamp?: CurrentConditionsType['timestamp'];
 }
 
 /**
@@ -101,8 +102,8 @@ export default function CurrentConditions() {
       rawData.rainfall ?? null
     );
     return {
-      timestamp: new Date(),
       ...rawData,
+      timestamp: rawData.timestamp || new Date(),
       score: newScore,
     };
   };
