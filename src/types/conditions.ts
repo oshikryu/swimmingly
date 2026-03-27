@@ -32,8 +32,6 @@ export interface CurrentData {
   timestamp: Date;
   speedKnots: number;
   direction: number; // degrees
-  lat: number;
-  lon: number;
   source?: string;
 }
 
@@ -43,10 +41,7 @@ export interface WeatherData {
   windSpeedMph: number;
   windDirection: number; // degrees
   windGustMph?: number;
-  visibilityMiles: number;
   conditions: string; // 'clear', 'cloudy', 'rain', etc.
-  pressure?: number;
-  humidity?: number;
   source?: string;
 }
 
@@ -54,8 +49,6 @@ export interface WaveData {
   timestamp: Date;
   waveHeightFeet: number;
   swellPeriodSeconds?: number;
-  swellDirection?: number; // degrees
-  dominantPeriod?: number;
   source?: string;
 }
 
@@ -113,7 +106,6 @@ export interface DamReleaseData {
     trendDirection: 'increasing' | 'stable' | 'decreasing';
     last24hAverage: number;
     last48hAverage: number;
-    dataPointsCount: number;
   };
 
   dams: Array<{
@@ -127,7 +119,6 @@ export interface DamReleaseData {
     historical48h: {
       averageFlowCFS: number;
       peakFlowCFS: number;
-      dataPoints: number;
     };
   }>;
 
@@ -192,7 +183,6 @@ export interface CurrentConditions {
   waves: WaveData;
   waterQuality: WaterQuality;
   waterTemperature?: WaterTemperature;
-  recentSSOs: SSOEvent[];
   damReleases?: DamReleaseData;
   rainfall?: RainfallData;
   dataFreshness: {
@@ -201,7 +191,6 @@ export interface CurrentConditions {
     waves: Date;
     waterQuality: Date;
     waterTemperature?: Date;
-    sso: Date;
     damReleases?: Date;
     rainfall?: Date;
   };

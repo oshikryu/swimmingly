@@ -165,8 +165,6 @@ export async function fetchCurrents(
       timestamp: new Date(latest.Time),
       speedKnots,
       direction,
-      lat: AQUATIC_PARK_LAT,
-      lon: AQUATIC_PARK_LON,
       source: 'NOAA',
     };
   } catch (error) {
@@ -215,7 +213,6 @@ export async function fetchWeatherForecast(): Promise<WeatherData[]> {
       windSpeedMph: parseWindSpeed(period.windSpeed),
       windDirection: parseWindDirection(period.windDirection),
       windGustMph: period.windGust ? parseWindSpeed(period.windGust) : undefined,
-      visibilityMiles: 10, // Default, NWS doesn't always provide visibility
       conditions: period.shortForecast.toLowerCase(),
       source: 'NOAA-NWS',
     }));
@@ -292,10 +289,7 @@ export async function fetchCurrentWeather(): Promise<WeatherData | null> {
       windSpeedMph: metersPerSecondToMph(windSpeed),
       windDirection: obs.windDirection?.value || 0,
       windGustMph: obs.windGust?.value ? metersPerSecondToMph(obs.windGust.value) : undefined,
-      visibilityMiles: metersToMiles(obs.visibility?.value || 16000),
       conditions: obs.textDescription?.toLowerCase() || 'unknown',
-      pressure: obs.barometricPressure?.value,
-      humidity: obs.relativeHumidity?.value,
       source: 'NOAA-NWS',
     };
   } catch (error) {
@@ -380,18 +374,15 @@ export async function fetchWaveData(buoyId: string = WAVE_BUOY_ID): Promise<Wave
     const { timestamp, line: dataLine } = latestValidData;
     const waveHeightMeters = parseValue(dataLine[8])!; // We know it's valid
     const dominantPeriod = parseValue(dataLine[9]); // DPD in seconds
-    const meanWaveDirection = parseValue(dataLine[11]); // MWD in degrees
 
     console.log(`Buoy ${buoyId} - Using data from ${timestamp.toISOString()}`);
-    console.log(`Buoy ${buoyId} raw data - WVHT: ${dataLine[8]}, DPD: ${dataLine[9]}, MWD: ${dataLine[11]}`);
-    console.log(`Parsed wave data - height: ${waveHeightMeters}m, period: ${dominantPeriod}s, direction: ${meanWaveDirection}°`);
+    console.log(`Buoy ${buoyId} raw data - WVHT: ${dataLine[8]}, DPD: ${dataLine[9]}`);
+    console.log(`Parsed wave data - height: ${waveHeightMeters}m, period: ${dominantPeriod}s`);
 
     return {
       timestamp,
       waveHeightFeet: waveHeightMeters * 3.28084, // Convert meters to feet
       swellPeriodSeconds: dominantPeriod,
-      swellDirection: meanWaveDirection,
-      dominantPeriod: dominantPeriod,
       source: `NOAA-NDBC Buoy ${buoyId}`,
     };
   } catch (error) {
@@ -500,8 +491,4 @@ function celsiusToFahrenheit(celsius: number | null): number {
 function metersPerSecondToMph(mps: number | null): number {
   if (mps === null) return 0;
   return mps * 2.23694;
-}
-
-function metersToMiles(meters: number): number {
-  return meters * 0.000621371;
 }

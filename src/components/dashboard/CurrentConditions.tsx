@@ -25,7 +25,6 @@ interface RawConditionsData {
   waves: CurrentConditionsType['waves'];
   waterQuality: CurrentConditionsType['waterQuality'];
   waterTemperature: CurrentConditionsType['waterTemperature'];
-  recentSSOs: CurrentConditionsType['recentSSOs'];
   damReleases: CurrentConditionsType['damReleases'];
   rainfall: CurrentConditionsType['rainfall'];
   dataFreshness: CurrentConditionsType['dataFreshness'];
@@ -95,7 +94,7 @@ export default function CurrentConditions() {
       rawData.weather,
       rawData.waves,
       rawData.waterQuality,
-      rawData.recentSSOs || [],
+      [],
       rawData.damReleases ?? null,
       customTidePreferences,
       customWeights,
@@ -185,10 +184,10 @@ export default function CurrentConditions() {
           waves: data.waves,
           waterQuality: data.waterQuality,
           waterTemperature: data.waterTemperature,
-          recentSSOs: data.recentSSOs,
           damReleases: data.damReleases,
           rainfall: data.rainfall,
           dataFreshness: data.dataFreshness,
+          timestamp: data.buildTimestamp || data.timestamp,
         };
 
         // Re-apply custom weights if set
@@ -206,9 +205,9 @@ export default function CurrentConditions() {
           setConditions(data);
         }
         setError(null);
-        // Notify header of the data timestamp
+        // Notify header of the data timestamp (prefer buildTimestamp for static builds)
         window.dispatchEvent(new CustomEvent('conditions-updated', {
-          detail: { timestamp: data.timestamp || new Date().toISOString() }
+          detail: { timestamp: data.buildTimestamp || data.timestamp || new Date().toISOString() }
         }));
       } else {
         console.warn('Received incomplete data from API, keeping cached data');

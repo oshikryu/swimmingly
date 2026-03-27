@@ -34,8 +34,6 @@ function makeCurrent(overrides: Partial<CurrentData> = {}): CurrentData {
     timestamp: now,
     speedKnots: 0.2,
     direction: 0,
-    lat: 37.8065,
-    lon: -122.4216,
     source: 'NOAA',
     ...overrides,
   };
@@ -47,7 +45,6 @@ function makeWeather(overrides: Partial<WeatherData> = {}): WeatherData {
     temperatureF: 62,
     windSpeedMph: 3,
     windDirection: 270,
-    visibilityMiles: 10,
     conditions: 'clear',
     source: 'open-meteo',
     ...overrides,
@@ -84,14 +81,13 @@ function makeDamReleases(overrides: Partial<DamReleaseData> = {}): DamReleaseDat
       trendDirection: 'stable',
       last24hAverage: 20000,
       last48hAverage: 20000,
-      dataPointsCount: 48,
     },
     dams: [
       {
         name: 'Shasta Dam',
         stationId: 'SHA',
         current: { flowCFS: 12000, timestamp: now, percentOfTotal: 60 },
-        historical48h: { averageFlowCFS: 12000, peakFlowCFS: 13000, dataPoints: 48 },
+        historical48h: { averageFlowCFS: 12000, peakFlowCFS: 13000 },
       },
     ],
     ...overrides,
@@ -572,7 +568,6 @@ describe('calculateSwimScore', () => {
             trendDirection: 'stable' as const,
             last24hAverage: 20000,
             last48hAverage: 20000,
-            dataPointsCount: 48,
           },
         },
       });
@@ -845,6 +840,5 @@ function hist(flowCFS: number) {
     trendDirection: 'stable' as const,
     last24hAverage: flowCFS,
     last48hAverage: flowCFS,
-    dataPointsCount: 48,
   };
 }

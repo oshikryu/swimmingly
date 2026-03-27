@@ -104,7 +104,6 @@ export async function GET(request: NextRequest) {
       windSpeedMph: windDataResult?.windSpeedMph ?? 0,
       windDirection: windDataResult?.windDirection ?? 0,
       windGustMph: windDataResult?.windGustMph,
-      visibilityMiles: 10,
       conditions: windDataResult?.conditions ?? 'unavailable',
       source: windDataResult ? 'open-meteo' : 'unavailable',
     };
@@ -148,7 +147,6 @@ export async function GET(request: NextRequest) {
       waves: wavesWithFallback,
       waterQuality: waterQualityWithFallback,
       waterTemperature: waterTempData || undefined,
-      recentSSOs: [],
       damReleases: damReleasesData || undefined,
       rainfall: rainfallData || undefined,
       dataFreshness: {
@@ -157,7 +155,6 @@ export async function GET(request: NextRequest) {
         waves: waveData?.timestamp || now,
         waterQuality: waterQualityData?.timestamp || now,
         waterTemperature: waterTempData?.timestamp || undefined,
-        sso: now,
         damReleases: damReleasesData?.timestamp || undefined,
         rainfall: rainfallData?.timestamp || undefined,
       },
@@ -212,8 +209,6 @@ function calculateCurrentFromTide(tide: TidePrediction, timestamp: Date): Curren
     timestamp,
     speedKnots: estimatedSpeedKnots,
     direction,
-    lat: 37.8065,
-    lon: -122.4216,
     source: 'calculated-from-tide-rate',
   };
 }

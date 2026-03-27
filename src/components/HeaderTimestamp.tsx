@@ -20,22 +20,10 @@ export default function HeaderTimestamp() {
 
     window.addEventListener('conditions-updated', handleConditionsUpdated);
 
-    if (isStaticMode) {
-      // In static mode, read buildTimestamp from static-data.json
-      fetch('/swimmingly/static-data.json')
-        .then(res => res.ok ? res.json() : null)
-        .then(data => {
-          if (data?.buildTimestamp) {
-            setLastUpdated(new Date(data.buildTimestamp));
-          }
-        })
-        .catch(() => {});
-    }
-
     return () => {
       window.removeEventListener('conditions-updated', handleConditionsUpdated);
     };
-  }, [isStaticMode]);
+  }, []);
 
   if (!lastUpdated) return null;
 

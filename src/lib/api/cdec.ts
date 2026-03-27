@@ -166,13 +166,11 @@ async function fetchDamFlowHistory(
 function calculateDamAggregates(data: FlowDataPoint[]): {
   averageFlowCFS: number;
   peakFlowCFS: number;
-  dataPoints: number;
 } {
   if (data.length === 0) {
     return {
       averageFlowCFS: 0,
       peakFlowCFS: 0,
-      dataPoints: 0,
     };
   }
 
@@ -182,7 +180,6 @@ function calculateDamAggregates(data: FlowDataPoint[]): {
   return {
     averageFlowCFS: sum / flows.length,
     peakFlowCFS: Math.max(...flows),
-    dataPoints: flows.length,
   };
 }
 
@@ -196,7 +193,6 @@ function calculateCombinedAggregates(damHistories: DamFlowHistory[]): {
   trendDirection: 'increasing' | 'stable' | 'decreasing';
   last24hAverage: number;
   last48hAverage: number;
-  dataPointsCount: number;
 } {
   const now = new Date();
   const hours24Ago = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -228,7 +224,6 @@ function calculateCombinedAggregates(damHistories: DamFlowHistory[]): {
       trendDirection: 'stable',
       last24hAverage: 0,
       last48hAverage: 0,
-      dataPointsCount: 0,
     };
   }
 
@@ -286,7 +281,6 @@ function calculateCombinedAggregates(damHistories: DamFlowHistory[]): {
     trendDirection,
     last24hAverage: last24hAvg,
     last48hAverage: last48hAvg,
-    dataPointsCount: allFlows.length,
   };
 }
 
