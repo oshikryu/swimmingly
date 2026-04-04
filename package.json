@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently -n \"server,scheduler\" -c \"blue,green\" \"npm run dev:server\" \"npm run dev:scheduler\"",
+    "dev": "concurrently -n \"server,scheduler\" -c \"blue,green\" \"npm run dev:server\" \"RUN_IMMEDIATELY=true npm run dev:scheduler\"",
     "dev:server": "next dev -p 3333",
     "dev:scheduler": "tsx scripts/static-update-scheduler.ts",
     "dev:no-updates": "ENABLE_STATIC_UPDATES=false npm run dev:server",
