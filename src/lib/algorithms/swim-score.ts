@@ -409,6 +409,11 @@ function getScoreRating(score: number): 'calm' | 'mild' | 'active' | 'exciting' 
   return 'challenging';
 }
 
+/** Pick a deterministic-ish item from an array based on the current minute */
+function pick<T>(items: T[]): T {
+  return items[Math.floor(Date.now() / 60000) % items.length];
+}
+
 /**
  * Generate recommendations and warnings based on factors
  */
@@ -421,59 +426,148 @@ function generateAdvice(
 
   // Water quality warnings
   if (factors.waterQuality.status === 'dangerous') {
-    warnings.push('Do not swim - dangerous water quality');
+    warnings.push(pick([
+      'Do not swim — water quality is dangerous right now',
+      'Stay out of the water — bacteria levels are off the charts',
+      'Water quality is unsafe — hold off until conditions improve',
+      'Dangerous bacteria levels detected — skip the swim today',
+    ]));
   } else if (factors.waterQuality.status === 'warning') {
-    warnings.push('Water quality warning in effect');
+    warnings.push(pick([
+      'Water quality warning in effect — swim at your own risk',
+      'Elevated bacteria levels — consider waiting for a cleaner day',
+      'Water quality is questionable — not ideal for swimming',
+      'Advisory-level bacteria — experienced swimmers only',
+    ]));
   } else if (factors.waterQuality.recentSSO) {
-    warnings.push('Recent sewer overflow - use caution');
+    warnings.push(pick([
+      'Recent sewer overflow nearby — use caution',
+      'SSO event reported recently — bacteria may still be elevated',
+      'Sewer overflow in the last few days — keep an eye on conditions',
+    ]));
   }
 
   // Tide/current recommendations
   if (factors.tideAndCurrent.phase === 'slack') {
-    recommendations.push('Excellent time - slack tide');
+    recommendations.push(pick([
+      'Slack tide — the bay is as mellow as it gets',
+      'Perfect timing — slack tide means minimal current',
+      'Slack water right now — ideal window for a relaxed swim',
+      'The tide is taking a breather — great time to get in',
+    ]));
   } else if (factors.tideAndCurrent.currentSpeed > 1.0) {
-    warnings.push('Strong currents - experienced swimmers only');
+    warnings.push(pick([
+      'Strong currents — experienced swimmers only',
+      'The bay is moving fast — know your limits out there',
+      'Significant current today — stay close to shore if unsure',
+      'Current is running hard — not a day for casual swimming',
+    ]));
   }
 
   // Wave warnings
   if (factors.waves.status === 'dangerous') {
-    warnings.push('Dangerous wave conditions');
+    warnings.push(pick([
+      'Dangerous wave conditions — stay out of the water',
+      'Waves are too rough to swim safely today',
+      'The cove is churned up — dangerous conditions',
+      'Big swell inside the cove — do not swim',
+    ]));
   } else if (factors.waves.status === 'rough') {
-    warnings.push('Rough seas - not recommended');
+    warnings.push(pick([
+      'Rough seas — not recommended for most swimmers',
+      "It's choppy out there — not a great day for a casual swim",
+      'Swell is up — only for strong, experienced swimmers',
+      'Rough chop in the cove — save it for a calmer day',
+    ]));
   } else if (factors.waves.heightFeet < SAFETY_THRESHOLDS.waves.safe) {
-    recommendations.push('Calm water conditions');
+    recommendations.push(pick([
+      'Glassy water — the cove is looking beautiful',
+      'Barely a ripple out there — great conditions',
+      'The bay is flat and inviting today',
+      'Calm water in the cove — enjoy the glide',
+    ]));
   }
 
-  // Rainfall-related warnings (embedded in water quality issues)
+  // Rainfall-related warnings
   const rainfallIssue = factors.waterQuality.issues.find(i => i.includes('rainfall'));
   if (rainfallIssue) {
     if (rainfallIssue.includes('dangerous') || rainfallIssue.includes('Heavy')) {
-      warnings.push('Heavy recent rainfall — avoid swimming for 72 hours');
+      warnings.push(pick([
+        'Heavy recent rainfall — avoid swimming for 72 hours',
+        'Major runoff event — bacteria levels are likely spiked',
+        "It rained hard recently — the bay's still flushing it out",
+        'Post-storm runoff detected — wait at least 3 days before swimming',
+      ]));
     } else if (rainfallIssue.includes('Significant')) {
-      warnings.push('Recent rainfall may have degraded water quality');
+      warnings.push(pick([
+        'Recent rainfall may have degraded water quality',
+        'Rain runoff can raise bacteria — keep an eye on test results',
+        'Wet weather recently — water quality may be affected',
+      ]));
     }
   }
 
-  // Weather advisories - wind-related recommendations
+  // Wind advisories
   if (factors.weather.windCondition === 'strong') {
-    warnings.push("It's howling out there — expect whitecaps and a bumpy ride");
+    warnings.push(pick([
+      "It's howling out there — expect whitecaps and a bumpy ride",
+      'Strong winds are whipping up the bay — rough going today',
+      "Wind is cranking — you'll be fighting it the whole way",
+      'Gusty and choppy — seasoned bay swimmers only',
+    ]));
   } else if (factors.weather.windCondition === 'moderate') {
-    recommendations.push("Get ready for some chop — the bay's got a bit of attitude today");
+    recommendations.push(pick([
+      "Get ready for some chop — the bay's got a bit of attitude today",
+      'Moderate wind means some surface chop — nothing unmanageable',
+      "There's a decent breeze up — the bay will keep you on your toes",
+      'A bit breezy today — factor in some chop on the return leg',
+    ]));
   } else if (factors.weather.windCondition === 'light') {
-    recommendations.push('A little breeze on the water — just enough to keep things interesting');
+    recommendations.push(pick([
+      'A little breeze on the water — just enough to keep things interesting',
+      'Light winds today — a pleasant day to be out on the bay',
+      'Gentle breeze, nice conditions — get out there',
+      'Barely any wind — smooth and easy swimming ahead',
+    ]));
   }
 
   // Overall advice
   if (overallScore >= 80) {
-    recommendations.push('Excellent conditions for swimming');
+    recommendations.push(pick([
+      'Excellent conditions — get in there',
+      "Conditions don't get much better than this",
+      'Top-tier day for a swim at Aquatic Park',
+      'Green light — the bay is calling',
+      'Everything is lined up perfectly today',
+    ]));
   } else if (overallScore >= 60) {
-    recommendations.push('Good conditions for swimming');
+    recommendations.push(pick([
+      'Good conditions for a swim',
+      'Solid day out there — worth getting wet',
+      'Nothing major to worry about — enjoy it',
+      'Good enough for most swimmers — go for it',
+    ]));
   } else if (overallScore >= 40) {
-    recommendations.push('Fair conditions - experienced swimmers recommended');
+    recommendations.push(pick([
+      'Fair conditions — experienced swimmers recommended',
+      'Manageable, but know what you are getting into',
+      'Not ideal, but doable for seasoned bay swimmers',
+      'Some factors to watch — stay alert out there',
+    ]));
   } else if (overallScore >= 20) {
-    warnings.push('Poor conditions - not recommended');
+    warnings.push(pick([
+      'Poor conditions — not recommended today',
+      'The bay is not in a good mood right now',
+      'Multiple factors working against you — consider skipping it',
+      'Conditions are rough — most swimmers should sit this one out',
+    ]));
   } else {
-    warnings.push('Dangerous conditions - do not swim');
+    warnings.push(pick([
+      'Dangerous conditions — do not swim',
+      'Stay out of the water — conditions are hazardous',
+      'This is a stay-on-shore day — no exceptions',
+      'Do not enter the water today — serious risk',
+    ]));
   }
 
   return { recommendations, warnings };
