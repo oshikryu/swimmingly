@@ -10,12 +10,12 @@ import type {
   WaveData,
   WaterQuality,
   SSOEvent,
-  DamReleaseData,
   RainfallData,
   SwimScore,
   SwimScoreFactors,
   TidePhasePreferences,
   ScoreWeights,
+  MoonPhaseData,
 } from '@/types/conditions';
 import { SAFETY_THRESHOLDS, SCORE_WEIGHTS, SCORE_RANGES } from '@/config/thresholds';
 
@@ -29,27 +29,25 @@ export function calculateSwimScore(
   waves: WaveData,
   waterQuality: WaterQuality,
   recentSSOs: SSOEvent[],
-  damReleases: DamReleaseData | null,
   customTidePreferences?: TidePhasePreferences,
   customWeights?: ScoreWeights,
-  rainfall?: RainfallData | null
+  rainfall?: RainfallData | null,
+  moonPhase?: MoonPhaseData | null
 ): SwimScore {
   // Calculate individual factor scores
   const waterQualityFactor = scoreWaterQuality(waterQuality, recentSSOs, rainfall);
-  const tideCurrentFactor = scoreTideAndCurrent(tide, current, customTidePreferences);
+  const tideCurrentFactor = scoreTideAndCurrent(tide, current, customTidePreferences, moonPhase);
   const waveFactor = scoreWaves(waves);
-  const weatherFactor = scoreWeather(weather);
-  const damReleasesFactor = scoreDamReleases(damReleases);
+  const weatherFactor = scoreWeather(weather, waves?.barometricPressureMb);
 
   // Calculate weighted overall score
   const weights = customWeights || SCORE_WEIGHTS;
-  const weightSum = weights.waterQuality + weights.tideAndCurrent + weights.waves + weights.weather + weights.damReleases;
+  const weightSum = weights.waterQuality + weights.tideAndCurrent + weights.waves + weights.weather;
   let overallScore = Math.round(
     (waterQualityFactor.score * weights.waterQuality +
       tideCurrentFactor.score * weights.tideAndCurrent +
       waveFactor.score * weights.waves +
-      weatherFactor.score * weights.weather +
-      damReleasesFactor.score * weights.damReleases) /
+      weatherFactor.score * weights.weather) /
       weightSum
   );
 
@@ -89,7 +87,6 @@ export function calculateSwimScore(
     tideAndCurrent: tideCurrentFactor,
     waves: waveFactor,
     weather: weatherFactor,
-    damReleases: damReleasesFactor,
   };
 
   // Generate recommendations and warnings
@@ -202,12 +199,13 @@ function scoreWaterQuality(
 }
 
 /**
- * Score tide and current conditions (25% weight)
+ * Score tide and current conditions (27% weight)
  */
 function scoreTideAndCurrent(
   tide: TidePrediction,
   current: CurrentData | null,
-  customTidePreferences?: TidePhasePreferences
+  customTidePreferences?: TidePhasePreferences,
+  moonPhase?: MoonPhaseData | null
 ): SwimScoreFactors['tideAndCurrent'] {
   let score = 100;
   const issues: string[] = [];
@@ -249,6 +247,16 @@ function scoreTideAndCurrent(
     } else if (currentSpeed > SAFETY_THRESHOLDS.current.moderate) {
       score = Math.min(score, 65);
       issues.push(`Moderate current (${currentSpeed.toFixed(1)} knots)`);
+    }
+  }
+
+  // Moon phase modifier — minor advisory signal, actual current data takes precedence
+  if (moonPhase) {
+    if (moonPhase.isSpringTide) {
+      score = Math.max(0, score - 5);
+      issues.push(`${moonPhase.phaseEmoji} ${moonPhase.phaseName} — spring tide, stronger tidal flows possible`);
+    } else if (moonPhase.isNeapTide) {
+      score = Math.min(100, score + 5);
     }
   }
 
@@ -307,9 +315,9 @@ function scoreWaves(waves: WaveData): SwimScoreFactors['waves'] {
 }
 
 /**
- * Score weather conditions (15% weight)
+ * Score weather conditions (23% weight)
  */
-function scoreWeather(weather: WeatherData): SwimScoreFactors['weather'] {
+function scoreWeather(weather: WeatherData, barometricPressureMb?: number): SwimScoreFactors['weather'] {
   let score = 100;
   const issues: string[] = [];
   let windCondition: 'calm' | 'light' | 'moderate' | 'strong' = 'calm';
@@ -356,90 +364,36 @@ function scoreWeather(weather: WeatherData): SwimScoreFactors['weather'] {
     issues.push('Precipitation present');
   }
 
+  // Barometric pressure modifier
+  if (barometricPressureMb !== undefined) {
+    const thresholds = SAFETY_THRESHOLDS.barometricPressure;
+    let pressureAdjustment = 0;
+
+    if (barometricPressureMb >= thresholds.veryHigh) {
+      pressureAdjustment = 8;
+    } else if (barometricPressureMb >= thresholds.high) {
+      pressureAdjustment = 5;
+    } else if (barometricPressureMb >= thresholds.standard) {
+      pressureAdjustment = 0; // neutral
+    } else if (barometricPressureMb >= thresholds.low) {
+      pressureAdjustment = -5;
+      issues.push(`Low pressure (${barometricPressureMb.toFixed(0)} mb) — possible deteriorating conditions`);
+    } else if (barometricPressureMb >= thresholds.veryLow) {
+      pressureAdjustment = -10;
+      issues.push(`Very low pressure (${barometricPressureMb.toFixed(0)} mb) — storm risk`);
+    } else {
+      pressureAdjustment = -15;
+      issues.push(`Storm pressure (${barometricPressureMb.toFixed(0)} mb) — dangerous conditions likely`);
+    }
+
+    score = Math.max(0, Math.min(100, score + pressureAdjustment));
+  }
+
   return {
     score,
     temperature,
     windSpeed,
     windCondition,
-    issues,
-  };
-}
-
-/**
- * Score dam releases (10% weight)
- * Dam releases affect bay currents and water flow patterns
- * Uses 48-hour historical data to account for time lag (releases take 24-48h to reach SF Bay)
- */
-function scoreDamReleases(
-  damReleases: DamReleaseData | null
-): SwimScoreFactors['damReleases'] {
-  let score = 100;
-  const issues: string[] = [];
-
-  if (!damReleases) {
-    score = 75; // Unknown - slight caution
-    issues.push('Dam release data unavailable');
-    return {
-      score,
-      totalFlowCFS: 0,
-      releaseLevel: 'low',
-      topContributor: 'Unknown',
-      issues,
-    };
-  }
-
-  const { current, historical48h, dams } = damReleases;
-  const thresholds = SAFETY_THRESHOLDS.damReleases;
-
-  // Calculate weighted flow accounting for time lag
-  // Recent 24h weighted 60%, older 24h weighted 40%
-  // This reflects that releases from 24-48 hours ago are currently affecting bay conditions
-  const weightedAvgFlow =
-    (historical48h.last24hAverage * 0.6) +
-    (historical48h.last48hAverage * 0.4);
-
-  // Consider peak flow (indicates maximum current strength)
-  // Use 80% of peak to avoid over-weighting brief spikes
-  const peakComponent = historical48h.peakFlowCFS * 0.8;
-
-  // Use the higher of weighted average or peak component for scoring
-  const scoringFlow = Math.max(weightedAvgFlow, peakComponent);
-
-  // Apply thresholds to weighted flow
-  if (scoringFlow > thresholds.extreme) {
-    score = 10;
-    issues.push(`Extreme dam releases (48h peak: ${Math.round(historical48h.peakFlowCFS).toLocaleString()} CFS)`);
-    issues.push('Very strong currents expected - swimming not recommended');
-  } else if (scoringFlow > thresholds.high) {
-    score = 30;
-    issues.push(`High dam releases (48h avg: ${Math.round(historical48h.averageFlowCFS).toLocaleString()} CFS)`);
-    issues.push('Strong currents - experienced swimmers only');
-  } else if (scoringFlow > thresholds.moderate) {
-    score = 65;
-    issues.push(`Elevated dam releases (48h avg: ${Math.round(historical48h.averageFlowCFS).toLocaleString()} CFS)`);
-    issues.push('Increased current strength');
-  } else if (scoringFlow > thresholds.low) {
-    score = 75;
-    issues.push(`Moderate dam releases (48h avg: ${Math.round(historical48h.averageFlowCFS).toLocaleString()} CFS)`);
-  } else {
-    score = 100;
-  }
-
-  // Add trend warning if releases are increasing and already elevated
-  if (historical48h.trendDirection === 'increasing' && scoringFlow > thresholds.low) {
-    issues.push('Dam releases trending upward - conditions may worsen');
-  }
-
-  // Find top contributor
-  const topDam = dams.reduce((max, dam) =>
-    dam.current.flowCFS > max.current.flowCFS ? dam : max
-  , dams[0] || { name: 'Unknown', current: { flowCFS: 0 } });
-
-  return {
-    score,
-    totalFlowCFS: current.totalFlowCFS,
-    releaseLevel: current.releaseLevel,
-    topContributor: topDam.name,
     issues,
   };
 }
@@ -507,17 +461,6 @@ function generateAdvice(
     recommendations.push("Get ready for some chop — the bay's got a bit of attitude today");
   } else if (factors.weather.windCondition === 'light') {
     recommendations.push('A little breeze on the water — just enough to keep things interesting');
-  }
-
-  // Dam releases advisories
-  if (factors.damReleases.releaseLevel === 'extreme') {
-    warnings.push('Extreme dam releases - very strong currents expected');
-  } else if (factors.damReleases.releaseLevel === 'high') {
-    warnings.push('High dam releases - strong bay currents');
-  } else if (factors.damReleases.releaseLevel === 'moderate') {
-    recommendations.push('Moderate dam releases - be aware of currents');
-  } else if (factors.damReleases.releaseLevel === 'low') {
-    recommendations.push('Normal dam operations');
   }
 
   // Overall advice

@@ -14,7 +14,6 @@ import {
   mapWaveStatus,
   mapWeatherStatus,
   mapWaterQualityStatus,
-  mapDamReleasesStatus,
 } from '@/lib/card-status';
 
 // Raw data type for client-side recalculation
@@ -27,6 +26,7 @@ interface RawConditionsData {
   waterTemperature: CurrentConditionsType['waterTemperature'];
   damReleases: CurrentConditionsType['damReleases'];
   rainfall: CurrentConditionsType['rainfall'];
+  moonPhase: CurrentConditionsType['moonPhase'];
   dataFreshness: CurrentConditionsType['dataFreshness'];
   timestamp?: CurrentConditionsType['timestamp'];
 }
@@ -95,10 +95,10 @@ export default function CurrentConditions() {
       rawData.waves,
       rawData.waterQuality,
       [],
-      rawData.damReleases ?? null,
       customTidePreferences,
       customWeights,
-      rawData.rainfall ?? null
+      rawData.rainfall ?? null,
+      rawData.moonPhase ?? null
     );
     return {
       ...rawData,
@@ -186,6 +186,7 @@ export default function CurrentConditions() {
           waterTemperature: data.waterTemperature,
           damReleases: data.damReleases,
           rainfall: data.rainfall,
+          moonPhase: data.moonPhase,
           dataFreshness: data.dataFreshness,
           timestamp: data.buildTimestamp || data.timestamp,
         };
@@ -292,7 +293,8 @@ export default function CurrentConditions() {
     return null;
   }
 
-  const { score, tide, current, weather, waves, waterQuality, damReleases, rainfall } = conditions;
+  const { score, tide, current, weather, waves, waterQuality, rainfall, moonPhase } = conditions;
+  const barometricPressureMb = waves?.barometricPressureMb ?? null;
 
   // Get values from score factors with safe defaults (ensures sync with score calculation)
   const waveHeight = score?.factors?.waves?.heightFeet ?? 0;
@@ -333,7 +335,6 @@ export default function CurrentConditions() {
   const waveStatus = mapWaveStatus(score?.factors?.waves?.status ?? 'calm');
   const weatherStatus = mapWeatherStatus(score?.factors?.weather?.windCondition ?? 'calm');
   const waterQualityStatus = mapWaterQualityStatus(score?.factors?.waterQuality?.status ?? 'safe');
-  const damReleasesStatus = mapDamReleasesStatus(score?.factors?.damReleases?.releaseLevel ?? 'low');
 
   // Clear localStorage and refresh
   const handleClearCache = () => {
@@ -428,6 +429,10 @@ export default function CurrentConditions() {
                 );
               })()),
               latestTideCurrentTimestamp ? `Updated: ${latestTideCurrentTimestamp.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} PST${isUsingCachedTideData ? ' (cached)' : ''}` : '',
+              // Moon phase
+              moonPhase
+                ? `${moonPhase.phaseEmoji} ${moonPhase.phaseName} (${moonPhase.illuminationPercent}% illuminated)${moonPhase.isSpringTide ? ' — Spring tide' : moonPhase.isNeapTide ? ' — Neap tide' : ''}`
+                : '',
               ...(score?.factors?.tideAndCurrent?.issues?.filter(issue => !issue.toLowerCase().includes('current')) ?? []),
               // Data source link
               '🔗 https://tidesandcurrents.noaa.gov/noaatidepredictions.html?id=9414290',
@@ -480,6 +485,15 @@ export default function CurrentConditions() {
               `Air Temp: ${temperature.toFixed(0)}°F`,
               conditions?.waterTemperature
                 ? `Water Temp: ${conditions.waterTemperature.temperatureF.toFixed(1)}°F (${conditions.waterTemperature.source})`
+                : '',
+              // Barometric pressure
+              barometricPressureMb !== null
+                ? `Pressure: ${barometricPressureMb.toFixed(0)} mb${
+                    barometricPressureMb >= SAFETY_THRESHOLDS.barometricPressure.veryHigh ? ' (High — stable)' :
+                    barometricPressureMb >= SAFETY_THRESHOLDS.barometricPressure.standard ? ' (Normal)' :
+                    barometricPressureMb >= SAFETY_THRESHOLDS.barometricPressure.low ? ' (Low — watch conditions)' :
+                    ' (Very low — storm risk)'
+                  }`
                 : '',
               weather?.timestamp ? `Updated: ${formatTimestamp(weather.timestamp)}` : '',
               windSourceDisplay ? `Source: ${windSourceDisplay}` : '',
@@ -566,73 +580,6 @@ export default function CurrentConditions() {
             ].filter(Boolean)}
           />
 
-          <ConditionsCard
-            title="Dam Releases"
-            value={score?.factors?.damReleases?.totalFlowCFS
-              ? Math.round(score.factors.damReleases.totalFlowCFS / 1000).toString() + 'k'
-              : '0'}
-            unit="CFS"
-            thresholds={[
-              { label: 'Low', value: `<${SAFETY_THRESHOLDS.damReleases.moderate.toLocaleString()}`, status: 'good' },
-              { label: 'Moderate', value: `<${SAFETY_THRESHOLDS.damReleases.high.toLocaleString()}`, status: 'info' },
-              { label: 'High', value: `<${SAFETY_THRESHOLDS.damReleases.extreme.toLocaleString()}`, status: 'warning' },
-              { label: 'Extreme', value: `>${SAFETY_THRESHOLDS.damReleases.extreme.toLocaleString()}`, status: 'danger' },
-            ] as ThresholdSegment[]}
-            status={damReleasesStatus}
-            icon="🏔️"
-            details={[
-              `Level: ${score?.factors?.damReleases?.releaseLevel ?? 'unknown'}`,
-
-              // Current snapshot
-              `Current: ${score?.factors?.damReleases?.totalFlowCFS?.toLocaleString() ?? '0'} CFS`,
-
-              // 48-hour historical context
-              damReleases?.historical48h?.averageFlowCFS
-                ? `48h Average: ${Math.round(damReleases.historical48h.averageFlowCFS).toLocaleString()} CFS`
-                : '',
-
-              damReleases?.historical48h?.peakFlowCFS
-                ? `48h Peak: ${Math.round(damReleases.historical48h.peakFlowCFS).toLocaleString()} CFS`
-                : '',
-
-              // Trend indicator with emoji
-              damReleases?.historical48h?.trendDirection
-                ? `Trend: ${damReleases.historical48h.trendDirection === 'increasing' ? '↗️ Increasing'
-                    : damReleases.historical48h.trendDirection === 'decreasing' ? '↘️ Decreasing'
-                    : '→ Stable'}`
-                : '',
-
-              // Explanatory note about time lag
-              '⏱️ Dam releases take 24-48 hours to reach SF Bay',
-              'Score reflects recent releases affecting current conditions',
-
-              // Top source
-              `Top Source: ${score?.factors?.damReleases?.topContributor ?? 'Unknown'}`,
-
-              // Individual dam contributions with 48h peak
-              ...(damReleases?.dams
-                .filter(dam => dam.current.flowCFS > 0)
-                .sort((a, b) => b.current.flowCFS - a.current.flowCFS)
-                .slice(0, 3)  // Top 3 dams
-                .map(dam =>
-                  `${dam.name}: ${Math.round(dam.current.flowCFS).toLocaleString()} CFS (${dam.current.percentOfTotal.toFixed(0)}%)` +
-                  (dam.historical48h?.peakFlowCFS ? ` - 48h peak: ${Math.round(dam.historical48h.peakFlowCFS).toLocaleString()}` : '')
-                )
-                || []
-              ),
-
-              // Latest data timestamp
-              damReleases?.latestDataTimestamp
-                ? `Latest Data: ${new Date(damReleases.latestDataTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} PST`
-                : '',
-
-              // Issues/warnings from scoring algorithm
-              ...(score?.factors?.damReleases?.issues ?? []),
-
-              // Data source link
-              '🔗 https://cdec.water.ca.gov/',
-            ].filter(Boolean)}
-          />
         </div>
       </div>
     </div>

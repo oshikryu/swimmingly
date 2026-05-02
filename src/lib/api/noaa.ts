@@ -339,7 +339,7 @@ export async function fetchWaveData(buoyId: string = WAVE_BUOY_ID): Promise<Wave
       if (!line) continue;
 
       const dataLine = line.split(/\s+/);
-      if (dataLine.length < 12) continue; // Need at least 12 fields
+      if (dataLine.length < 13) continue; // Need at least 13 fields (through PRES at index 12)
 
       // Parse timestamp: YY MM DD hh mm
       const year = parseInt(dataLine[0], 10);
@@ -374,15 +374,17 @@ export async function fetchWaveData(buoyId: string = WAVE_BUOY_ID): Promise<Wave
     const { timestamp, line: dataLine } = latestValidData;
     const waveHeightMeters = parseValue(dataLine[8])!; // We know it's valid
     const dominantPeriod = parseValue(dataLine[9]); // DPD in seconds
+    const barometricPressureMb = parseValue(dataLine[12]); // PRES in millibars
 
     console.log(`Buoy ${buoyId} - Using data from ${timestamp.toISOString()}`);
-    console.log(`Buoy ${buoyId} raw data - WVHT: ${dataLine[8]}, DPD: ${dataLine[9]}`);
-    console.log(`Parsed wave data - height: ${waveHeightMeters}m, period: ${dominantPeriod}s`);
+    console.log(`Buoy ${buoyId} raw data - WVHT: ${dataLine[8]}, DPD: ${dataLine[9]}, PRES: ${dataLine[12]}`);
+    console.log(`Parsed wave data - height: ${waveHeightMeters}m, period: ${dominantPeriod}s, pressure: ${barometricPressureMb}mb`);
 
     return {
       timestamp,
       waveHeightFeet: waveHeightMeters * 3.28084, // Convert meters to feet
       swellPeriodSeconds: dominantPeriod,
+      barometricPressureMb,
       source: `NOAA-NDBC Buoy ${buoyId}`,
     };
   } catch (error) {

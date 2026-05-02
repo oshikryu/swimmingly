@@ -11,7 +11,6 @@ const DEFAULT_WEIGHTS: ScoreWeights = {
   tideAndCurrent: SCORE_WEIGHTS.tideAndCurrent,
   waves: SCORE_WEIGHTS.waves,
   weather: SCORE_WEIGHTS.weather,
-  damReleases: SCORE_WEIGHTS.damReleases,
 };
 
 interface UseScoreWeightsReturn {
@@ -25,7 +24,7 @@ interface UseScoreWeightsReturn {
 function isValidWeights(value: unknown): value is ScoreWeights {
   if (typeof value !== 'object' || value === null) return false;
   const obj = value as Record<string, unknown>;
-  const keys: (keyof ScoreWeights)[] = ['waterQuality', 'tideAndCurrent', 'waves', 'weather', 'damReleases'];
+  const keys: (keyof ScoreWeights)[] = ['waterQuality', 'tideAndCurrent', 'waves', 'weather'];
   for (const key of keys) {
     if (typeof obj[key] !== 'number' || obj[key] < 0 || obj[key] > 100) return false;
   }
@@ -38,8 +37,7 @@ function areWeightsEqual(a: ScoreWeights, b: ScoreWeights): boolean {
     a.waterQuality === b.waterQuality &&
     a.tideAndCurrent === b.tideAndCurrent &&
     a.waves === b.waves &&
-    a.weather === b.weather &&
-    a.damReleases === b.damReleases
+    a.weather === b.weather
   );
 }
 

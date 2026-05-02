@@ -49,7 +49,17 @@ export interface WaveData {
   timestamp: Date;
   waveHeightFeet: number;
   swellPeriodSeconds?: number;
+  barometricPressureMb?: number;
   source?: string;
+}
+
+export interface MoonPhaseData {
+  phase: number;             // 0.0–1.0, fraction through 29.53-day cycle
+  phaseName: string;         // 'New Moon' | 'Waxing Crescent' | 'First Quarter' | 'Waxing Gibbous' | 'Full Moon' | 'Waning Gibbous' | 'Last Quarter' | 'Waning Crescent'
+  phaseEmoji: string;        // '🌑' | '🌒' | '🌓' | '🌔' | '🌕' | '🌖' | '🌗' | '🌘'
+  isSpringTide: boolean;     // within ±2 days of new/full moon
+  isNeapTide: boolean;       // within ±2 days of quarter moon
+  illuminationPercent: number;
 }
 
 export interface WaterQuality {
@@ -156,13 +166,6 @@ export interface SwimScoreFactors {
     windCondition: 'calm' | 'light' | 'moderate' | 'strong';
     issues: string[];
   };
-  damReleases: {
-    score: number; // 0-100
-    totalFlowCFS: number;
-    releaseLevel: 'low' | 'moderate' | 'high' | 'extreme';
-    topContributor: string;  // Name of dam with highest flow
-    issues: string[];
-  };
 }
 
 export interface SwimScore {
@@ -185,6 +188,7 @@ export interface CurrentConditions {
   waterTemperature?: WaterTemperature;
   damReleases?: DamReleaseData;
   rainfall?: RainfallData;
+  moonPhase?: MoonPhaseData;
   dataFreshness: {
     tide: Date;
     weather: Date;
@@ -193,6 +197,7 @@ export interface CurrentConditions {
     waterTemperature?: Date;
     damReleases?: Date;
     rainfall?: Date;
+    moonPhase?: Date;
   };
 }
 
@@ -251,7 +256,6 @@ export interface ScoreWeights {
   tideAndCurrent: number;
   waves: number;
   weather: number;
-  damReleases: number;
 }
 
 export interface TidePhasePreferences {

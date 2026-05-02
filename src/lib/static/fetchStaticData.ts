@@ -10,6 +10,7 @@ import { fetchWaterQuality } from '@/lib/api/beachwatch';
 import { calculateSwimScore } from '@/lib/algorithms/swim-score';
 import { fetchWindData, fetchRecentRainfall } from '@/lib/api/open-meteo';
 import { fetchDamReleases } from '@/lib/api/cdec';
+import { calculateMoonPhase } from '@/lib/moon-phase';
 import { fetchOpenWaterLogWaveData } from '@/lib/api/openwaterlog';
 import { fetchWaterTemperature } from '@/lib/api/seatemperature';
 
@@ -112,6 +113,9 @@ export async function fetchStaticData(tidePhasePreference?: TidePhaseType): Prom
     // Calculate current from tide if actual current data is unavailable
     const currentWithFallback = currentData || calculateCurrentFromTide(tideData, now);
 
+    // Calculate moon phase (pure math, no API needed)
+    const moonPhaseData = calculateMoonPhase(now);
+
     // Calculate swim score with custom preferences if provided
     const score = calculateSwimScore(
       tideData,
@@ -120,10 +124,10 @@ export async function fetchStaticData(tidePhasePreference?: TidePhaseType): Prom
       wavesWithFallback,
       waterQualityWithFallback,
       [],
-      damReleasesData,
       customTidePreferences,
       undefined, // customWeights
-      rainfallData
+      rainfallData,
+      moonPhaseData
     );
 
     // Construct response with fallbacks for missing data
@@ -138,6 +142,7 @@ export async function fetchStaticData(tidePhasePreference?: TidePhaseType): Prom
       waterTemperature: waterTempData || undefined,
       damReleases: damReleasesData || undefined,
       rainfall: rainfallData || undefined,
+      moonPhase: moonPhaseData,
       dataFreshness: {
         tide: tideData.timestamp,
         weather: windDataResult?.timestamp || now,
@@ -146,6 +151,7 @@ export async function fetchStaticData(tidePhasePreference?: TidePhaseType): Prom
         waterTemperature: waterTempData?.timestamp || undefined,
         damReleases: damReleasesData?.timestamp || undefined,
         rainfall: rainfallData?.timestamp || undefined,
+        moonPhase: now,
       },
     };
 

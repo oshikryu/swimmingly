@@ -7,7 +7,6 @@ import type {
   WaveData,
   WaterQuality,
   SSOEvent,
-  DamReleaseData,
   RainfallData,
 } from '@/types/conditions';
 
@@ -70,29 +69,6 @@ function makeWaterQuality(overrides: Partial<WaterQuality> = {}): WaterQuality {
   };
 }
 
-function makeDamReleases(overrides: Partial<DamReleaseData> = {}): DamReleaseData {
-  return {
-    timestamp: now,
-    current: { totalFlowCFS: 20000, releaseLevel: 'low' },
-    historical48h: {
-      averageFlowCFS: 20000,
-      peakFlowCFS: 22000,
-      peakTimestamp: now,
-      trendDirection: 'stable',
-      last24hAverage: 20000,
-      last48hAverage: 20000,
-    },
-    dams: [
-      {
-        name: 'Shasta Dam',
-        stationId: 'SHA',
-        current: { flowCFS: 12000, timestamp: now, percentOfTotal: 60 },
-        historical48h: { averageFlowCFS: 12000, peakFlowCFS: 13000 },
-      },
-    ],
-    ...overrides,
-  };
-}
 
 function makeRainfall(overrides: Partial<RainfallData> = {}): RainfallData {
   return {
@@ -123,7 +99,6 @@ function scoreWith(overrides: {
   waves?: Partial<WaveData>;
   waterQuality?: Partial<WaterQuality>;
   ssos?: SSOEvent[];
-  damReleases?: Partial<DamReleaseData> | null;
   rainfall?: Partial<RainfallData> | null;
   tidePreferences?: { slack: number; flood: number; ebb: number };
 } = {}) {
@@ -134,7 +109,6 @@ function scoreWith(overrides: {
     makeWaves(overrides.waves),
     makeWaterQuality(overrides.waterQuality),
     overrides.ssos ?? [],
-    overrides.damReleases === null ? null : makeDamReleases(overrides.damReleases),
     overrides.tidePreferences,
     undefined,
     overrides.rainfall === undefined ? null : (overrides.rainfall === null ? null : makeRainfall(overrides.rainfall)),
@@ -521,61 +495,6 @@ describe('calculateSwimScore', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Dam releases scoring
-  // -------------------------------------------------------------------------
-  describe('dam releases', () => {
-    it('scores 100 for low flow (< 30k CFS)', () => {
-      const result = scoreWith({ damReleases: { historical48h: hist(20000) } });
-      expect(result.factors.damReleases.score).toBe(100);
-    });
-
-    it('scores 75 for moderate flow (30k–50k CFS)', () => {
-      const result = scoreWith({ damReleases: { historical48h: hist(40000) } });
-      expect(result.factors.damReleases.score).toBe(75);
-    });
-
-    it('scores 65 for elevated flow (50k–80k CFS)', () => {
-      const result = scoreWith({ damReleases: { historical48h: hist(60000) } });
-      expect(result.factors.damReleases.score).toBe(65);
-    });
-
-    it('scores 30 for high flow (80k–100k CFS)', () => {
-      const result = scoreWith({ damReleases: { historical48h: hist(90000) } });
-      expect(result.factors.damReleases.score).toBe(30);
-    });
-
-    it('scores 10 for extreme flow (> 100k CFS)', () => {
-      const result = scoreWith({ damReleases: { historical48h: hist(120000) } });
-      expect(result.factors.damReleases.score).toBe(10);
-    });
-
-    it('scores 75 when dam data is null (cautious default)', () => {
-      const result = scoreWith({ damReleases: null });
-      expect(result.factors.damReleases.score).toBe(75);
-      expect(result.factors.damReleases.issues).toContain('Dam release data unavailable');
-    });
-
-    it('uses peak flow when it exceeds weighted average', () => {
-      // Weighted avg = 20000*0.6 + 20000*0.4 = 20000 → low (score 100)
-      // Peak component = 50000 * 0.8 = 40000 → moderate (score 75)
-      // scoringFlow = max(20000, 40000) = 40000 → score 75
-      const result = scoreWith({
-        damReleases: {
-          historical48h: {
-            averageFlowCFS: 20000,
-            peakFlowCFS: 50000,
-            peakTimestamp: now,
-            trendDirection: 'stable' as const,
-            last24hAverage: 20000,
-            last48hAverage: 20000,
-          },
-        },
-      });
-      expect(result.factors.damReleases.score).toBe(75);
-    });
-  });
-
-  // -------------------------------------------------------------------------
   // Overall score safety caps
   // -------------------------------------------------------------------------
   describe('overall score safety caps', () => {
@@ -759,12 +678,7 @@ describe('calculateSwimScore', () => {
       expect(result.recommendations).toContain('Calm water conditions');
     });
 
-    it('recommends normal dam operations', () => {
-      const result = scoreWith();
-      expect(result.recommendations).toContain('Normal dam operations');
-    });
-
-    it('includes overall rating advice', () => {
+it('includes overall rating advice', () => {
       const excellent = scoreWith();
       expect(excellent.recommendations).toContain('Excellent conditions for swimming');
 
@@ -808,7 +722,6 @@ describe('calculateSwimScore', () => {
         current: { speedKnots: 3.0 },
         waves: { waveHeightFeet: 4.0 },
         weather: { windSpeedMph: 30, conditions: 'storm' },
-        damReleases: { historical48h: hist(120000) },
         rainfall: { last72hInches: 5.0 },
         ssos: [makeSSO({ resolved: false })],
       });
@@ -821,24 +734,11 @@ describe('calculateSwimScore', () => {
       const result = scoreWith({
         waves: { waveHeightFeet: 1.2 },
       });
-      // WQ=100, Tide=100, Waves=60, Weather=100, Dam=100
-      // (100*30 + 100*25 + 60*20 + 100*15 + 100*10) / 100 = 92
+      // WQ=100, Tide=100, Waves=60, Weather=100
+      // (100*30 + 100*27 + 60*20 + 100*23) / 100 = 92
       expect(result.overallScore).toBe(92);
       expect(result.rating).toBe('calm');
     });
   });
 });
 
-// ---------------------------------------------------------------------------
-// Helper: create a historical48h object with uniform flow values
-// ---------------------------------------------------------------------------
-function hist(flowCFS: number) {
-  return {
-    averageFlowCFS: flowCFS,
-    peakFlowCFS: flowCFS,
-    peakTimestamp: now,
-    trendDirection: 'stable' as const,
-    last24hAverage: flowCFS,
-    last48hAverage: flowCFS,
-  };
-}

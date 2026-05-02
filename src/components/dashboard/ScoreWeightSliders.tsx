@@ -8,7 +8,6 @@ interface FactorScores {
   tideAndCurrent: number;
   waves: number;
   weather: number;
-  damReleases: number;
 }
 
 interface ScoreWeightSlidersProps {
@@ -24,7 +23,6 @@ const FACTOR_LABELS: Record<keyof ScoreWeights, string> = {
   tideAndCurrent: 'Tide & Current',
   waves: 'Waves',
   weather: 'Weather',
-  damReleases: 'Dam Releases',
 };
 
 const FACTOR_ORDER: (keyof ScoreWeights)[] = [
@@ -32,7 +30,6 @@ const FACTOR_ORDER: (keyof ScoreWeights)[] = [
   'tideAndCurrent',
   'waves',
   'weather',
-  'damReleases',
 ];
 
 /**

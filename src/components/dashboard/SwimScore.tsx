@@ -38,7 +38,6 @@ export default function SwimScore({
     tideAndCurrent: score.factors.tideAndCurrent.score,
     waves: score.factors.waves.score,
     weather: score.factors.weather.score,
-    damReleases: score.factors.damReleases.score,
   };
 
   return (

@@ -113,6 +113,16 @@ export const SAFETY_THRESHOLDS = {
     high: 80000,       // 50k-80k CFS - high release period, strong currents
     extreme: 100000,   // > 100k CFS - flood control releases, dangerous conditions
   },
+
+  // Barometric pressure thresholds (millibars)
+  barometricPressure: {
+    veryHigh: 1025,    // ≥ 1025 mb: very stable high pressure
+    high: 1020,        // 1020–1025 mb: high pressure, favorable
+    standard: 1013,    // 1013–1020 mb: near-standard atmosphere, neutral
+    low: 1005,         // 1005–1013 mb: low pressure, possible deterioration
+    veryLow: 1000,     // 1000–1005 mb: very low pressure, storm risk
+    // < 1000 mb: storm pressure, dangerous conditions likely
+  },
 } as const;
 
 /**
@@ -121,10 +131,9 @@ export const SAFETY_THRESHOLDS = {
  */
 export const SCORE_WEIGHTS = {
   waterQuality: 30,      // Highest priority - safety first
-  tideAndCurrent: 25,    // Affects difficulty and safety
+  tideAndCurrent: 27,    // Affects difficulty and safety (moon phase adds signal)
   waves: 20,             // Affects comfort and safety
-  weather: 15,           // Affects comfort
-  damReleases: 10,       // Affects bay currents and water flow
+  weather: 23,           // Affects comfort (barometric pressure adds signal)
 } as const;
 
 /**
