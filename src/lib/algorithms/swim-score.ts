@@ -145,6 +145,27 @@ function scoreWaterQuality(
     }
   }
 
+  // If enterococcus was safe but beachwatch reports a worse status (from e.coli/coliform),
+  // escalate to match — avoids showing "safe" when other bacteria indicators are elevated
+  if (waterQuality && status === 'safe' && waterQuality.status !== 'safe') {
+    if (waterQuality.status === 'closed') {
+      score = Math.min(score, 0);
+      status = 'dangerous';
+      bacteriaLevel = 'dangerous';
+      issues.push('Beach closed — bacteria levels unsafe for swimming');
+    } else if (waterQuality.status === 'warning') {
+      score = Math.min(score, 30);
+      status = 'warning';
+      bacteriaLevel = bacteriaLevel === 'unknown' ? 'high' : bacteriaLevel;
+      issues.push('Elevated bacteria detected (e.coli or coliform)');
+    } else if (waterQuality.status === 'advisory') {
+      score = Math.min(score, 70);
+      status = 'advisory';
+      bacteriaLevel = bacteriaLevel === 'unknown' ? 'moderate' : bacteriaLevel;
+      issues.push('Advisory in effect — bacteria levels elevated');
+    }
+  }
+
   // Check for recent SSOs
   const activeSSOs = (recentSSOs ?? []).filter(sso => !sso?.resolved);
   const recentSSO = (recentSSOs ?? []).find(sso => {

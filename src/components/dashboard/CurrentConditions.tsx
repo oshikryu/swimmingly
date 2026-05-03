@@ -68,6 +68,8 @@ export default function CurrentConditions() {
   const { cachedData, setCachedData, isCacheValid } = useConditionsCache();
   // Store raw data for client-side recalculation
   const rawDataRef = useRef<RawConditionsData | null>(null);
+  // Prevents the cache-init effect from re-firing after the first mount hydration
+  const cacheInitialized = useRef(false);
 
   // Helper to check if we're using static data (GitHub Pages or static build mode)
   const isStaticMode = typeof window !== 'undefined' && (
@@ -107,9 +109,11 @@ export default function CurrentConditions() {
     };
   };
 
-  // Load cached data immediately on mount
+  // Load cached data immediately on mount (runs only once — cacheInitialized prevents
+  // subsequent setCachedData calls from overwriting conditions with the cache value)
   useEffect(() => {
-    if (isCacheValid && cachedData) {
+    if (!cacheInitialized.current && isCacheValid && cachedData) {
+      cacheInitialized.current = true;
       setConditions(cachedData);
       setLoading(false);
       window.dispatchEvent(new CustomEvent('conditions-updated', {
@@ -176,13 +180,21 @@ export default function CurrentConditions() {
       // Only update cache and state if we have valid data
       // Don't overwrite good cached data with null/missing data
       if (data && data.tide && data.score) {
+        const prevRawData = rawDataRef.current;
+        // Preserve cached waterQuality if fresh fetch returned an unavailable fallback
+        const freshWaterQuality = data.waterQuality;
+        const preservedWaterQuality =
+          freshWaterQuality?.source === 'unavailable' && prevRawData?.waterQuality?.source !== 'unavailable'
+            ? prevRawData?.waterQuality
+            : freshWaterQuality;
+
         // Always store raw data for client-side recalculation
         rawDataRef.current = {
           tide: data.tide,
           current: data.current,
           weather: data.weather,
           waves: data.waves,
-          waterQuality: data.waterQuality,
+          waterQuality: preservedWaterQuality,
           waterTemperature: data.waterTemperature,
           damReleases: data.damReleases,
           rainfall: data.rainfall,
@@ -232,6 +244,7 @@ export default function CurrentConditions() {
 
     if (rawDataRef.current) {
       const recalculated = recalculateScore(rawDataRef.current, newPreference, isWeightsCustom ? weights : undefined);
+      setCachedData(recalculated);
       setConditions(recalculated);
       return;
     }
@@ -247,6 +260,7 @@ export default function CurrentConditions() {
 
     if (rawDataRef.current) {
       const recalculated = recalculateScore(rawDataRef.current, preference, newWeights);
+      setCachedData(recalculated);
       setConditions(recalculated);
     }
   };
@@ -257,6 +271,7 @@ export default function CurrentConditions() {
 
     if (rawDataRef.current) {
       const recalculated = recalculateScore(rawDataRef.current, preference);
+      setCachedData(recalculated);
       setConditions(recalculated);
     }
   };
