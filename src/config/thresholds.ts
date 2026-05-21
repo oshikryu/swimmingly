@@ -58,9 +58,9 @@ export const SAFETY_THRESHOLDS = {
 
   // Water temperature thresholds (Fahrenheit)
   waterTemp: {
-    cold: 55,             // < 55°F = very cold (wetsuit required)
-    cool: 60,             // 55-60°F = cold (wetsuit recommended)
-    moderate: 65,         // 60-65°F = moderate
+    cold: 55,             // < 55°F = very cold (fuel up, pre-warm, limit time)
+    cool: 60,             // 55-60°F = cold (eat before, keep it short)
+    moderate: 65,         // 60-65°F = cool but manageable
     comfortable: 70,      // > 70°F = comfortable
   },
 

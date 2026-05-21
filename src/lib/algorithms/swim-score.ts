@@ -9,6 +9,7 @@ import type {
   WeatherData,
   WaveData,
   WaterQuality,
+  WaterTemperature,
   SSOEvent,
   RainfallData,
   SwimScore,
@@ -32,13 +33,14 @@ export function calculateSwimScore(
   customTidePreferences?: TidePhasePreferences,
   customWeights?: ScoreWeights,
   rainfall?: RainfallData | null,
-  moonPhase?: MoonPhaseData | null
+  moonPhase?: MoonPhaseData | null,
+  waterTemp?: WaterTemperature | null
 ): SwimScore {
   // Calculate individual factor scores
   const waterQualityFactor = scoreWaterQuality(waterQuality, recentSSOs, rainfall);
   const tideCurrentFactor = scoreTideAndCurrent(tide, current, customTidePreferences, moonPhase);
   const waveFactor = scoreWaves(waves);
-  const weatherFactor = scoreWeather(weather, waves?.barometricPressureMb);
+  const weatherFactor = scoreWeather(weather, waves?.barometricPressureMb, waterTemp?.temperatureF);
 
   // Calculate weighted overall score
   const weights = customWeights || SCORE_WEIGHTS;
@@ -293,6 +295,12 @@ function scoreTideAndCurrent(
   };
 }
 
+// Linear interpolation between score anchor points — avoids cliff-edge score jumps
+// when wave height crosses a band boundary by a fraction of a foot.
+function lerpScore(value: number, x0: number, x1: number, y0: number, y1: number): number {
+  return Math.round(y0 + (y1 - y0) * Math.max(0, Math.min(1, (value - x0) / (x1 - x0))));
+}
+
 /**
  * Score wave conditions (20% weight)
  */
@@ -308,17 +316,21 @@ function scoreWaves(waves: WaveData): SwimScoreFactors['waves'] {
     status = 'moderate';
     issues.push('No wave data available');
   } else if (height < SAFETY_THRESHOLDS.waves.calm) {
-    score = 100;
+    // 0–0.5 ft: glassy to light ripple, 100→88
+    score = lerpScore(height, 0, SAFETY_THRESHOLDS.waves.calm, 100, 88);
     status = 'calm';
   } else if (height < SAFETY_THRESHOLDS.waves.safe) {
-    score = 85;
+    // 0.5–1.0 ft: light chop, 88→68
+    score = lerpScore(height, SAFETY_THRESHOLDS.waves.calm, SAFETY_THRESHOLDS.waves.safe, 88, 68);
     status = 'calm';
   } else if (height < SAFETY_THRESHOLDS.waves.moderate) {
-    score = 60;
+    // 1.0–1.5 ft: noticeable chop, 68→40
+    score = lerpScore(height, SAFETY_THRESHOLDS.waves.safe, SAFETY_THRESHOLDS.waves.moderate, 68, 40);
     status = 'moderate';
     issues.push(`Moderate waves (${height.toFixed(1)} ft)`);
   } else if (height < SAFETY_THRESHOLDS.waves.rough) {
-    score = 30;
+    // 1.5–2.5 ft: rough, 40→12
+    score = lerpScore(height, SAFETY_THRESHOLDS.waves.moderate, SAFETY_THRESHOLDS.waves.rough, 40, 12);
     status = 'rough';
     issues.push(`Rough waves (${height.toFixed(1)} ft)`);
   } else {
@@ -338,7 +350,7 @@ function scoreWaves(waves: WaveData): SwimScoreFactors['waves'] {
 /**
  * Score weather conditions (23% weight)
  */
-function scoreWeather(weather: WeatherData, barometricPressureMb?: number): SwimScoreFactors['weather'] {
+function scoreWeather(weather: WeatherData, barometricPressureMb?: number, waterTempF?: number): SwimScoreFactors['weather'] {
   let score = 100;
   const issues: string[] = [];
   let windCondition: 'calm' | 'light' | 'moderate' | 'strong' = 'calm';
@@ -410,11 +422,33 @@ function scoreWeather(weather: WeatherData, barometricPressureMb?: number): Swim
     score = Math.max(0, Math.min(100, score + pressureAdjustment));
   }
 
+  // Water temperature modifier — cold water is a direct safety risk (cold shock, hypothermia)
+  if (waterTempF !== undefined) {
+    const wt = SAFETY_THRESHOLDS.waterTemp;
+    let tempAdjustment = 0;
+
+    if (waterTempF < wt.cold) {
+      tempAdjustment = -15;
+      issues.push(`Very cold water (${waterTempF.toFixed(0)}°F) — fuel up, pre-warm, limit swim time`);
+    } else if (waterTempF < wt.cool) {
+      tempAdjustment = -8;
+      issues.push(`Cold water (${waterTempF.toFixed(0)}°F) — eat before going in, keep it short`);
+    } else if (waterTempF < wt.moderate) {
+      tempAdjustment = -3;
+      issues.push(`Cool water (${waterTempF.toFixed(0)}°F)`);
+    } else if (waterTempF >= wt.comfortable) {
+      tempAdjustment = 5;
+    }
+
+    score = Math.max(0, Math.min(100, score + tempAdjustment));
+  }
+
   return {
     score,
     temperature,
     windSpeed,
     windCondition,
+    waterTemperatureF: waterTempF,
     issues,
   };
 }
@@ -524,6 +558,26 @@ function generateAdvice(
         'Recent rainfall may have degraded water quality',
         'Rain runoff can raise bacteria — keep an eye on test results',
         'Wet weather recently — water quality may be affected',
+      ]));
+    }
+  }
+
+  // Water temperature advisories
+  if (factors.weather.waterTemperatureF !== undefined) {
+    const wt = SAFETY_THRESHOLDS.waterTemp;
+    const wtF = factors.weather.waterTemperatureF;
+    if (wtF < wt.cold) {
+      warnings.push(pick([
+        `${wtF.toFixed(0)}°F water — fuel up, pre-warm, and keep it short`,
+        'Very cold water — eat something first and limit your time out there',
+        `Sub-55°F bay — load up on calories and plan a short swim`,
+        `${wtF.toFixed(0)}°F today — pre-warm, go hard, get out fast`,
+      ]));
+    } else if (wtF < wt.cool) {
+      recommendations.push(pick([
+        `Cold water (${wtF.toFixed(0)}°F) — a hot drink and some food before you go in helps`,
+        `${wtF.toFixed(0)}°F today — consider a shorter swim or fuel up well beforehand`,
+        'Cold bay — pre-warm and keep an eye on your time in the water',
       ]));
     }
   }

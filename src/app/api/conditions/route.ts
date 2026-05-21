@@ -138,7 +138,8 @@ export async function GET(request: NextRequest) {
       customTidePreferences,
       undefined, // customWeights
       rainfallData,
-      moonPhaseData
+      moonPhaseData,
+      waterTempData
     );
 
     // Construct response with fallbacks for missing data
