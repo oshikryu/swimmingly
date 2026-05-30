@@ -3,6 +3,13 @@
 
 A Next.js web application that helps swimmers determine optimal swimming times and routes at Aquatic Park in San Francisco Bay by aggregating real-time data on tides, currents, weather, waves, and water quality.
 
+## Live
+
+| Deployment | URL | Notes |
+|------------|-----|-------|
+| Cloudflare Workers | https://swimmingly.ryushikiri.workers.dev | Live API + full app, always-on |
+| GitHub Pages | https://oshikryu.github.io/swimmingly | Static snapshot, updated every 20 min |
+
 ## Features
 
 - **Real-time Conditions Dashboard**: Current swim score and environmental conditions
@@ -21,18 +28,20 @@ A Next.js web application that helps swimmers determine optimal swimming times a
 
 - **Framework**: Next.js 15 with App Router
 - **Language**: TypeScript
-- **Database**: PostgreSQL with Prisma ORM (TimescaleDB ready for time-series data)
+- **Hosting**: Cloudflare Workers (via `@opennextjs/cloudflare`), GitHub Pages (static snapshot)
+- **Database**: PostgreSQL with Prisma ORM (TimescaleDB ready for time-series data, optional)
 - **Styling**: Tailwind CSS
 - **Data Sources**:
-  - NOAA Tides & Currents API
-  - NOAA National Weather Service API
-  - NOAA NDBC (Buoy data)
-  - Open-Meteo (Wind data, temperature, rainfall)
-  - CDEC - California Data Exchange Center (Dam releases)
-  - SF Beach Water Quality Monitoring (Primary water quality source - locations BAY#211_SL & BAY#210.1_SL)
-  - CA Water Quality Portal (Water quality fallback)
-  - SF Open Data (Sewer overflow alerts)
-  - SeaTemperature.info (Water temperature)
+  - NOAA Tides & Currents API (tides, currents)
+  - NOAA National Weather Service API (forecast, observations)
+  - NOAA NDBC (buoy wave data, fallback)
+  - Open-Meteo (primary wind data, temperature, rainfall)
+  - CDEC — California Data Exchange Center (dam releases)
+  - OpenWaterLog (primary wave data for Aquatic Park)
+  - SF Beach Water Quality Monitoring (primary water quality — BAY#211_SL & BAY#210.1_SL)
+  - CA Water Quality Portal (water quality fallback)
+  - SF Open Data (sewer overflow alerts)
+  - SeaTemperature.info (water temperature)
 
 ## Getting Started
 
@@ -46,7 +55,8 @@ A Next.js web application that helps swimmers determine optimal swimming times a
 
 1. **Clone the repository**
    ```bash
-   cd /Users/ryuta-m4/projects/swimmingly
+   git clone https://github.com/oshikryu/swimmingly.git
+   cd swimmingly
    ```
 
 2. **Install dependencies**
@@ -83,6 +93,40 @@ A Next.js web application that helps swimmers determine optimal swimming times a
 
 6. **Open your browser**
    Navigate to [http://localhost:3333](http://localhost:3333)
+
+## Deployment
+
+### Cloudflare Workers (recommended)
+
+The full Next.js app — including all API routes — runs on Cloudflare Workers via [`@opennextjs/cloudflare`](https://github.com/opennextjs/opennextjs-cloudflare). No cold starts, no spin-down, 100k free requests/day.
+
+```bash
+# Login to Cloudflare (one-time)
+npx wrangler login
+
+# Build and deploy
+npm run deploy:cf
+
+# Preview locally before deploying
+npm run preview:cf
+```
+
+The deploy script runs `opennextjs-cloudflare build && opennextjs-cloudflare deploy`. Configuration lives in `wrangler.jsonc` and `open-next.config.ts`.
+
+### GitHub Pages (static snapshot)
+
+A static snapshot is generated and pushed to the `gh-pages` branch automatically every 20 minutes when the dev server is running. It pre-fetches all data at build time and serves a zero-JS-request page.
+
+```bash
+# Manual build and deploy
+npm run build:static
+npm run publish:static
+
+# Or start dev server with auto-updates enabled
+ENABLE_STATIC_UPDATES=true GITHUB_REPO="git@github.com:oshikryu/swimmingly.git" npm run dev
+```
+
+See `scripts/static-update-scheduler.ts` for the scheduler and CLAUDE.md for full static deployment details.
 
 ## Project Structure
 
@@ -767,12 +811,15 @@ All thresholds are configured in `src/config/thresholds.ts`:
 - [x] CA Water Quality Portal integration
 - [x] CDEC API client (dam releases with 48-hour historical data)
 - [x] Open-Meteo weather integration (primary wind data + rainfall)
+- [x] OpenWaterLog wave data (primary source, NOAA buoy fallback)
 - [x] Swim score algorithm with customizable tide preferences
 - [x] Current conditions dashboard
 - [x] Real-time data fetching with localStorage caching
 - [x] 48-hour dam release tracking with time-lag modeling
 - [x] Water temperature monitoring (SeaTemperature.info)
 - [x] Rainfall-based water quality proxy (72-hour accumulation)
+- [x] Cloudflare Workers deployment (`@opennextjs/cloudflare`)
+- [x] GitHub Pages static snapshot with auto-updates
 
 ### Next Steps 🚀
 
@@ -806,15 +853,20 @@ All thresholds are configured in `src/config/thresholds.ts`:
 
 ## Data Sources
 
-- **NOAA Tides & Currents**: Tide predictions for Station 9414290 (San Francisco) and current data from Station 9414290
-- **NOAA National Weather Service**: Point forecast and observations for Aquatic Park
-- **NOAA NDBC**: Wave data from Buoy 46237 (San Francisco offshore) and Buoy 46026 (backup)
-- **Open-Meteo**: Primary wind data (speed, direction, gusts), air temperature, and 72-hour rainfall accumulation
-- **CDEC (California Data Exchange Center)**: 48 hours of hourly dam release data from Shasta, Oroville, Folsom, Pardee, and Camanche dams
-- **SF Beach Water Quality Monitoring** (Primary): Real-time Enterococcus measurements for Aquatic Park (BAY#211_SL) and Hyde Street Pier (BAY#210.1_SL) via SF Gov Open Data API - uses most recent data from either location
-- **CA Water Quality Portal** (Fallback): Historical water quality monitoring when SF data unavailable
-- **SF Open Data**: Sewer overflow alerts and incident tracking
-- **SeaTemperature.info**: Real-time water temperature for San Francisco Bay
+All APIs are public and require no authentication. NOAA requests use `time_zone=gmt` with UTC timestamps to ensure consistent behavior across server environments (including Cloudflare Workers).
+
+| Source | Data | Station / Endpoint |
+|--------|------|--------------------|
+| [NOAA Tides & Currents](https://tidesandcurrents.noaa.gov) | Tide predictions, water level, currents | Station 9414290 (San Francisco) |
+| [NOAA National Weather Service](https://api.weather.gov) | Forecast, hourly observations | Point forecast for Aquatic Park coords |
+| [NOAA NDBC](https://www.ndbc.noaa.gov) | Wave height, swell period (fallback) | Buoy 46237 (SF offshore), Buoy 46026 (backup) |
+| [Open-Meteo](https://open-meteo.com) | Wind speed/direction/gusts, temperature, 72h rainfall | Aquatic Park lat/lon |
+| [OpenWaterLog](https://openwaterlog.com) | Wave data (primary — more accurate for Aquatic Park) | Aquatic Park station |
+| [CDEC](https://cdec.water.ca.gov) | Dam releases (48h hourly) | SHA, ORO, FOL, PAR, CMN |
+| [SF Gov Open Data](https://data.sfgov.org) | Enterococcus water quality (primary) | BAY#211_SL (Aquatic Park), BAY#210.1_SL (Hyde St Pier) |
+| [CA Water Quality Portal](https://www.waterqualitydata.us) | Water quality (fallback) | Historical monitoring |
+| [SF Open Data](https://data.sfgov.org) | Sewer overflow (SSO) alerts | SF Public Utilities Commission |
+| [SeaTemperature.info](https://www.seatemperature.info) | Water temperature | San Francisco Bay |
 
 ## Contributing
 
