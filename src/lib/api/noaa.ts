@@ -33,7 +33,7 @@ export async function fetchTidePredictions(
       end_date: endStr,
       datum: 'MLLW',
       station: stationId,
-      time_zone: 'lst_ldt',
+      time_zone: 'gmt',
       units: 'english',
       interval: 'hilo',
       format: 'json',
@@ -54,7 +54,7 @@ export async function fetchTidePredictions(
     }
 
     return data.predictions.map((pred: { t: string; v: string; type?: string }) => ({
-      timestamp: new Date(pred.t),
+      timestamp: new Date(pred.t + 'Z'),
       heightFeet: parseFloat(pred.v),
       type: pred.type === 'H' ? 'high' : pred.type === 'L' ? 'low' : 'normal',
       source: 'NOAA',
@@ -80,7 +80,7 @@ export async function fetchCurrentTide(stationId: string = TIDE_STATION_ID): Pro
       end_date: formatNOAADate(now),
       datum: 'MLLW',
       station: stationId,
-      time_zone: 'lst_ldt',
+      time_zone: 'gmt',
       units: 'english',
       format: 'json',
     });
@@ -104,7 +104,7 @@ export async function fetchCurrentTide(stationId: string = TIDE_STATION_ID): Pro
     const latest = data.data[data.data.length - 1];
 
     return {
-      timestamp: new Date(latest.t),
+      timestamp: new Date(latest.t + 'Z'),
       heightFeet: parseFloat(latest.v),
       type: 'normal',
       source: 'NOAA',
@@ -131,7 +131,7 @@ export async function fetchCurrents(
       begin_date: formatNOAADate(oneHourAgo),
       end_date: formatNOAADate(now),
       station: stationId,
-      time_zone: 'lst_ldt',
+      time_zone: 'gmt',
       units: 'english',
       format: 'json',
     });
@@ -162,7 +162,7 @@ export async function fetchCurrents(
         : parseInt(latest.meanEbbDir, 10);
 
     return {
-      timestamp: new Date(latest.Time),
+      timestamp: new Date(latest.Time + 'Z'),
       speedKnots,
       direction,
       source: 'NOAA',
@@ -461,11 +461,11 @@ export async function fetchCurrentTidePrediction(): Promise<TidePrediction | nul
 // Utility functions
 
 function formatNOAADate(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hour = String(date.getHours()).padStart(2, '0');
-  const minute = String(date.getMinutes()).padStart(2, '0');
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  const hour = String(date.getUTCHours()).padStart(2, '0');
+  const minute = String(date.getUTCMinutes()).padStart(2, '0');
   return `${year}${month}${day} ${hour}:${minute}`;
 }
 
