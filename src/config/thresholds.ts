@@ -39,12 +39,13 @@ export const SAFETY_THRESHOLDS = {
   },
 
   // Wind speed thresholds (mph)
+  // Calibrated for SF Bay — afternoon winds of 15-22 mph are routine and not a real hazard.
   wind: {
-    calm: 5,              // < 5 mph = calm
-    light: 10,            // 5-10 mph = light
-    moderate: 15,         // 10-15 mph = moderate
-    strong: 20,           // 15-20 mph = strong (caution)
-    veryStrong: 25,       // > 25 mph = very strong (not recommended)
+    calm: 10,             // < 10 mph = calm
+    light: 15,            // 10-15 mph = light (normal morning)
+    moderate: 22,         // 15-22 mph = moderate (typical SF afternoon)
+    strong: 30,           // 22-30 mph = strong (caution)
+    veryStrong: 38,       // > 38 mph = very strong (not recommended)
   },
 
   // Current speed thresholds (knots)
@@ -130,10 +131,10 @@ export const SAFETY_THRESHOLDS = {
  * All weights should sum to 100
  */
 export const SCORE_WEIGHTS = {
-  waterQuality: 30,      // Highest priority - safety first
-  tideAndCurrent: 27,    // Affects difficulty and safety (moon phase adds signal)
+  waterQuality: 30,      // Highest priority - safety first (includes water temp)
+  tideAndCurrent: 32,    // Affects difficulty and safety (moon phase adds signal)
   waves: 20,             // Affects comfort and safety
-  weather: 23,           // Affects comfort (barometric pressure adds signal)
+  weather: 18,           // Wind and barometric pressure
 } as const;
 
 /**

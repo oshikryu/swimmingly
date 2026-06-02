@@ -40,24 +40,6 @@ function degreesToCardinal(degrees: number): string {
   return directions[index];
 }
 
-/**
- * Format timestamp for display
- * Shows relative time for recent data, absolute time for older data
- */
-function formatTimestamp(date: Date): string {
-  const now = new Date();
-  const diffMinutes = Math.floor((now.getTime() - new Date(date).getTime()) / (1000 * 60));
-
-  if (diffMinutes === 0) return 'just now';
-  if (diffMinutes === 1) return '1 minute ago';
-  if (diffMinutes < 60) return `${diffMinutes} minutes ago`;
-
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours === 1) return '1 hour ago';
-  if (diffHours < 24) return `${diffHours} hours ago`;
-
-  return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
 
 export default function CurrentConditions() {
   const [conditions, setConditions] = useState<CurrentConditionsType | null>(null);
@@ -100,7 +82,8 @@ export default function CurrentConditions() {
       customTidePreferences,
       customWeights,
       rawData.rainfall ?? null,
-      rawData.moonPhase ?? null
+      rawData.moonPhase ?? null,
+      rawData.waterTemperature ?? null
     );
     return {
       ...rawData,
@@ -406,7 +389,7 @@ export default function CurrentConditions() {
             status={tideStatus}
             icon="🌊"
             details={[
-              `Phase: ${score?.factors?.tideAndCurrent?.phase ?? 'unknown'} (${tidePhase === 'flood' ? '+' : tidePhase === 'ebb' ? '−' : '~'} current)`,
+              `Phase: ${score?.factors?.tideAndCurrent?.phase ?? 'unknown'}`,
               // Show previous tide with styled label
               ...((() => {
                 // Determine which previous tide is most recent (the one we just passed)
@@ -467,17 +450,15 @@ export default function CurrentConditions() {
             status={waveStatus}
             icon="🌊"
             details={[
-              `Status: ${score?.factors?.waves?.status ?? 'unknown'}`,
               swellPeriod ? `Period: ${swellPeriod.toFixed(0)}s` : '',
-              conditions.waves?.source ? `Station: ${conditions.waves.source}` : '',
+              conditions.waves?.source ? `Source: ${conditions.waves.source}` : '',
               conditions.waves?.timestamp ? `Updated: ${new Date(conditions.waves.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} PST` : '',
-              // Add data source links
+              ...(score?.factors?.waves?.issues ?? []),
               conditions.waves?.source?.toLowerCase().includes('openwaterlog')
                 ? '🔗 https://openwaterlog.com/locations/aquatic-park/'
                 : conditions.waves?.source?.includes('NOAA-NDBC Buoy')
                 ? `🔗 https://www.ndbc.noaa.gov/station_page.php?station=${conditions.waves.source.match(/\d{5}/)?.[0] || '46237'}`
                 : '',
-              ...(score?.factors?.waves?.issues ?? []),
             ].filter(Boolean)}
           />
 
@@ -494,14 +475,9 @@ export default function CurrentConditions() {
             status={weatherStatus}
             icon="💨"
             details={[
-              `Condition: ${score?.factors?.weather?.windCondition ?? 'unknown'}`,
               windGust ? `Gusts: ${windGust.toFixed(0)} mph` : '',
               windDirection !== undefined ? `Direction: ${windDirection}° ${degreesToCardinal(windDirection)}` : '',
               `Air Temp: ${temperature.toFixed(0)}°F`,
-              conditions?.waterTemperature
-                ? `Water Temp: ${conditions.waterTemperature.temperatureF.toFixed(1)}°F (${conditions.waterTemperature.source})`
-                : '',
-              // Barometric pressure
               barometricPressureMb !== null
                 ? `Pressure: ${barometricPressureMb.toFixed(0)} mb${
                     barometricPressureMb >= SAFETY_THRESHOLDS.barometricPressure.veryHigh ? ' (High — stable)' :
@@ -510,17 +486,13 @@ export default function CurrentConditions() {
                     ' (Very low — storm risk)'
                   }`
                 : '',
-              weather?.timestamp ? `Updated: ${formatTimestamp(weather.timestamp)}` : '',
               windSourceDisplay ? `Source: ${windSourceDisplay}` : '',
+              weather?.timestamp ? `Updated: ${new Date(weather.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} PST` : '',
               ...(score?.factors?.weather?.issues ?? []),
-              // Data source links
               isOpenMeteoWind
                 ? '🔗 https://open-meteo.com/'
                 : windSource?.includes('NOAA')
                 ? '🔗 https://www.weather.gov/'
-                : '',
-              conditions?.waterTemperature
-                ? '🔗 https://seatemperature.info/aquatic-park-water-temperature.html'
                 : '',
             ].filter(Boolean)}
           />
@@ -551,7 +523,6 @@ export default function CurrentConditions() {
             status={waterQualityStatus}
             icon="💧"
             details={[
-              `Bacteria: ${score?.factors?.waterQuality?.bacteriaLevel ?? 'unknown'}`,
               waterQuality?.enterococcusCount !== undefined
                 ? `Enterococcus: ${waterQuality.enterococcusCount.toFixed(0)} MPN/100ml (limit: ${SAFETY_THRESHOLDS.waterQuality.enterococcus.safe})`
                 : '',
@@ -561,10 +532,17 @@ export default function CurrentConditions() {
               waterQuality?.coliformCount !== undefined
                 ? `Total Coliform: ${waterQuality.coliformCount.toLocaleString()} MPN/100ml (limit: ${SAFETY_THRESHOLDS.waterQuality.coliform.safe.toLocaleString()})`
                 : '',
+              conditions?.waterTemperature
+                ? (() => {
+                    const t = conditions.waterTemperature.temperatureF;
+                    const wt = SAFETY_THRESHOLDS.waterTemp;
+                    const label = t < wt.cold ? ' — very cold' : t < wt.cool ? ' — cold' : t < wt.moderate ? ' — cool' : t >= wt.comfortable ? ' — comfortable' : '';
+                    return `Water Temp: ${t.toFixed(1)}°F${label}`;
+                  })()
+                : '',
               score?.factors?.waterQuality?.recentSSO
                 ? `SSO ${score?.factors?.waterQuality?.daysSinceSSO ?? '?'} days ago`
                 : '',
-              // Rainfall impact on water quality
               rainfall?.last72hInches !== undefined && rainfall.last72hInches >= SAFETY_THRESHOLDS.rainfall.moderate
                 ? `🌧️ Recent rainfall: ${rainfall.last72hInches.toFixed(1)}" (72h) — runoff may affect water quality`
                 : rainfall?.last72hInches !== undefined && rainfall.last72hInches > 0
@@ -572,7 +550,6 @@ export default function CurrentConditions() {
                 : rainfall?.last72hInches !== undefined
                 ? '☀️ No recent rainfall — good water clarity expected'
                 : '',
-              // Water clarity estimate based on rainfall
               rainfall?.last48hInches !== undefined && rainfall.last48hInches >= SAFETY_THRESHOLDS.rainfall.heavy
                 ? '👁️ Water clarity: Poor (heavy rain runoff)'
                 : rainfall?.last48hInches !== undefined && rainfall.last48hInches >= SAFETY_THRESHOLDS.rainfall.moderate
@@ -580,10 +557,11 @@ export default function CurrentConditions() {
                 : rainfall?.last48hInches !== undefined
                 ? '👁️ Water clarity: Clear'
                 : '',
-              waterQuality?.notes || '', // Shows "Sampled X days ago"
-              waterQuality?.source ? `Source: ${waterQuality.source}` : '', // Show which API
-              waterQuality?.stationId ? `Station: ${waterQuality.stationId}` : '',
-              // Show link to data source based on which API provided the data
+              waterQuality?.notes || '',
+              waterQuality?.source ? `Source: ${waterQuality.source}` : '',
+              waterQuality?.stationId ? `Station ID: ${waterQuality.stationId}` : '',
+              waterQuality?.timestamp ? `Updated: ${new Date(waterQuality.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} PST` : '',
+              ...(score?.factors?.waterQuality?.issues?.filter(i => !/^(Very cold|Cold|Cool) water/i.test(i)) ?? []),
               waterQuality?.source?.includes('SF Beach Water Quality')
                 ? '🔗 https://data.sfgov.org/Energy-and-Environment/Beach-Water-Quality-Monitoring/v3fv-x3ux'
                 : waterQuality?.source?.includes('California Water Quality')
@@ -591,7 +569,9 @@ export default function CurrentConditions() {
                 : waterQuality?.source?.includes('Water Quality Portal')
                 ? '🔗 https://www.waterqualitydata.us/'
                 : '',
-              ...(score?.factors?.waterQuality?.issues ?? []),
+              conditions?.waterTemperature
+                ? '🔗 https://seatemperature.info/aquatic-park-water-temperature.html'
+                : '',
             ].filter(Boolean)}
           />
 

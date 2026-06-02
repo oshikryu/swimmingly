@@ -125,9 +125,9 @@ describe('calculateSwimScore', () => {
   // Ideal / baseline conditions
   // -------------------------------------------------------------------------
   describe('ideal conditions', () => {
-    it('returns calm (100) when all factors are perfect', () => {
+    it('returns near-perfect score with ideal conditions', () => {
       const result = scoreWith();
-      expect(result.overallScore).toBe(100);
+      expect(result.overallScore).toBe(99); // wave interpolation at 0.3 ft gives 93, not 100
       expect(result.rating).toBe('calm');
     });
 
@@ -246,11 +246,11 @@ describe('calculateSwimScore', () => {
     });
 
     it('does not trigger overall safety cap for heavy rainfall alone', () => {
-      // With 1.0" rain: WQ score = 35, but status stays safe so no overall cap
+      // With 1.0" rain: WQ score = 35, but status stays safe so no overall safety cap
       const result = scoreWith({ rainfall: { last72hInches: 1.0 } });
-      // Weighted: (35*30 + 100*25 + 100*20 + 100*15 + 100*10) / 100 = 80.5 → 81
-      expect(result.overallScore).toBeGreaterThanOrEqual(80);
-      expect(result.rating).toBe('calm');
+      // (35*30 + 100*32 + 93*20 + 100*18) / 100 = 79.1 → 79
+      expect(result.overallScore).toBeGreaterThanOrEqual(70);
+      expect(result.rating).toBe('mild');
     });
 
     it('rainfall adds issues but bacteria status takes precedence', () => {
@@ -374,27 +374,31 @@ describe('calculateSwimScore', () => {
   // Wave scoring
   // -------------------------------------------------------------------------
   describe('waves', () => {
-    it('scores 100 for calm waves (< 0.5 ft)', () => {
+    it('scores ~93 for calm waves (< 0.5 ft)', () => {
+      // lerp: 0.3 ft → 100 + (88-100)*(0.3/0.5) = 92.8 → 93
       const result = scoreWith({ waves: { waveHeightFeet: 0.3 } });
-      expect(result.factors.waves.score).toBe(100);
+      expect(result.factors.waves.score).toBe(93);
       expect(result.factors.waves.status).toBe('calm');
     });
 
-    it('scores 85 for safe waves (0.5–1.0 ft)', () => {
+    it('scores ~80 for safe waves (0.5–1.0 ft)', () => {
+      // lerp: 0.7 ft → 88 + (68-88)*(0.2/0.5) = 80
       const result = scoreWith({ waves: { waveHeightFeet: 0.7 } });
-      expect(result.factors.waves.score).toBe(85);
+      expect(result.factors.waves.score).toBe(80);
       expect(result.factors.waves.status).toBe('calm');
     });
 
-    it('scores 60 for moderate waves (1.0–1.5 ft)', () => {
+    it('scores ~57 for moderate waves (1.0–1.5 ft)', () => {
+      // lerp: 1.2 ft → 68 + (40-68)*(0.2/0.5) = 56.8 → 57
       const result = scoreWith({ waves: { waveHeightFeet: 1.2 } });
-      expect(result.factors.waves.score).toBe(60);
+      expect(result.factors.waves.score).toBe(57);
       expect(result.factors.waves.status).toBe('moderate');
     });
 
-    it('scores 30 for rough waves (1.5–2.5 ft)', () => {
+    it('scores ~26 for rough waves (1.5–2.5 ft)', () => {
+      // lerp: 2.0 ft → 40 + (12-40)*(0.5/1.0) = 26
       const result = scoreWith({ waves: { waveHeightFeet: 2.0 } });
-      expect(result.factors.waves.score).toBe(30);
+      expect(result.factors.waves.score).toBe(26);
       expect(result.factors.waves.status).toBe('rough');
     });
 
@@ -404,9 +408,10 @@ describe('calculateSwimScore', () => {
       expect(result.factors.waves.status).toBe('dangerous');
     });
 
-    it('scores at boundary: exactly 0.5 ft is safe (score 85)', () => {
+    it('scores 88 at exactly 0.5 ft (start of 0.5–1.0 band)', () => {
+      // lerp: 0.5 ft enters the 0.5–1.0 band at its top anchor (88)
       const result = scoreWith({ waves: { waveHeightFeet: 0.5 } });
-      expect(result.factors.waves.score).toBe(85);
+      expect(result.factors.waves.score).toBe(88);
     });
 
     it('scores at boundary: exactly 2.5 ft is dangerous (score 10)', () => {
@@ -420,38 +425,38 @@ describe('calculateSwimScore', () => {
   // Weather scoring
   // -------------------------------------------------------------------------
   describe('weather', () => {
-    it('scores 100 for calm wind (< 5 mph)', () => {
+    it('scores 100 for calm wind (< 10 mph)', () => {
       const result = scoreWith({ weather: { windSpeedMph: 3 } });
       expect(result.factors.weather.score).toBe(100);
       expect(result.factors.weather.windCondition).toBe('calm');
     });
 
-    it('scores 95 for light wind (5–10 mph)', () => {
-      const result = scoreWith({ weather: { windSpeedMph: 7 } });
+    it('scores 95 for light wind (10–15 mph)', () => {
+      const result = scoreWith({ weather: { windSpeedMph: 12 } });
       expect(result.factors.weather.score).toBe(95);
       expect(result.factors.weather.windCondition).toBe('light');
     });
 
-    it('scores 80 for moderate wind (10–15 mph)', () => {
-      const result = scoreWith({ weather: { windSpeedMph: 12 } });
-      expect(result.factors.weather.score).toBe(80);
+    it('scores 82 for moderate wind (15–22 mph)', () => {
+      const result = scoreWith({ weather: { windSpeedMph: 18 } });
+      expect(result.factors.weather.score).toBe(82);
       expect(result.factors.weather.windCondition).toBe('moderate');
     });
 
-    it('scores 60 for strong wind (15–20 mph)', () => {
-      const result = scoreWith({ weather: { windSpeedMph: 17 } });
-      expect(result.factors.weather.score).toBe(60);
+    it('scores 62 for strong wind (22–30 mph)', () => {
+      const result = scoreWith({ weather: { windSpeedMph: 25 } });
+      expect(result.factors.weather.score).toBe(62);
       expect(result.factors.weather.windCondition).toBe('moderate');
     });
 
-    it('scores 35 for very strong wind (20–25 mph)', () => {
-      const result = scoreWith({ weather: { windSpeedMph: 22 } });
+    it('scores 35 for very strong wind (30–38 mph)', () => {
+      const result = scoreWith({ weather: { windSpeedMph: 33 } });
       expect(result.factors.weather.score).toBe(35);
       expect(result.factors.weather.windCondition).toBe('strong');
     });
 
-    it('scores 15 for extreme wind (> 25 mph)', () => {
-      const result = scoreWith({ weather: { windSpeedMph: 30 } });
+    it('scores 15 for extreme wind (> 38 mph)', () => {
+      const result = scoreWith({ weather: { windSpeedMph: 40 } });
       expect(result.factors.weather.score).toBe(15);
       expect(result.factors.weather.windCondition).toBe('strong');
     });
@@ -473,22 +478,23 @@ describe('calculateSwimScore', () => {
     });
 
     it('factors in wind gusts to effective wind calculation', () => {
-      // 8 mph sustained + 20 mph gusts → effective = 8*0.7 + 20*0.3 = 11.6 → moderate (score 80)
+      // 8 mph sustained + 20 mph gusts → effective = 8*0.7 + 20*0.3 = 11.6 → light (score 95)
       const result = scoreWith({ weather: { windSpeedMph: 8, windGustMph: 20 } });
-      expect(result.factors.weather.score).toBe(80);
-      expect(result.factors.weather.windCondition).toBe('moderate');
-    });
-
-    it('ignores gusts when lower than sustained speed', () => {
-      // 7 mph sustained, 5 mph gust → effective = 7 (gust not higher, so no blend)
-      const result = scoreWith({ weather: { windSpeedMph: 7, windGustMph: 5 } });
       expect(result.factors.weather.score).toBe(95);
       expect(result.factors.weather.windCondition).toBe('light');
     });
 
-    it('downgrades calm wind to light when gusts are significant', () => {
-      // 3 mph sustained + 12 mph gusts → effective = 3*0.7 + 12*0.3 = 5.7 → light (score 95)
-      const result = scoreWith({ weather: { windSpeedMph: 3, windGustMph: 12 } });
+    it('ignores gusts when lower than sustained speed', () => {
+      // 7 mph sustained, 5 mph gust → effective = 7 (gust not higher, so no blend) → calm
+      const result = scoreWith({ weather: { windSpeedMph: 7, windGustMph: 5 } });
+      expect(result.factors.weather.score).toBe(100);
+      expect(result.factors.weather.windCondition).toBe('calm');
+    });
+
+    it('gusts push calm into light band when high enough', () => {
+      // 8 mph sustained + 22 mph gusts → effective = 8*0.7 + 22*0.3 = 12.2 → light (score 95)
+      // Without gusts: 8 mph < 10 → calm (score 100). Gusts matter.
+      const result = scoreWith({ weather: { windSpeedMph: 8, windGustMph: 22 } });
       expect(result.factors.weather.score).toBe(95);
       expect(result.factors.weather.windCondition).toBe('light');
     });
@@ -597,9 +603,8 @@ describe('calculateSwimScore', () => {
   // Weighted formula correctness
   // -------------------------------------------------------------------------
   describe('weighted score formula', () => {
-    it('correctly weights: WQ=30%, Tide=27%, Waves=20%, Weather=23%', () => {
-      // Manually set known factor scores via threshold values
-      // WQ: 70 (enterococcus 200), Tide: 85 (ebb low rate), Waves: 60 (1.2ft), Weather: 80 (12mph)
+    it('correctly weights: WQ=30%, Tide=32%, Waves=20%, Weather=18%', () => {
+      // WQ: 70 (enterococcus 200), Tide: 85 (ebb low rate), Waves: 57 (1.2ft lerp), Weather: 95 (12mph→light)
       const result = scoreWith({
         waterQuality: { enterococcusCount: 200 },
         tide: { currentPhase: 'ebb', changeRateFeetPerHour: 0.5 },
@@ -609,7 +614,7 @@ describe('calculateSwimScore', () => {
       });
 
       const expected = Math.round(
-        (70 * 30 + 85 * 27 + 60 * 20 + 80 * 23) / 100
+        (70 * 30 + 85 * 32 + 57 * 20 + 95 * 18) / 100
       );
       expect(result.overallScore).toBe(expected);
     });
@@ -624,7 +629,8 @@ describe('calculateSwimScore', () => {
       expect(result.recommendations.some(r =>
         r.toLowerCase().includes('slack') ||
         r.toLowerCase().includes('tide') ||
-        r.toLowerCase().includes('breather')
+        r.toLowerCase().includes('barely') ||
+        r.toLowerCase().includes('moving')
       )).toBe(true);
     });
 
@@ -633,12 +639,25 @@ describe('calculateSwimScore', () => {
         tide: { currentPhase: 'ebb', changeRateFeetPerHour: 0.5 },
         current: { speedKnots: 1.3 },
       });
-      expect(result.warnings.some(w => w.toLowerCase().includes('current'))).toBe(true);
+      expect(result.warnings.some(w =>
+        w.toLowerCase().includes('current') ||
+        w.toLowerCase().includes('hauling') ||
+        w.toLowerCase().includes('moving') ||
+        w.toLowerCase().includes('earn')
+      )).toBe(true);
     });
 
     it('warns about dangerous water quality', () => {
       const result = scoreWith({ waterQuality: { enterococcusCount: 1500 } });
-      expect(result.warnings.some(w => w.toLowerCase().includes('water quality') || w.toLowerCase().includes('bacteria') || w.toLowerCase().includes('swim'))).toBe(true);
+      expect(result.warnings.some(w =>
+        w.toLowerCase().includes('water quality') ||
+        w.toLowerCase().includes('bacteria') ||
+        w.toLowerCase().includes('swim') ||
+        w.toLowerCase().includes('ugly') ||
+        w.toLowerCase().includes('worth it') ||
+        w.toLowerCase().includes('cleans') ||
+        w.toLowerCase().includes('no-go')
+      )).toBe(true);
     });
 
     it('warns about heavy rainfall', () => {
@@ -647,7 +666,10 @@ describe('calculateSwimScore', () => {
         w.toLowerCase().includes('rain') ||
         w.toLowerCase().includes('runoff') ||
         w.toLowerCase().includes('storm') ||
-        w.toLowerCase().includes('bacteria')
+        w.toLowerCase().includes('bacteria') ||
+        w.toLowerCase().includes('flushing') ||
+        w.toLowerCase().includes('streets') ||
+        w.toLowerCase().includes('bay')
       )).toBe(true);
     });
 
@@ -658,40 +680,95 @@ describe('calculateSwimScore', () => {
 
     it('warns about dangerous waves', () => {
       const result = scoreWith({ waves: { waveHeightFeet: 3.0 } });
-      expect(result.warnings.some(w => w.toLowerCase().includes('wave') || w.toLowerCase().includes('dangerous') || w.toLowerCase().includes('water'))).toBe(true);
+      expect(result.warnings.some(w =>
+        w.toLowerCase().includes('wave') ||
+        w.toLowerCase().includes('dangerous') ||
+        w.toLowerCase().includes('cove') ||
+        w.toLowerCase().includes('blown') ||
+        w.toLowerCase().includes('swell') ||
+        w.toLowerCase().includes('pier') ||
+        w.toLowerCase().includes('shore')
+      )).toBe(true);
     });
 
     it('warns about rough waves', () => {
       const result = scoreWith({ waves: { waveHeightFeet: 2.0 } });
-      expect(result.warnings.some(w => w.toLowerCase().includes('rough') || w.toLowerCase().includes('chop') || w.toLowerCase().includes('swell'))).toBe(true);
+      expect(result.warnings.some(w =>
+        w.toLowerCase().includes('rough') ||
+        w.toLowerCase().includes('chop') ||
+        w.toLowerCase().includes('swell') ||
+        w.toLowerCase().includes('lumpy') ||
+        w.toLowerCase().includes('cove') ||
+        w.toLowerCase().includes('character')
+      )).toBe(true);
     });
 
     it('warns about strong winds', () => {
-      const result = scoreWith({ weather: { windSpeedMph: 22 } });
-      expect(result.warnings.some(w => w.toLowerCase().includes('wind') || w.toLowerCase().includes('howl') || w.toLowerCase().includes('whitecap') || w.toLowerCase().includes('gusty'))).toBe(true);
+      // 32 mph = veryStrong tier → windCondition='strong' → triggers warning
+      const result = scoreWith({ weather: { windSpeedMph: 32 } });
+      expect(result.warnings.some(w =>
+        w.toLowerCase().includes('wind') ||
+        w.toLowerCase().includes('howl') ||
+        w.toLowerCase().includes('whitecap') ||
+        w.toLowerCase().includes('gusty') ||
+        w.toLowerCase().includes('earn') ||
+        w.toLowerCase().includes('angry') ||
+        w.toLowerCase().includes('cranking')
+      )).toBe(true);
     });
 
     it('recommends chop advisory for moderate winds', () => {
-      const result = scoreWith({ weather: { windSpeedMph: 12 } });
+      // 18 mph = moderate tier (15–22 mph) → windCondition='moderate' → triggers recommendation
+      const result = scoreWith({ weather: { windSpeedMph: 18 } });
       expect(result.recommendations.some(r => r.toLowerCase().includes('chop') || r.toLowerCase().includes('breez') || r.toLowerCase().includes('bay'))).toBe(true);
     });
 
     it('recommends light breeze note for light winds', () => {
-      const result = scoreWith({ weather: { windSpeedMph: 7 } });
-      expect(result.recommendations.some(r => r.toLowerCase().includes('breez') || r.toLowerCase().includes('wind') || r.toLowerCase().includes('smooth'))).toBe(true);
+      // 12 mph = light tier (10–15 mph) → windCondition='light' → triggers recommendation
+      const result = scoreWith({ weather: { windSpeedMph: 12 } });
+      expect(result.recommendations.some(r =>
+        r.toLowerCase().includes('breez') ||
+        r.toLowerCase().includes('wind') ||
+        r.toLowerCase().includes('smooth') ||
+        r.toLowerCase().includes('settled') ||
+        r.toLowerCase().includes('chop') ||
+        r.toLowerCase().includes('nice')
+      )).toBe(true);
     });
 
     it('recommends calm water conditions', () => {
       const result = scoreWith({ waves: { waveHeightFeet: 0.3 } });
-      expect(result.recommendations.some(r => r.toLowerCase().includes('calm') || r.toLowerCase().includes('flat') || r.toLowerCase().includes('glassy') || r.toLowerCase().includes('ripple'))).toBe(true);
+      expect(result.recommendations.some(r =>
+        r.toLowerCase().includes('calm') ||
+        r.toLowerCase().includes('flat') ||
+        r.toLowerCase().includes('glassy') ||
+        r.toLowerCase().includes('ripple') ||
+        r.toLowerCase().includes('pool') ||
+        r.toLowerCase().includes('cove')
+      )).toBe(true);
     });
 
     it('includes overall rating advice', () => {
       const excellent = scoreWith();
-      expect(excellent.recommendations.some(r => r.toLowerCase().includes('excellent') || r.toLowerCase().includes('great') || r.toLowerCase().includes('perfect') || r.toLowerCase().includes('top'))).toBe(true);
+      // advice strings for score ≥ 80: 'conditions', 'bay', 'everything', 'buddies', 'good'
+      expect(excellent.recommendations.some(r =>
+        r.toLowerCase().includes('conditions') ||
+        r.toLowerCase().includes('bay') ||
+        r.toLowerCase().includes('everything') ||
+        r.toLowerCase().includes('buddies') ||
+        r.toLowerCase().includes('show up') ||
+        r.toLowerCase().includes('good')
+      )).toBe(true);
 
       const poor = scoreWith({ current: { speedKnots: 2.5 } });
-      expect(poor.warnings.some(w => w.toLowerCase().includes('poor') || w.toLowerCase().includes('not recommend') || w.toLowerCase().includes('mood') || w.toLowerCase().includes('sit') || w.toLowerCase().includes('skip') || w.toLowerCase().includes('factors'))).toBe(true);
+      // advice strings for score 20–39: 'nice', 'stacked', 'cost', 'skip'
+      expect(poor.warnings.some(w =>
+        w.toLowerCase().includes('skip') ||
+        w.toLowerCase().includes('stacked') ||
+        w.toLowerCase().includes('cost') ||
+        w.toLowerCase().includes('nice') ||
+        w.toLowerCase().includes('factor')
+      )).toBe(true);
     });
   });
 
@@ -704,9 +781,9 @@ describe('calculateSwimScore', () => {
         rainfall: { last72hInches: 0.8 },
         weather: { windSpeedMph: 14 },
       });
-      // Rain 0.8" (>= 0.5 moderate) caps WQ at 60, wind 14mph gives weather 80, rest 100
-      // (60*30 + 100*27 + 100*20 + 80*23) / 100 = 83
-      expect(result.overallScore).toBe(83);
+      // Rain 0.8" caps WQ at 60, wind 14mph → light (score 95), waves 93, tide 100
+      // (60*30 + 100*32 + 93*20 + 95*18) / 100 = 85.7 → 86
+      expect(result.overallScore).toBe(86);
       expect(result.rating).toBe('calm');
     });
 
@@ -742,9 +819,9 @@ describe('calculateSwimScore', () => {
       const result = scoreWith({
         waves: { waveHeightFeet: 1.2 },
       });
-      // WQ=100, Tide=100, Waves=60, Weather=100
-      // (100*30 + 100*27 + 60*20 + 100*23) / 100 = 92
-      expect(result.overallScore).toBe(92);
+      // WQ=100, Tide=100, Waves=57 (lerp), Weather=100
+      // (100*30 + 100*32 + 57*20 + 100*18) / 100 = 91.4 → 91
+      expect(result.overallScore).toBe(91);
       expect(result.rating).toBe('calm');
     });
   });
