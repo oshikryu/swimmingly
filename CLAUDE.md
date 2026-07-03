@@ -269,16 +269,16 @@ The app supports dual deployment: a dynamic server with API routes AND a static 
    - Copies files from `.next/server/app/` to `out/`
    - Includes static assets and pre-fetched data
 
-### Automatic Updates (Integrated with Dev Server)
+### Automatic Updates (Opt-in alongside Dev Server)
 
-**New Approach**: The static site updater now runs **automatically alongside the dev server** using Node.js scheduler.
+**Default behavior**: `npm run dev` runs **only** the Next.js dev server. The static site scheduler is opt-in, not automatic.
 
-**How It Works**:
-- When you run `npm run dev`, two processes start:
-  1. Next.js dev server (port 3000)
+**How It Works** (when opted in via `dev:with-scheduler`):
+- Two processes start:
+  1. Next.js dev server (port 3333)
   2. Static site update scheduler (background)
 - Scheduler automatically updates GitHub Pages every 20 minutes
-- Both stop together when you Ctrl+C the dev server
+- Both stop together when you Ctrl+C
 
 **Setup**:
 ```bash
@@ -289,8 +289,8 @@ cp .env.example .env.local
 vim .env.local
 # Set: GITHUB_REPO="git@github.com:YOUR_USERNAME/swimmingly.git"
 
-# 3. Start dev server (scheduler starts automatically)
-npm run dev
+# 3. Start dev server with scheduler
+npm run dev:with-scheduler
 
 # You'll see both processes running:
 # [server]    ▲ Next.js 15.x.x
@@ -299,10 +299,11 @@ npm run dev
 
 **Available Commands**:
 ```bash
-npm run dev              # Run dev server + auto-updates (default)
-npm run dev:server       # Run ONLY dev server (no updates)
+npm run dev              # Run ONLY dev server (default, no updates)
+npm run dev:server       # Alias for dev
 npm run dev:scheduler    # Run ONLY scheduler (requires server running)
 npm run dev:no-updates   # Alias for dev:server
+npm run dev:with-scheduler # Run dev server + auto-updates together
 ```
 
 **Configuration** (via environment variables in `.env.local`):
@@ -364,8 +365,8 @@ RUN_IMMEDIATELY="false"                   # Run update on startup
 ### Deployment Workflow
 
 ```
-npm run dev
-    ├─ Next.js Dev Server (localhost:3000)
+npm run dev:with-scheduler
+    ├─ Next.js Dev Server (localhost:3333)
     └─ Node.js Scheduler (background)
            ↓ every 20 minutes
        Check API availability
@@ -407,7 +408,7 @@ npx serve out
 ### Troubleshooting
 
 **Issue**: Scheduler not starting with dev server
-- **Solution**: Make sure you're using `npm run dev` (not `npm run dev:server`)
+- **Solution**: The scheduler is opt-in now — use `npm run dev:with-scheduler` (plain `npm run dev` no longer starts it)
 - **Check**: Look for `[scheduler]` output in console
 
 **Issue**: Scheduler shows "API not available"
@@ -419,8 +420,7 @@ npx serve out
 - **Check**: Verify `GITHUB_REPO` in `.env.local` is correct
 
 **Issue**: Want to disable automatic updates during development
-- **Solution 1**: Run `npm run dev:no-updates` or `npm run dev:server`
-- **Solution 2**: Set `ENABLE_STATIC_UPDATES=false` in `.env.local`
+- **Solution**: Nothing to do — `npm run dev` no longer runs the scheduler by default. Only `npm run dev:with-scheduler` starts it.
 
 **Issue**: Want different update frequency
 - **Solution**: Change `STATIC_UPDATE_SCHEDULE` in `.env.local`

@@ -5,8 +5,8 @@ import type { CurrentConditions as CurrentConditionsType, TidePhasePreferences, 
 import { useTidePreference } from '@/hooks/useTidePreference';
 import { useScoreWeights } from '@/hooks/useScoreWeights';
 import { useConditionsCache } from '@/hooks/useConditionsCache';
-import { SAFETY_THRESHOLDS } from '@/config/thresholds';
-import { calculateSwimScore } from '@/lib/algorithms/swim-score';
+import { AQUATIC_PARK_LAT, AQUATIC_PARK_LON } from '@/config/aquatic-park';
+import { calculateSwimScore, mergeThresholds, type ThresholdsOverride } from '@/lib/algorithms/swim-score';
 import SwimScore from './SwimScore';
 import ConditionsCard, { type ThresholdSegment } from './ConditionsCard';
 import {
@@ -40,14 +40,46 @@ function degreesToCardinal(degrees: number): string {
   return directions[index];
 }
 
+export interface CurrentConditionsLocationConfig {
+  /** API path (or static JSON path in static mode is always /swimmingly/static-data.json) */
+  apiPath: string;
+  /** Distinguishes localStorage keys between locations, e.g. 'lajollacove' */
+  cacheKeyPrefix: string;
+  /** NOAA tide station ID, used for the outbound tide-predictions link */
+  tideStationId: string;
+  /** Outbound link for the water temperature source */
+  waterTempSourceUrl: string;
+  /** San Diego County sdbeachinfo site ID, used for the water quality outbound link (if applicable) */
+  sdBeachInfoSiteId?: string;
+  /** Swim Guide beach ID, used for the water quality outbound link (if applicable) */
+  swimGuideBeachId?: string;
+  /** Location coordinates, used to build location-specific outbound links (e.g. wind source) */
+  lat: number;
+  lon: number;
+  /** Per-location safety threshold overrides (e.g. wave heights calibrated to open coast vs. a sheltered bay) */
+  thresholdsOverride?: ThresholdsOverride;
+}
 
-export default function CurrentConditions() {
+const AQUATIC_PARK_LOCATION_CONFIG: CurrentConditionsLocationConfig = {
+  apiPath: '/api/conditions',
+  cacheKeyPrefix: '',
+  tideStationId: '9414290',
+  waterTempSourceUrl: 'https://seatemperature.info/aquatic-park-water-temperature.html',
+  lat: AQUATIC_PARK_LAT,
+  lon: AQUATIC_PARK_LON,
+};
+
+export default function CurrentConditions({
+  location = AQUATIC_PARK_LOCATION_CONFIG,
+}: {
+  location?: CurrentConditionsLocationConfig;
+}) {
   const [conditions, setConditions] = useState<CurrentConditionsType | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { preference, setPreference, isLoaded } = useTidePreference();
-  const { weights, setWeights, resetWeights, isCustom: isWeightsCustom } = useScoreWeights();
-  const { cachedData, setCachedData, isCacheValid } = useConditionsCache();
+  const { preference, setPreference, isLoaded } = useTidePreference(location.cacheKeyPrefix);
+  const { weights, setWeights, resetWeights, isCustom: isWeightsCustom } = useScoreWeights(location.cacheKeyPrefix);
+  const { cachedData, setCachedData, isCacheValid } = useConditionsCache(location.cacheKeyPrefix);
   // Store raw data for client-side recalculation
   const rawDataRef = useRef<RawConditionsData | null>(null);
   // Prevents the cache-init effect from re-firing after the first mount hydration
@@ -83,7 +115,8 @@ export default function CurrentConditions() {
       customWeights,
       rawData.rainfall ?? null,
       rawData.moonPhase ?? null,
-      rawData.waterTemperature ?? null
+      rawData.waterTemperature ?? null,
+      location.thresholdsOverride
     );
     return {
       ...rawData,
@@ -150,7 +183,7 @@ export default function CurrentConditions() {
             if (tidePreference) {
               params.append('tidePhasePreference', tidePreference);
             }
-            return `/api/conditions${params.toString() ? `?${params.toString()}` : ''}`;
+            return `${location.apiPath}${params.toString() ? `?${params.toString()}` : ''}`;
           })();
 
       const response = await fetch(url);
@@ -293,6 +326,7 @@ export default function CurrentConditions() {
 
   const { score, tide, current, weather, waves, waterQuality, rainfall, moonPhase } = conditions;
   const barometricPressureMb = waves?.barometricPressureMb ?? null;
+  const thresholds = mergeThresholds(location.thresholdsOverride);
 
   // Get values from score factors with safe defaults (ensures sync with score calculation)
   const waveHeight = score?.factors?.waves?.heightFeet ?? 0;
@@ -381,10 +415,10 @@ export default function CurrentConditions() {
             secondaryValue={`${currentSpeed >= 0 ? '+' : ''}${currentSpeed.toFixed(2)}`}
             secondaryUnit="kt"
             thresholds={[
-              { label: 'Slack', value: `<${SAFETY_THRESHOLDS.current.slack}kt`, status: 'good' },
-              { label: 'Moderate', value: `<${SAFETY_THRESHOLDS.current.moderate}kt`, status: 'info' },
-              { label: 'Strong', value: `<${SAFETY_THRESHOLDS.current.strong}kt`, status: 'warning' },
-              { label: 'Dangerous', value: `>${SAFETY_THRESHOLDS.current.veryStrong}kt`, status: 'danger' },
+              { label: 'Slack', value: `<${thresholds.current.slack}kt`, status: 'good' },
+              { label: 'Moderate', value: `<${thresholds.current.moderate}kt`, status: 'info' },
+              { label: 'Strong', value: `<${thresholds.current.strong}kt`, status: 'warning' },
+              { label: 'Dangerous', value: `>${thresholds.current.veryStrong}kt`, status: 'danger' },
             ] as ThresholdSegment[]}
             status={tideStatus}
             icon="🌊"
@@ -433,7 +467,7 @@ export default function CurrentConditions() {
                 : '',
               ...(score?.factors?.tideAndCurrent?.issues?.filter(issue => !issue.toLowerCase().includes('current')) ?? []),
               // Data source link
-              '🔗 https://tidesandcurrents.noaa.gov/noaatidepredictions.html?id=9414290',
+              `🔗 https://tidesandcurrents.noaa.gov/noaatidepredictions.html?id=${location.tideStationId}`,
             ].filter(Boolean)}
           />
 
@@ -442,10 +476,10 @@ export default function CurrentConditions() {
             value={waveHeight.toFixed(1)}
             unit="ft"
             thresholds={[
-              { label: 'Calm', value: `<${SAFETY_THRESHOLDS.waves.calm}ft`, status: 'good' },
-              { label: 'Safe', value: `<${SAFETY_THRESHOLDS.waves.safe}ft`, status: 'info' },
-              { label: 'Moderate', value: `<${SAFETY_THRESHOLDS.waves.moderate}ft`, status: 'warning' },
-              { label: 'Rough', value: `<${SAFETY_THRESHOLDS.waves.rough}ft`, status: 'danger' },
+              { label: 'Calm', value: `<${thresholds.waves.calm}ft`, status: 'good' },
+              { label: 'Safe', value: `<${thresholds.waves.safe}ft`, status: 'info' },
+              { label: 'Moderate', value: `<${thresholds.waves.moderate}ft`, status: 'warning' },
+              { label: 'Rough', value: `<${thresholds.waves.rough}ft`, status: 'danger' },
             ] as ThresholdSegment[]}
             status={waveStatus}
             icon="🌊"
@@ -456,8 +490,8 @@ export default function CurrentConditions() {
               ...(score?.factors?.waves?.issues ?? []),
               conditions.waves?.source?.toLowerCase().includes('openwaterlog')
                 ? '🔗 https://openwaterlog.com/locations/aquatic-park/'
-                : conditions.waves?.source?.includes('NOAA-NDBC Buoy')
-                ? `🔗 https://www.ndbc.noaa.gov/station_page.php?station=${conditions.waves.source.match(/\d{5}/)?.[0] || '46237'}`
+                : conditions.waves?.source?.match(/NOAA-NDBC Buoy\s+(\S+)/)
+                ? `🔗 https://www.ndbc.noaa.gov/station_page.php?station=${conditions.waves.source.match(/NOAA-NDBC Buoy\s+(\S+)/)![1]}`
                 : '',
             ].filter(Boolean)}
           />
@@ -467,10 +501,10 @@ export default function CurrentConditions() {
             value={windSpeed.toFixed(0)}
             unit="mph"
             thresholds={[
-              { label: 'Calm', value: `<${SAFETY_THRESHOLDS.wind.calm}mph`, status: 'good' },
-              { label: 'Light', value: `<${SAFETY_THRESHOLDS.wind.light}mph`, status: 'info' },
-              { label: 'Moderate', value: `<${SAFETY_THRESHOLDS.wind.moderate}mph`, status: 'warning' },
-              { label: 'Strong', value: `<${SAFETY_THRESHOLDS.wind.strong}mph`, status: 'danger' },
+              { label: 'Calm', value: `<${thresholds.wind.calm}mph`, status: 'good' },
+              { label: 'Light', value: `<${thresholds.wind.light}mph`, status: 'info' },
+              { label: 'Moderate', value: `<${thresholds.wind.moderate}mph`, status: 'warning' },
+              { label: 'Strong', value: `<${thresholds.wind.strong}mph`, status: 'danger' },
             ] as ThresholdSegment[]}
             status={weatherStatus}
             icon="💨"
@@ -480,9 +514,9 @@ export default function CurrentConditions() {
               `Air Temp: ${temperature.toFixed(0)}°F`,
               barometricPressureMb !== null
                 ? `Pressure: ${barometricPressureMb.toFixed(0)} mb${
-                    barometricPressureMb >= SAFETY_THRESHOLDS.barometricPressure.veryHigh ? ' (High — stable)' :
-                    barometricPressureMb >= SAFETY_THRESHOLDS.barometricPressure.standard ? ' (Normal)' :
-                    barometricPressureMb >= SAFETY_THRESHOLDS.barometricPressure.low ? ' (Low — watch conditions)' :
+                    barometricPressureMb >= thresholds.barometricPressure.veryHigh ? ' (High — stable)' :
+                    barometricPressureMb >= thresholds.barometricPressure.standard ? ' (Normal)' :
+                    barometricPressureMb >= thresholds.barometricPressure.low ? ' (Low — watch conditions)' :
                     ' (Very low — storm risk)'
                   }`
                 : '',
@@ -490,9 +524,9 @@ export default function CurrentConditions() {
               weather?.timestamp ? `Updated: ${new Date(weather.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} PST` : '',
               ...(score?.factors?.weather?.issues ?? []),
               isOpenMeteoWind
-                ? '🔗 https://open-meteo.com/'
+                ? `🔗 https://open-meteo.com/en/docs?latitude=${location.lat}&longitude=${location.lon}`
                 : windSource?.includes('NOAA')
-                ? '🔗 https://www.weather.gov/'
+                ? `🔗 https://forecast.weather.gov/MapClick.php?lat=${location.lat}&lon=${location.lon}`
                 : '',
             ].filter(Boolean)}
           />
@@ -503,39 +537,39 @@ export default function CurrentConditions() {
             thresholds={[
               ...(waterQuality?.enterococcusCount !== undefined ? [{
                 label: 'Entero',
-                value: `${waterQuality.enterococcusCount.toFixed(0)}/${SAFETY_THRESHOLDS.waterQuality.enterococcus.safe}`,
-                status: (waterQuality.enterococcusCount > SAFETY_THRESHOLDS.waterQuality.enterococcus.dangerous ? 'danger'
-                  : waterQuality.enterococcusCount > SAFETY_THRESHOLDS.waterQuality.enterococcus.safe ? 'warning' : 'good') as ThresholdSegment['status'],
+                value: `${waterQuality.enterococcusCount.toFixed(0)}/${thresholds.waterQuality.enterococcus.safe}`,
+                status: (waterQuality.enterococcusCount > thresholds.waterQuality.enterococcus.dangerous ? 'danger'
+                  : waterQuality.enterococcusCount > thresholds.waterQuality.enterococcus.safe ? 'warning' : 'good') as ThresholdSegment['status'],
               }] : []),
               ...(waterQuality?.eColiCount !== undefined ? [{
                 label: 'E.coli',
-                value: `${waterQuality.eColiCount.toFixed(0)}/${SAFETY_THRESHOLDS.waterQuality.eColi.safe}`,
-                status: (waterQuality.eColiCount > SAFETY_THRESHOLDS.waterQuality.eColi.dangerous ? 'danger'
-                  : waterQuality.eColiCount > SAFETY_THRESHOLDS.waterQuality.eColi.safe ? 'warning' : 'good') as ThresholdSegment['status'],
+                value: `${waterQuality.eColiCount.toFixed(0)}/${thresholds.waterQuality.eColi.safe}`,
+                status: (waterQuality.eColiCount > thresholds.waterQuality.eColi.dangerous ? 'danger'
+                  : waterQuality.eColiCount > thresholds.waterQuality.eColi.safe ? 'warning' : 'good') as ThresholdSegment['status'],
               }] : []),
               ...(waterQuality?.coliformCount !== undefined ? [{
                 label: 'Coliform',
-                value: `${waterQuality.coliformCount >= 1000 ? Math.round(waterQuality.coliformCount / 1000) + 'k' : waterQuality.coliformCount.toFixed(0)}/${SAFETY_THRESHOLDS.waterQuality.coliform.safe / 1000}k`,
-                status: (waterQuality.coliformCount > SAFETY_THRESHOLDS.waterQuality.coliform.dangerous ? 'danger'
-                  : waterQuality.coliformCount > SAFETY_THRESHOLDS.waterQuality.coliform.safe ? 'warning' : 'good') as ThresholdSegment['status'],
+                value: `${waterQuality.coliformCount >= 1000 ? Math.round(waterQuality.coliformCount / 1000) + 'k' : waterQuality.coliformCount.toFixed(0)}/${thresholds.waterQuality.coliform.safe / 1000}k`,
+                status: (waterQuality.coliformCount > thresholds.waterQuality.coliform.dangerous ? 'danger'
+                  : waterQuality.coliformCount > thresholds.waterQuality.coliform.safe ? 'warning' : 'good') as ThresholdSegment['status'],
               }] : []),
             ] as ThresholdSegment[]}
             status={waterQualityStatus}
             icon="💧"
             details={[
               waterQuality?.enterococcusCount !== undefined
-                ? `Enterococcus: ${waterQuality.enterococcusCount.toFixed(0)} MPN/100ml (limit: ${SAFETY_THRESHOLDS.waterQuality.enterococcus.safe})`
+                ? `Enterococcus: ${waterQuality.enterococcusCount.toFixed(0)} MPN/100ml (limit: ${thresholds.waterQuality.enterococcus.safe})`
                 : '',
               waterQuality?.eColiCount !== undefined
-                ? `E.coli: ${waterQuality.eColiCount.toFixed(0)} MPN/100ml (limit: ${SAFETY_THRESHOLDS.waterQuality.eColi.safe})`
+                ? `E.coli: ${waterQuality.eColiCount.toFixed(0)} MPN/100ml (limit: ${thresholds.waterQuality.eColi.safe})`
                 : '',
               waterQuality?.coliformCount !== undefined
-                ? `Total Coliform: ${waterQuality.coliformCount.toLocaleString()} MPN/100ml (limit: ${SAFETY_THRESHOLDS.waterQuality.coliform.safe.toLocaleString()})`
+                ? `Total Coliform: ${waterQuality.coliformCount.toLocaleString()} MPN/100ml (limit: ${thresholds.waterQuality.coliform.safe.toLocaleString()})`
                 : '',
               conditions?.waterTemperature
                 ? (() => {
                     const t = conditions.waterTemperature.temperatureF;
-                    const wt = SAFETY_THRESHOLDS.waterTemp;
+                    const wt = thresholds.waterTemp;
                     const label = t < wt.cold ? ' — very cold' : t < wt.cool ? ' — cold' : t < wt.moderate ? ' — cool' : t >= wt.comfortable ? ' — comfortable' : '';
                     return `Water Temp: ${t.toFixed(1)}°F${label}`;
                   })()
@@ -543,16 +577,16 @@ export default function CurrentConditions() {
               score?.factors?.waterQuality?.recentSSO
                 ? `SSO ${score?.factors?.waterQuality?.daysSinceSSO ?? '?'} days ago`
                 : '',
-              rainfall?.last72hInches !== undefined && rainfall.last72hInches >= SAFETY_THRESHOLDS.rainfall.moderate
+              rainfall?.last72hInches !== undefined && rainfall.last72hInches >= thresholds.rainfall.moderate
                 ? `🌧️ Recent rainfall: ${rainfall.last72hInches.toFixed(1)}" (72h) — runoff may affect water quality`
                 : rainfall?.last72hInches !== undefined && rainfall.last72hInches > 0
                 ? `🌧️ Recent rainfall: ${rainfall.last72hInches.toFixed(2)}" (72h)`
                 : rainfall?.last72hInches !== undefined
                 ? '☀️ No recent rainfall — good water clarity expected'
                 : '',
-              rainfall?.last48hInches !== undefined && rainfall.last48hInches >= SAFETY_THRESHOLDS.rainfall.heavy
+              rainfall?.last48hInches !== undefined && rainfall.last48hInches >= thresholds.rainfall.heavy
                 ? '👁️ Water clarity: Poor (heavy rain runoff)'
-                : rainfall?.last48hInches !== undefined && rainfall.last48hInches >= SAFETY_THRESHOLDS.rainfall.moderate
+                : rainfall?.last48hInches !== undefined && rainfall.last48hInches >= thresholds.rainfall.moderate
                 ? '👁️ Water clarity: Reduced (rain runoff)'
                 : rainfall?.last48hInches !== undefined
                 ? '👁️ Water clarity: Clear'
@@ -566,11 +600,15 @@ export default function CurrentConditions() {
                 ? '🔗 https://data.sfgov.org/Energy-and-Environment/Beach-Water-Quality-Monitoring/v3fv-x3ux'
                 : waterQuality?.source?.includes('California Water Quality')
                 ? '🔗 https://data.ca.gov/dataset/surface-water-fecal-indicator-bacteria-results/resource/15a63495-8d9f-4a49-b43a-3092ef3106b9'
+                : waterQuality?.source?.includes('Swim Guide')
+                ? `🔗 https://www.theswimguide.org/beach/${location.swimGuideBeachId ?? ''}`
+                : waterQuality?.source?.includes('San Diego County')
+                ? `🔗 https://cosdapps.sandiegocounty.gov/sdbeachinfo/SamplesReport?SiteId=${location.sdBeachInfoSiteId ?? ''}`
                 : waterQuality?.source?.includes('Water Quality Portal')
                 ? '🔗 https://www.waterqualitydata.us/'
                 : '',
               conditions?.waterTemperature
-                ? '🔗 https://seatemperature.info/aquatic-park-water-temperature.html'
+                ? `🔗 ${location.waterTempSourceUrl}`
                 : '',
             ].filter(Boolean)}
           />

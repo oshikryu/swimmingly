@@ -20,6 +20,35 @@ import type {
 } from '@/types/conditions';
 import { SAFETY_THRESHOLDS, SCORE_WEIGHTS, SCORE_RANGES } from '@/config/thresholds';
 
+type SafetyThresholds = typeof SAFETY_THRESHOLDS;
+
+// SAFETY_THRESHOLDS is `as const`, so its leaf values are number literal types
+// (e.g. `0.5`, not `number`) — widen them so overrides can use any numeric value.
+type Widen<T> = { [K in keyof T]: T[K] extends number ? number : T[K] extends object ? Widen<T[K]> : T[K] };
+
+/**
+ * Per-location threshold overrides — each category can replace any subset of its
+ * own values (e.g. `{ waves: { calm: 1.5, safe: 2.5 } }`). Omitted categories/keys
+ * fall back to the shared SAFETY_THRESHOLDS defaults.
+ */
+export type ThresholdsOverride = {
+  [K in keyof SafetyThresholds]?: Partial<Widen<SafetyThresholds[K]>>;
+};
+
+/**
+ * Merge a location's threshold overrides onto the shared defaults. With no
+ * overrides, returns SAFETY_THRESHOLDS unchanged (Aquatic Park's existing behavior).
+ */
+export function mergeThresholds(overrides?: ThresholdsOverride): SafetyThresholds {
+  if (!overrides) return SAFETY_THRESHOLDS;
+  const result: Record<string, unknown> = {};
+  for (const key of Object.keys(SAFETY_THRESHOLDS) as (keyof SafetyThresholds)[]) {
+    const override = overrides[key];
+    result[key] = override ? { ...SAFETY_THRESHOLDS[key], ...override } : SAFETY_THRESHOLDS[key];
+  }
+  return result as SafetyThresholds;
+}
+
 /**
  * Calculate the overall swim score from all environmental factors
  */
@@ -34,13 +63,16 @@ export function calculateSwimScore(
   customWeights?: ScoreWeights,
   rainfall?: RainfallData | null,
   moonPhase?: MoonPhaseData | null,
-  waterTemp?: WaterTemperature | null
+  waterTemp?: WaterTemperature | null,
+  customThresholds?: ThresholdsOverride
 ): SwimScore {
+  const thresholds = mergeThresholds(customThresholds);
+
   // Calculate individual factor scores
-  const waterQualityFactor = scoreWaterQuality(waterQuality, recentSSOs, rainfall, waterTemp?.temperatureF);
-  const tideCurrentFactor = scoreTideAndCurrent(tide, current, customTidePreferences, moonPhase);
-  const waveFactor = scoreWaves(waves);
-  const weatherFactor = scoreWeather(weather, waves?.barometricPressureMb, waterTemp?.temperatureF);
+  const waterQualityFactor = scoreWaterQuality(waterQuality, recentSSOs, rainfall, waterTemp?.temperatureF, thresholds);
+  const tideCurrentFactor = scoreTideAndCurrent(tide, current, customTidePreferences, moonPhase, thresholds);
+  const waveFactor = scoreWaves(waves, thresholds);
+  const weatherFactor = scoreWeather(weather, waves?.barometricPressureMb, waterTemp?.temperatureF, thresholds);
 
   // Calculate weighted overall score
   const weights = customWeights || SCORE_WEIGHTS;
@@ -58,11 +90,11 @@ export function calculateSwimScore(
   const currentSpeed = tideCurrentFactor.currentSpeed;
 
   // Very strong current (>2.0 knots) caps score at 39 (Poor)
-  if (currentSpeed >= SAFETY_THRESHOLDS.current.veryStrong) {
+  if (currentSpeed >= thresholds.current.veryStrong) {
     overallScore = Math.min(overallScore, 39);
   }
   // Strong current (>1.5 knots) caps score at 59 (Fair)
-  else if (currentSpeed >= SAFETY_THRESHOLDS.current.strong) {
+  else if (currentSpeed >= thresholds.current.strong) {
     overallScore = Math.min(overallScore, 59);
   }
 
@@ -92,7 +124,7 @@ export function calculateSwimScore(
   };
 
   // Generate recommendations and warnings
-  const { recommendations, warnings } = generateAdvice(factors, overallScore);
+  const { recommendations, warnings } = generateAdvice(factors, overallScore, thresholds);
 
   return {
     timestamp: new Date(),
@@ -110,8 +142,9 @@ export function calculateSwimScore(
 function scoreWaterQuality(
   waterQuality: WaterQuality,
   recentSSOs: SSOEvent[],
-  rainfall?: RainfallData | null,
-  waterTempF?: number
+  rainfall: RainfallData | null | undefined,
+  waterTempF: number | undefined,
+  thresholds: SafetyThresholds
 ): SwimScoreFactors['waterQuality'] {
   let score = 100;
   const issues: string[] = [];
@@ -126,19 +159,19 @@ function scoreWaterQuality(
     issues.push('No water quality data available');
   } else if (waterQuality.enterococcusCount !== undefined) {
     const count = waterQuality.enterococcusCount;
-    const thresholds = SAFETY_THRESHOLDS.waterQuality.enterococcus;
+    const enterococcusThresholds = thresholds.waterQuality.enterococcus;
 
-    if (count > thresholds.dangerous) {
+    if (count > enterococcusThresholds.dangerous) {
       score = 0;
       bacteriaLevel = 'dangerous';
       status = 'dangerous';
       issues.push(`Dangerous bacteria levels (${count} MPN/100ml)`);
-    } else if (count > thresholds.advisory) {
+    } else if (count > enterococcusThresholds.advisory) {
       score = 30;
       bacteriaLevel = 'high';
       status = 'warning';
       issues.push(`High bacteria levels (${count} MPN/100ml)`);
-    } else if (count > thresholds.safe) {
+    } else if (count > enterococcusThresholds.safe) {
       score = 70;
       bacteriaLevel = 'moderate';
       status = 'advisory';
@@ -174,7 +207,7 @@ function scoreWaterQuality(
   const recentSSO = (recentSSOs ?? []).find(sso => {
     if (!sso?.reportedAt) return false;
     const daysSince = (Date.now() - sso.reportedAt.getTime()) / (1000 * 60 * 60 * 24);
-    return daysSince < SAFETY_THRESHOLDS.sso.cautionDays;
+    return daysSince < thresholds.sso.cautionDays;
   });
 
   if (activeSSOs.length > 0) {
@@ -195,15 +228,15 @@ function scoreWaterQuality(
   // too aggressive for an indirect proxy indicator without confirmed bacteria data.
   if (rainfall) {
     const rain72h = rainfall.last72hInches;
-    const thresholds = SAFETY_THRESHOLDS.rainfall;
+    const rainfallThresholds = thresholds.rainfall;
 
-    if (rain72h >= thresholds.extreme) {
+    if (rain72h >= rainfallThresholds.extreme) {
       score = Math.min(score, 15);
       issues.push(`Heavy rainfall (${rain72h.toFixed(1)}" in 72h) — expect dangerous runoff`);
-    } else if (rain72h >= thresholds.heavy) {
+    } else if (rain72h >= rainfallThresholds.heavy) {
       score = Math.min(score, 35);
       issues.push(`Significant rainfall (${rain72h.toFixed(1)}" in 72h) — elevated bacteria likely`);
-    } else if (rain72h >= thresholds.moderate) {
+    } else if (rain72h >= rainfallThresholds.moderate) {
       score = Math.min(score, 60);
       issues.push(`Moderate rainfall (${rain72h.toFixed(1)}" in 72h) — bacteria levels may be elevated`);
     }
@@ -212,7 +245,7 @@ function scoreWaterQuality(
 
   // Water temperature — cold water is a direct safety risk (cold shock, hypothermia)
   if (waterTempF !== undefined) {
-    const wt = SAFETY_THRESHOLDS.waterTemp;
+    const wt = thresholds.waterTemp;
 
     if (waterTempF < wt.cold) {
       score = Math.max(0, score - 15);
@@ -246,8 +279,9 @@ function scoreWaterQuality(
 function scoreTideAndCurrent(
   tide: TidePrediction,
   current: CurrentData | null,
-  customTidePreferences?: TidePhasePreferences,
-  moonPhase?: MoonPhaseData | null
+  customTidePreferences: TidePhasePreferences | undefined,
+  moonPhase: MoonPhaseData | null | undefined,
+  thresholds: SafetyThresholds
 ): SwimScoreFactors['tideAndCurrent'] {
   let score = 100;
   const issues: string[] = [];
@@ -262,14 +296,14 @@ function scoreTideAndCurrent(
     issues.push('No tide data available');
   } else {
     // Score based on tide phase using custom or default preferences
-    const preferences = customTidePreferences || SAFETY_THRESHOLDS.tide.phasePreference;
+    const preferences = customTidePreferences || thresholds.tide.phasePreference;
     const basePhaseScore = preferences[phase];
 
     // Adjust score based on actual tide change rate
-    if (Math.abs(changeRate) < SAFETY_THRESHOLDS.tide.lowCurrent) {
+    if (Math.abs(changeRate) < thresholds.tide.lowCurrent) {
       // Low current - use full phase preference score
       score = basePhaseScore;
-    } else if (Math.abs(changeRate) < SAFETY_THRESHOLDS.tide.moderateCurrent) {
+    } else if (Math.abs(changeRate) < thresholds.tide.moderateCurrent) {
       // Moderate current - reduce score
       score = Math.min(basePhaseScore * 0.7, 70);
       issues.push(`Moderate tide movement (${phase})`);
@@ -280,13 +314,13 @@ function scoreTideAndCurrent(
     }
 
     // Factor in current speed
-    if (currentSpeed > SAFETY_THRESHOLDS.current.veryStrong) {
+    if (currentSpeed > thresholds.current.veryStrong) {
       score = Math.min(score, 20);
       issues.push(`Very strong current (${currentSpeed.toFixed(1)} knots)`);
-    } else if (currentSpeed > SAFETY_THRESHOLDS.current.strong) {
+    } else if (currentSpeed > thresholds.current.strong) {
       score = Math.min(score, 40);
       issues.push(`Strong current (${currentSpeed.toFixed(1)} knots)`);
-    } else if (currentSpeed > SAFETY_THRESHOLDS.current.moderate) {
+    } else if (currentSpeed > thresholds.current.moderate) {
       score = Math.min(score, 65);
       issues.push(`Moderate current (${currentSpeed.toFixed(1)} knots)`);
     }
@@ -302,7 +336,7 @@ function scoreTideAndCurrent(
     }
   }
 
-  const favorable = phase === 'slack' || currentSpeed < SAFETY_THRESHOLDS.current.slow;
+  const favorable = phase === 'slack' || currentSpeed < thresholds.current.slow;
 
   return {
     score,
@@ -323,7 +357,7 @@ function lerpScore(value: number, x0: number, x1: number, y0: number, y1: number
 /**
  * Score wave conditions (20% weight)
  */
-function scoreWaves(waves: WaveData): SwimScoreFactors['waves'] {
+function scoreWaves(waves: WaveData, thresholds: SafetyThresholds): SwimScoreFactors['waves'] {
   let score = 100;
   const issues: string[] = [];
   let status: 'calm' | 'moderate' | 'rough' | 'dangerous' = 'calm';
@@ -334,22 +368,22 @@ function scoreWaves(waves: WaveData): SwimScoreFactors['waves'] {
     score = 50;
     status = 'moderate';
     issues.push('No wave data available');
-  } else if (height < SAFETY_THRESHOLDS.waves.calm) {
+  } else if (height < thresholds.waves.calm) {
     // 0–0.5 ft: glassy to light ripple, 100→88
-    score = lerpScore(height, 0, SAFETY_THRESHOLDS.waves.calm, 100, 88);
+    score = lerpScore(height, 0, thresholds.waves.calm, 100, 88);
     status = 'calm';
-  } else if (height < SAFETY_THRESHOLDS.waves.safe) {
+  } else if (height < thresholds.waves.safe) {
     // 0.5–1.0 ft: light chop, 88→68
-    score = lerpScore(height, SAFETY_THRESHOLDS.waves.calm, SAFETY_THRESHOLDS.waves.safe, 88, 68);
+    score = lerpScore(height, thresholds.waves.calm, thresholds.waves.safe, 88, 68);
     status = 'calm';
-  } else if (height < SAFETY_THRESHOLDS.waves.moderate) {
+  } else if (height < thresholds.waves.moderate) {
     // 1.0–1.5 ft: noticeable chop, 68→40
-    score = lerpScore(height, SAFETY_THRESHOLDS.waves.safe, SAFETY_THRESHOLDS.waves.moderate, 68, 40);
+    score = lerpScore(height, thresholds.waves.safe, thresholds.waves.moderate, 68, 40);
     status = 'moderate';
     issues.push(`Moderate waves (${height.toFixed(1)} ft)`);
-  } else if (height < SAFETY_THRESHOLDS.waves.rough) {
+  } else if (height < thresholds.waves.rough) {
     // 1.5–2.5 ft: rough, 40→12
-    score = lerpScore(height, SAFETY_THRESHOLDS.waves.moderate, SAFETY_THRESHOLDS.waves.rough, 40, 12);
+    score = lerpScore(height, thresholds.waves.moderate, thresholds.waves.rough, 40, 12);
     status = 'rough';
     issues.push(`Rough waves (${height.toFixed(1)} ft)`);
   } else {
@@ -369,7 +403,7 @@ function scoreWaves(waves: WaveData): SwimScoreFactors['waves'] {
 /**
  * Score weather conditions (18% weight)
  */
-function scoreWeather(weather: WeatherData, barometricPressureMb?: number, waterTempF?: number): SwimScoreFactors['weather'] {
+function scoreWeather(weather: WeatherData, barometricPressureMb: number | undefined, waterTempF: number | undefined, thresholds: SafetyThresholds): SwimScoreFactors['weather'] {
   let score = 100;
   const issues: string[] = [];
   let windCondition: 'calm' | 'light' | 'moderate' | 'strong' = 'calm';
@@ -388,19 +422,19 @@ function scoreWeather(weather: WeatherData, barometricPressureMb?: number, water
     score = 50;
     windCondition = 'moderate';
     issues.push('No wind data available');
-  } else if (effectiveWind < SAFETY_THRESHOLDS.wind.calm) {
+  } else if (effectiveWind < thresholds.wind.calm) {
     windCondition = 'calm';
-  } else if (effectiveWind < SAFETY_THRESHOLDS.wind.light) {
+  } else if (effectiveWind < thresholds.wind.light) {
     score = 95;
     windCondition = 'light';
-  } else if (effectiveWind < SAFETY_THRESHOLDS.wind.moderate) {
+  } else if (effectiveWind < thresholds.wind.moderate) {
     score = 82;
     windCondition = 'moderate';
-  } else if (effectiveWind < SAFETY_THRESHOLDS.wind.strong) {
+  } else if (effectiveWind < thresholds.wind.strong) {
     score = 62;
     windCondition = 'moderate';
     issues.push(`Moderate winds (${windSpeed.toFixed(0)} mph, gusts ${windGust.toFixed(0)} mph)`);
-  } else if (effectiveWind < SAFETY_THRESHOLDS.wind.veryStrong) {
+  } else if (effectiveWind < thresholds.wind.veryStrong) {
     score = 35;
     windCondition = 'strong';
     issues.push(`Strong winds (${windSpeed.toFixed(0)} mph, gusts ${windGust.toFixed(0)} mph)`);
@@ -418,19 +452,19 @@ function scoreWeather(weather: WeatherData, barometricPressureMb?: number, water
 
   // Barometric pressure modifier
   if (barometricPressureMb !== undefined) {
-    const thresholds = SAFETY_THRESHOLDS.barometricPressure;
+    const pressureThresholds = thresholds.barometricPressure;
     let pressureAdjustment = 0;
 
-    if (barometricPressureMb >= thresholds.veryHigh) {
+    if (barometricPressureMb >= pressureThresholds.veryHigh) {
       pressureAdjustment = 8;
-    } else if (barometricPressureMb >= thresholds.high) {
+    } else if (barometricPressureMb >= pressureThresholds.high) {
       pressureAdjustment = 5;
-    } else if (barometricPressureMb >= thresholds.standard) {
+    } else if (barometricPressureMb >= pressureThresholds.standard) {
       pressureAdjustment = 0; // neutral
-    } else if (barometricPressureMb >= thresholds.low) {
+    } else if (barometricPressureMb >= pressureThresholds.low) {
       pressureAdjustment = -5;
       issues.push(`Low pressure (${barometricPressureMb.toFixed(0)} mb) — possible deteriorating conditions`);
-    } else if (barometricPressureMb >= thresholds.veryLow) {
+    } else if (barometricPressureMb >= pressureThresholds.veryLow) {
       pressureAdjustment = -10;
       issues.push(`Very low pressure (${barometricPressureMb.toFixed(0)} mb) — storm risk`);
     } else {
@@ -472,7 +506,8 @@ function pick<T>(items: T[]): T {
  */
 function generateAdvice(
   factors: SwimScoreFactors,
-  overallScore: number
+  overallScore: number,
+  thresholds: SafetyThresholds
 ): { recommendations: string[]; warnings: string[] } {
   const recommendations: string[] = [];
   const warnings: string[] = [];
@@ -532,7 +567,7 @@ function generateAdvice(
       "Rough chop today — committed swimmers will manage",
       "Swell's up inside — not technical, just tiring",
     ]));
-  } else if (factors.waves.heightFeet < SAFETY_THRESHOLDS.waves.safe) {
+  } else if (factors.waves.heightFeet < thresholds.waves.safe) {
     recommendations.push(pick([
       'Glassy in the cove — days like this are why you do this',
       "Flat and clean — get in before it changes",
@@ -562,7 +597,7 @@ function generateAdvice(
 
   // Water temperature advisories
   if (factors.weather.waterTemperatureF !== undefined) {
-    const wt = SAFETY_THRESHOLDS.waterTemp;
+    const wt = thresholds.waterTemp;
     const wtF = factors.weather.waterTemperatureF;
     if (wtF < wt.cold) {
       warnings.push(pick([

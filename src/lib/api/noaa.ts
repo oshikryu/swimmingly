@@ -4,7 +4,7 @@
  */
 
 import { TIDE_STATION_ID, WAVE_BUOY_ID, AQUATIC_PARK_LAT, AQUATIC_PARK_LON, CURRENT_STATION_ID } from '@/config/aquatic-park';
-import type { TideData, TidePrediction, WeatherData, WaveData, CurrentData } from '@/types/conditions';
+import type { TideData, TidePrediction, WeatherData, WaveData, CurrentData, WaterTemperature } from '@/types/conditions';
 
 const NOAA_TIDES_BASE_URL = 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter';
 const NOAA_WEATHER_BASE_URL = 'https://api.weather.gov';
@@ -176,11 +176,14 @@ export async function fetchCurrents(
 /**
  * Fetch weather forecast from NOAA National Weather Service
  */
-export async function fetchWeatherForecast(): Promise<WeatherData[]> {
+export async function fetchWeatherForecast(
+  lat: number = AQUATIC_PARK_LAT,
+  lon: number = AQUATIC_PARK_LON
+): Promise<WeatherData[]> {
   try {
     // First, get the grid endpoint for our location
     const pointResponse = await fetch(
-      `${NOAA_WEATHER_BASE_URL}/points/${AQUATIC_PARK_LAT},${AQUATIC_PARK_LON}`,
+      `${NOAA_WEATHER_BASE_URL}/points/${lat},${lon}`,
       {
         headers: NWS_HEADERS,
         signal: AbortSignal.timeout(10000),
@@ -225,11 +228,14 @@ export async function fetchWeatherForecast(): Promise<WeatherData[]> {
 /**
  * Fetch current weather observations
  */
-export async function fetchCurrentWeather(): Promise<WeatherData | null> {
+export async function fetchCurrentWeather(
+  lat: number = AQUATIC_PARK_LAT,
+  lon: number = AQUATIC_PARK_LON
+): Promise<WeatherData | null> {
   try {
     // Get observations from the nearest station
     const pointResponse = await fetch(
-      `${NOAA_WEATHER_BASE_URL}/points/${AQUATIC_PARK_LAT},${AQUATIC_PARK_LON}`,
+      `${NOAA_WEATHER_BASE_URL}/points/${lat},${lon}`,
       {
         headers: NWS_HEADERS,
         signal: AbortSignal.timeout(10000),
@@ -353,8 +359,9 @@ export async function fetchWaveData(buoyId: string = WAVE_BUOY_ID): Promise<Wave
         continue;
       }
 
-      // NDBC uses 2-digit year (23 = 2023)
-      const fullYear = year < 50 ? 2000 + year : 1900 + year;
+      // NDBC realtime2 feeds now report a 4-digit year despite the "#YY" header label;
+      // handle both in case any station still sends a 2-digit year.
+      const fullYear = year >= 1000 ? year : (year < 50 ? 2000 + year : 1900 + year);
       const timestamp = new Date(Date.UTC(fullYear, month - 1, day, hour, minute));
 
       // Check if this line has valid wave height
@@ -394,17 +401,65 @@ export async function fetchWaveData(buoyId: string = WAVE_BUOY_ID): Promise<Wave
 }
 
 /**
+ * Fetch water temperature from a NOAA CO-OPS station's water_temperature product
+ * (only available at stations with a met/water-temp sensor, e.g. La Jolla 9410230)
+ */
+export async function fetchWaterTemperature(stationId: string): Promise<WaterTemperature | null> {
+  try {
+    const params = new URLSearchParams({
+      product: 'water_temperature',
+      application: 'Swimmingly',
+      date: 'latest',
+      station: stationId,
+      time_zone: 'gmt',
+      units: 'english',
+      format: 'json',
+    });
+
+    const response = await fetch(`${NOAA_TIDES_BASE_URL}?${params}`, {
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      console.error('NOAA water temperature HTTP error:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    const latest = data?.data?.[0];
+
+    if (!latest?.v) {
+      return null;
+    }
+
+    const temperatureF = parseFloat(latest.v);
+    if (isNaN(temperatureF)) {
+      return null;
+    }
+
+    return {
+      timestamp: new Date(latest.t + 'Z'),
+      temperatureF,
+      source: `NOAA-CO-OPS Station ${stationId}`,
+    };
+  } catch (error) {
+    console.error('Error fetching NOAA water temperature:', error);
+    return null;
+  }
+}
+
+/**
  * Calculate tide prediction with phase information
  */
-export async function fetchCurrentTidePrediction(): Promise<TidePrediction | null> {
+export async function fetchCurrentTidePrediction(stationId: string = TIDE_STATION_ID): Promise<TidePrediction | null> {
   try {
     const now = new Date();
     const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
     const [currentTide, predictions] = await Promise.all([
-      fetchCurrentTide(),
-      fetchTidePredictions(yesterday, tomorrow),
+      fetchCurrentTide(stationId),
+      fetchTidePredictions(yesterday, tomorrow, stationId),
     ]);
 
     if (!currentTide || !predictions || predictions.length === 0) {

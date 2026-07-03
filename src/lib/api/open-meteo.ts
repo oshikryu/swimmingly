@@ -1,6 +1,6 @@
 /**
  * Open-Meteo API Client
- * Provides real-time wind data for Aquatic Park
+ * Provides real-time wind data for any location (defaults to Aquatic Park)
  *
  * API Docs: https://open-meteo.com/en/docs
  * No API key required - completely free for non-commercial use
@@ -28,10 +28,14 @@ export interface OpenMeteoWindData {
  *
  * @returns Wind data or null if fetch fails
  */
-export async function fetchWindData(retries: number = 2): Promise<OpenMeteoWindData | null> {
+export async function fetchWindData(
+  retries: number = 2,
+  lat: number = AQUATIC_PARK_LAT,
+  lon: number = AQUATIC_PARK_LON
+): Promise<OpenMeteoWindData | null> {
   const params = new URLSearchParams({
-    latitude: String(AQUATIC_PARK_LAT),
-    longitude: String(AQUATIC_PARK_LON),
+    latitude: String(lat),
+    longitude: String(lon),
     current: 'wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m,weather_code',
     wind_speed_unit: 'mph',
     temperature_unit: 'fahrenheit',
@@ -99,11 +103,15 @@ export async function fetchWindData(retries: number = 2): Promise<OpenMeteoWindD
  * @param hours Number of hours to forecast (max 168 = 7 days)
  * @returns Array of hourly wind forecasts or null if fetch fails
  */
-export async function fetchWindForecast(hours: number = 48): Promise<OpenMeteoWindData[] | null> {
+export async function fetchWindForecast(
+  hours: number = 48,
+  lat: number = AQUATIC_PARK_LAT,
+  lon: number = AQUATIC_PARK_LON
+): Promise<OpenMeteoWindData[] | null> {
   try {
     const params = new URLSearchParams({
-      latitude: String(AQUATIC_PARK_LAT),
-      longitude: String(AQUATIC_PARK_LON),
+      latitude: String(lat),
+      longitude: String(lon),
       hourly: 'wind_speed_10m,wind_direction_10m,wind_gusts_10m',
       wind_speed_unit: 'mph',
       timezone: 'America/Los_Angeles',
@@ -165,10 +173,14 @@ export interface RecentRainfallData {
  *
  * @returns Rainfall totals for 24h/48h/72h windows, or null if fetch fails
  */
-export async function fetchRecentRainfall(retries: number = 2): Promise<RecentRainfallData | null> {
+export async function fetchRecentRainfall(
+  retries: number = 2,
+  lat: number = AQUATIC_PARK_LAT,
+  lon: number = AQUATIC_PARK_LON
+): Promise<RecentRainfallData | null> {
   const params = new URLSearchParams({
-    latitude: String(AQUATIC_PARK_LAT),
-    longitude: String(AQUATIC_PARK_LON),
+    latitude: String(lat),
+    longitude: String(lon),
     hourly: 'precipitation',
     past_days: '3',
     forecast_days: '0',

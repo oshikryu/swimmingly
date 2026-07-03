@@ -1,8 +1,10 @@
 /**
  * Water Quality API Client
  * Fetches water quality data including bacteria counts from multiple sources
- * Primary: SF Gov Beach Water Quality Monitoring
- * Fallbacks: California Water Quality Data, Water Quality Portal
+ * Primary (Aquatic Park): SF Gov Beach Water Quality Monitoring
+ * Fallbacks: California Water Quality Data, Water Quality Portal (WQP)
+ * WQP is also used standalone (fetchWaterQualityWQPOnly) for locations without
+ * an SF Gov / California-specific dataset, e.g. San Diego County.
  */
 
 import type { WaterQuality } from '@/types/conditions';
@@ -19,9 +21,7 @@ const CA_MEASUREMENTS_RESOURCE_ID = '15a63495-8d9f-4a49-b43a-3092ef3106b9'; // 2
 const WQP_STATION_API = 'https://www.waterqualitydata.us/data/Station/search';
 const WQP_RESULT_API = 'https://www.waterqualitydata.us/data/Result/search';
 
-// In-memory cache for station IDs
-let cachedWQPStationId: string | null = null;
-let cacheTimestamp: number = 0;
+// In-memory cache duration for station IDs
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
 /**
@@ -233,20 +233,30 @@ async function fetchFromCaliforniaAPI(): Promise<WaterQuality | null> {
   }
 }
 
+// Per-location in-memory cache for discovered WQP station IDs (keyed by locationName)
+const wqpStationCache = new Map<string, { stationId: string; cachedAt: number }>();
+
 /**
- * Discover WQP station ID for Aquatic Park (with caching)
+ * Discover a WQP station ID near the given location (with caching)
+ * Tries an exact name match within the county first, then falls back to a coordinate radius search.
  */
-async function discoverWQPStation(): Promise<string | null> {
+async function discoverWQPStation(
+  locationName: string = 'AQUATIC PARK',
+  lat: number = AQUATIC_PARK_LAT,
+  lon: number = AQUATIC_PARK_LON,
+  countyCode: string = 'US:06:075'
+): Promise<string | null> {
   // Check cache
-  if (cachedWQPStationId && (Date.now() - cacheTimestamp) < CACHE_DURATION) {
-    return cachedWQPStationId;
+  const cached = wqpStationCache.get(locationName);
+  if (cached && (Date.now() - cached.cachedAt) < CACHE_DURATION) {
+    return cached.stationId;
   }
 
   try {
     const params = new URLSearchParams({
       countrycode: 'US',
       statecode: 'US:06',
-      countycode: 'US:06:075',
+      countycode: countyCode,
       characteristicName: 'Enterococcus',
       mimeType: 'csv',
       zip: 'no',
@@ -263,25 +273,26 @@ async function discoverWQPStation(): Promise<string | null> {
 
     const text = await response.text();
 
-    // Parse CSV response to find Aquatic Park station
+    // Parse CSV response to find a station matching the location name
     const lines = text.split('\n');
+    const upperName = locationName.toUpperCase();
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i];
-      if (line.includes('AQUATIC PARK') || line.includes('Aquatic Park')) {
+      if (line.toUpperCase().includes(upperName)) {
         const parts = line.split(',');
         if (parts.length > 2) {
-          cachedWQPStationId = parts[2]; // MonitoringLocationIdentifier column
-          cacheTimestamp = Date.now();
-          console.log('Discovered WQP station:', cachedWQPStationId);
-          return cachedWQPStationId;
+          const stationId = parts[2]; // MonitoringLocationIdentifier column
+          wqpStationCache.set(locationName, { stationId, cachedAt: Date.now() });
+          console.log('Discovered WQP station:', stationId);
+          return stationId;
         }
       }
     }
 
     // If not found by name, try nearby coordinates
     const coordParams = new URLSearchParams({
-      lat: AQUATIC_PARK_LAT.toString(),
-      long: AQUATIC_PARK_LON.toString(),
+      lat: lat.toString(),
+      long: lon.toString(),
       within: '0.5',
       characteristicName: 'Enterococcus',
       mimeType: 'csv',
@@ -302,14 +313,14 @@ async function discoverWQPStation(): Promise<string | null> {
     if (coordLines.length > 1) {
       const parts = coordLines[1].split(',');
       if (parts.length > 2) {
-        cachedWQPStationId = parts[2];
-        cacheTimestamp = Date.now();
-        console.log('Discovered WQP station by coordinates:', cachedWQPStationId);
-        return cachedWQPStationId;
+        const stationId = parts[2];
+        wqpStationCache.set(locationName, { stationId, cachedAt: Date.now() });
+        console.log('Discovered WQP station by coordinates:', stationId);
+        return stationId;
       }
     }
 
-    console.warn('Could not discover WQP station for Aquatic Park');
+    console.warn(`Could not discover WQP station for ${locationName}`);
     return null;
   } catch (error) {
     console.error('WQP station discovery failed:', error);
@@ -320,9 +331,14 @@ async function discoverWQPStation(): Promise<string | null> {
 /**
  * Fetch water quality data from Water Quality Portal
  */
-async function fetchFromWQP(): Promise<WaterQuality | null> {
+async function fetchFromWQP(
+  locationName: string = 'AQUATIC PARK',
+  lat: number = AQUATIC_PARK_LAT,
+  lon: number = AQUATIC_PARK_LON,
+  countyCode: string = 'US:06:075'
+): Promise<WaterQuality | null> {
   try {
-    const stationId = await discoverWQPStation();
+    const stationId = await discoverWQPStation(locationName, lat, lon, countyCode);
     if (!stationId) {
       return null;
     }
@@ -435,6 +451,24 @@ export async function fetchWaterQuality(): Promise<WaterQuality | null> {
     return mostRecent;
   } catch (error) {
     console.error('Error fetching water quality:', error);
+    return null;
+  }
+}
+
+/**
+ * Fetch water quality data for a location that only has Water Quality Portal (WQP) coverage
+ * (no SF Gov / California-specific dataset equivalent, e.g. San Diego County)
+ */
+export async function fetchWaterQualityWQPOnly(
+  locationName: string,
+  lat: number,
+  lon: number,
+  countyCode: string
+): Promise<WaterQuality | null> {
+  try {
+    return await fetchFromWQP(locationName, lat, lon, countyCode);
+  } catch (error) {
+    console.error('Error fetching WQP-only water quality:', error);
     return null;
   }
 }
