@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { calculateSwimScore } from './swim-score';
+import { calculateSwimScore, mergeThresholds, type ThresholdsOverride } from './swim-score';
+import { SAFETY_THRESHOLDS } from '@/config/thresholds';
 import type {
   TidePrediction,
   CurrentData,
@@ -101,6 +102,7 @@ function scoreWith(overrides: {
   ssos?: SSOEvent[];
   rainfall?: Partial<RainfallData> | null;
   tidePreferences?: { slack: number; flood: number; ebb: number };
+  thresholds?: ThresholdsOverride;
 } = {}) {
   return calculateSwimScore(
     makeTide(overrides.tide),
@@ -112,6 +114,9 @@ function scoreWith(overrides: {
     overrides.tidePreferences,
     undefined,
     overrides.rainfall === undefined ? null : (overrides.rainfall === null ? null : makeRainfall(overrides.rainfall)),
+    undefined,
+    undefined,
+    overrides.thresholds,
   );
 }
 
@@ -824,6 +829,88 @@ describe('calculateSwimScore', () => {
       expect(result.overallScore).toBe(91);
       expect(result.rating).toBe('calm');
     });
+  });
+});
+
+// ===========================================================================
+// mergeThresholds / per-location threshold overrides
+// ===========================================================================
+
+describe('mergeThresholds', () => {
+  it('returns SAFETY_THRESHOLDS unchanged when no override is given', () => {
+    expect(mergeThresholds(undefined)).toBe(SAFETY_THRESHOLDS);
+  });
+
+  it('merges a partial category override onto the defaults', () => {
+    const merged = mergeThresholds({ waves: { calm: 1.5, safe: 2.5, moderate: 3.5, rough: 6.0 } });
+    expect(merged.waves).toEqual({ calm: 1.5, safe: 2.5, moderate: 3.5, rough: 6.0 });
+  });
+
+  it('leaves categories not present in the override untouched', () => {
+    const merged = mergeThresholds({ waves: { calm: 1.5, safe: 2.5, moderate: 3.5, rough: 6.0 } });
+    expect(merged.wind).toEqual(SAFETY_THRESHOLDS.wind);
+    expect(merged.current).toEqual(SAFETY_THRESHOLDS.current);
+    expect(merged.waterQuality).toEqual(SAFETY_THRESHOLDS.waterQuality);
+  });
+
+  it('does not mutate the original SAFETY_THRESHOLDS object', () => {
+    mergeThresholds({ waves: { calm: 999 } });
+    expect(SAFETY_THRESHOLDS.waves.calm).toBe(0.5);
+  });
+
+  it('merges multiple overridden categories independently', () => {
+    const merged = mergeThresholds({
+      waves: { calm: 1.5 },
+      wind: { calm: 20 },
+    });
+    expect(merged.waves.calm).toBe(1.5);
+    expect(merged.waves.safe).toBe(SAFETY_THRESHOLDS.waves.safe); // untouched key within an overridden category
+    expect(merged.wind.calm).toBe(20);
+    expect(merged.current).toEqual(SAFETY_THRESHOLDS.current);
+  });
+});
+
+describe('calculateSwimScore with a per-location threshold override', () => {
+  // Mirrors La Jolla Cove's real override: open-coast groundswell reads much
+  // higher on the same instruments than Aquatic Park's sheltered-bay chop for
+  // what's actually a normal, comfortable swim day.
+  const LA_JOLLA_LIKE_OVERRIDE: ThresholdsOverride = {
+    waves: { calm: 1.5, safe: 2.5, moderate: 3.5, rough: 6.0 },
+  };
+
+  it('scores the same wave height very differently with vs. without the override', () => {
+    const withoutOverride = scoreWith({ waves: { waveHeightFeet: 2.0 } });
+    const withOverride = scoreWith({ waves: { waveHeightFeet: 2.0 }, thresholds: LA_JOLLA_LIKE_OVERRIDE });
+
+    expect(withoutOverride.factors.waves.status).toBe('rough');
+    expect(withOverride.factors.waves.status).toBe('calm');
+    expect(withOverride.factors.waves.score).toBeGreaterThan(withoutOverride.factors.waves.score);
+  });
+
+  it('a 2 ft reading is "calm" under the override, matching a real lifeguard "flat" call', () => {
+    const result = scoreWith({ waves: { waveHeightFeet: 1.97 }, thresholds: LA_JOLLA_LIKE_OVERRIDE });
+    expect(result.factors.waves.status).toBe('calm');
+    expect(result.factors.waves.issues).toEqual([]);
+  });
+
+  it('a 6.5 ft reading is dangerous under the override, matching swim-club safety guidance', () => {
+    const result = scoreWith({ waves: { waveHeightFeet: 6.5 }, thresholds: LA_JOLLA_LIKE_OVERRIDE });
+    expect(result.factors.waves.status).toBe('dangerous');
+  });
+
+  it('leaves other scored factors (current speed caps) using the shared defaults', () => {
+    const result = scoreWith({
+      current: { speedKnots: 2.5 },
+      thresholds: LA_JOLLA_LIKE_OVERRIDE,
+    });
+    // current.veryStrong (2.0kt default, untouched by the wave-only override) still caps the score
+    expect(result.overallScore).toBeLessThanOrEqual(39);
+  });
+
+  it('does not affect a separate calculateSwimScore call with no override (no shared mutable state)', () => {
+    scoreWith({ waves: { waveHeightFeet: 6.5 }, thresholds: LA_JOLLA_LIKE_OVERRIDE });
+    const defaultResult = scoreWith({ waves: { waveHeightFeet: 2.0 } });
+    expect(defaultResult.factors.waves.status).toBe('rough');
   });
 });
 

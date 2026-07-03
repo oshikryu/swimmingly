@@ -1,11 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { fetchTidePredictions, fetchCurrentTide, fetchCurrents } from './noaa';
+import { fetchTidePredictions, fetchCurrentTide, fetchCurrents, fetchWaveData, fetchWaterTemperature } from './noaa';
 
 function mockFetch(responseBody: unknown, ok = true) {
   return vi.fn().mockResolvedValue({
     ok,
     status: ok ? 200 : 500,
     json: () => Promise.resolve(responseBody),
+  });
+}
+
+function mockTextFetch(responseBody: string, ok = true) {
+  return vi.fn().mockResolvedValue({
+    ok,
+    status: ok ? 200 : 500,
+    text: () => Promise.resolve(responseBody),
   });
 }
 
@@ -98,5 +106,106 @@ describe('NOAA timestamp parsing', () => {
     const result = await fetchCurrents();
 
     expect(result?.timestamp.toISOString()).toBe('2026-05-30T16:00:00.000Z');
+  });
+});
+
+describe('fetchWaveData year parsing', () => {
+  const HEADER = '#YY  MM DD hh mm WDIR WSPD GST  WVHT   DPD   APD MWD   PRES  ATMP  WTMP  DEWP  VIS PTDY  TIDE\n#yr  mo dy hr mn degT m/s  m/s     m   sec   sec degT   hPa  degC  degC  degC  nmi  hPa    ft';
+
+  it('parses a 4-digit year correctly (regression: NDBC feeds now send 4-digit years)', async () => {
+    const row = '2026 07 03 16 26  MM   MM   MM   0.7    17   5.3 284     MM    MM  21.4    MM   MM   MM    MM';
+    const fetchMock = mockTextFetch(`${HEADER}\n${row}`);
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await fetchWaveData('46254');
+
+    // Before the fix, a 4-digit year "2026" was misread as 1900+2026 = year 3926
+    expect(result?.timestamp.getUTCFullYear()).toBe(2026);
+    expect(result?.timestamp.toISOString()).toBe('2026-07-03T16:26:00.000Z');
+  });
+
+  it('still handles a legacy 2-digit year, in case any station reverts', async () => {
+    const row = '26 07 03 16 26  MM   MM   MM   0.7    17   5.3 284     MM    MM  21.4    MM   MM   MM    MM';
+    const fetchMock = mockTextFetch(`${HEADER}\n${row}`);
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await fetchWaveData('46254');
+
+    expect(result?.timestamp.getUTCFullYear()).toBe(2026);
+  });
+
+  it('parses wave height (meters -> feet) and swell period', async () => {
+    const row = '2026 07 03 16 26  MM   MM   MM   0.7    17   5.3 284     MM    MM  21.4    MM   MM   MM    MM';
+    const fetchMock = mockTextFetch(`${HEADER}\n${row}`);
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await fetchWaveData('46254');
+
+    expect(result?.waveHeightFeet).toBeCloseTo(0.7 * 3.28084, 4);
+    expect(result?.swellPeriodSeconds).toBe(17);
+    expect(result?.source).toBe('NOAA-NDBC Buoy 46254');
+  });
+
+  it('returns null when no row has a valid wave height', async () => {
+    const row = '2026 07 03 16 26  MM   MM   MM    MM    17   5.3 284     MM    MM  21.4    MM   MM   MM    MM';
+    const fetchMock = mockTextFetch(`${HEADER}\n${row}`);
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await fetchWaveData('46254');
+
+    expect(result).toBeNull();
+  });
+
+  it('returns null on a non-OK response', async () => {
+    const fetchMock = mockTextFetch('', false);
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await fetchWaveData('LJPC1');
+
+    expect(result).toBeNull();
+  });
+});
+
+describe('fetchWaterTemperature', () => {
+  it('parses a CO-OPS water_temperature response', async () => {
+    const fetchMock = mockFetch({
+      data: [{ t: '2026-07-03 17:06', v: '68.9', s: '0.0', f: '0,0,0' }],
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await fetchWaterTemperature('9410230');
+
+    expect(result?.temperatureF).toBe(68.9);
+    expect(result?.timestamp.toISOString()).toBe('2026-07-03T17:06:00.000Z');
+    expect(result?.source).toBe('NOAA-CO-OPS Station 9410230');
+  });
+
+  it('requests the water_temperature product for the given station', async () => {
+    const fetchMock = mockFetch({ data: [{ t: '2026-07-03 17:06', v: '68.9' }] });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchWaterTemperature('9410230');
+
+    const calledUrl = new URL(fetchMock.mock.calls[0][0]);
+    expect(calledUrl.searchParams.get('product')).toBe('water_temperature');
+    expect(calledUrl.searchParams.get('station')).toBe('9410230');
+  });
+
+  it('returns null when the station has no data (e.g. no met sensor)', async () => {
+    const fetchMock = mockFetch({ data: [] });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await fetchWaterTemperature('0000000');
+
+    expect(result).toBeNull();
+  });
+
+  it('returns null on a non-OK response', async () => {
+    const fetchMock = mockFetch({}, false);
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await fetchWaterTemperature('9410230');
+
+    expect(result).toBeNull();
   });
 });

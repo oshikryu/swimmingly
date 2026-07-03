@@ -1,25 +1,30 @@
-# Swimmingly - Aquatic Park Swim Planner
+# Swimmingly - Swim Planner
+
 (Warning: this was heavily vibe coded)
 
-A Next.js web application that helps swimmers determine optimal swimming times and routes at Aquatic Park in San Francisco Bay by aggregating real-time data on tides, currents, weather, waves, and water quality.
+A Next.js web application that helps swimmers determine optimal swimming times and routes by aggregating real-time data on tides, currents, weather, waves, and water quality. Supports two locations, each with its own dashboard and independently calibrated safety scoring:
+
+- **Aquatic Park**, San Francisco Bay (`/`)
+- **La Jolla Cove**, San Diego (`/lajollacove`)
 
 ## Live
 
 | Deployment | URL | Notes |
 |------------|-----|-------|
 | Cloudflare Workers | https://swimmingly.ryushikiri.workers.dev | Live API + full app, always-on |
-| GitHub Pages | https://oshikryu.github.io/swimmingly | Static snapshot, updated every 20 min |
+| Cloudflare Workers (La Jolla Cove) | https://swimmingly.ryushikiri.workers.dev/lajollacove | Second location dashboard |
+| GitHub Pages | https://oshikryu.github.io/swimmingly | Static snapshot (Aquatic Park only), updated every 20 min |
 
 ## Features
 
+- **Two independent locations**: Aquatic Park (SF Bay) and La Jolla Cove (San Diego), each with its own data sources, cache keys, tide preferences, and score-weight settings
 - **Real-time Conditions Dashboard**: Current swim score and environmental conditions
 - **Intelligent Swim Scoring**: Weighted algorithm considering:
-  - Water Quality (30%) - Bacteria levels, sewer overflow events, and rainfall indicators
-  - Tides & Currents (25%) - Optimal timing for slack tide with customizable preferences
-  - Waves (20%) - Swell height and period
-  - Weather (15%) - Wind, temperature, precipitation
-  - Dam Releases (10%) - 48-hour historical flow data accounting for time lag
-- **48-Hour Dam Release Tracking**: Monitors upstream dam releases that affect bay currents
+  - Water Quality (30%) — bacteria levels, sewer overflow events, rainfall indicators, and water temperature
+  - Tide & Current (32%) — optimal timing for slack tide with customizable preferences, moon-phase spring/neap signal
+  - Waves (20%) — swell height and period
+  - Weather (18%) — wind, temperature, precipitation, barometric pressure
+- **Per-location safety thresholds**: Wave/current/wind thresholds can be overridden per location (`ThresholdsOverride` in `swim-score.ts`) — La Jolla Cove's are recalibrated for open-coast groundswell rather than Aquatic Park's sheltered-bay chop, so a "calm" day reads correctly at each location instead of using one location's assumptions everywhere
 - **Safety First**: Prominent warnings for poor water quality and dangerous conditions
 - **Auto-refresh**: Updates every 5 minutes with fresh data
 - **Customizable Tide Preferences**: Set your preferred tide phase (slack/flood/ebb)
@@ -31,17 +36,7 @@ A Next.js web application that helps swimmers determine optimal swimming times a
 - **Hosting**: Cloudflare Workers (via `@opennextjs/cloudflare`), GitHub Pages (static snapshot)
 - **Database**: PostgreSQL with Prisma ORM (TimescaleDB ready for time-series data, optional)
 - **Styling**: Tailwind CSS
-- **Data Sources**:
-  - NOAA Tides & Currents API (tides, currents)
-  - NOAA National Weather Service API (forecast, observations)
-  - NOAA NDBC (buoy wave data, fallback)
-  - Open-Meteo (primary wind data, temperature, rainfall)
-  - CDEC — California Data Exchange Center (dam releases)
-  - OpenWaterLog (primary wave data for Aquatic Park)
-  - SF Beach Water Quality Monitoring (primary water quality — BAY#211_SL & BAY#210.1_SL)
-  - CA Water Quality Portal (water quality fallback)
-  - SF Open Data (sewer overflow alerts)
-  - SeaTemperature.info (water temperature)
+- **Data Sources**: NOAA (tides, currents, weather, wave buoys, water temperature), Open-Meteo (wind, rainfall), SF Open Data & CA Water Quality Portal (Aquatic Park water quality, sewer overflows), San Diego County DEHQ & Swim Guide (La Jolla Cove water quality), CDEC (dam releases, Aquatic Park only). Full breakdown in [Data Sources](#data-sources) below.
 
 ## Getting Started
 
@@ -134,22 +129,26 @@ See `scripts/static-update-scheduler.ts` for the scheduler and CLAUDE.md for ful
 swimmingly/
 ├── src/
 │   ├── app/                # Next.js App Router pages
-│   │   ├── api/           # API routes
-│   │   │   ├── conditions/  # Main conditions endpoint
+│   │   ├── api/
+│   │   │   ├── conditions/          # Aquatic Park conditions endpoint
+│   │   │   ├── lajollacove/conditions/  # La Jolla Cove conditions endpoint
 │   │   │   ├── tides/       # Tide predictions
 │   │   │   ├── weather/     # Weather data
 │   │   │   └── waves/       # Wave/swell data
-│   │   └── page.tsx       # Main dashboard page
+│   │   ├── lajollacove/page.tsx  # La Jolla Cove dashboard page
+│   │   └── page.tsx              # Aquatic Park dashboard page
 │   ├── components/        # React components
-│   │   └── dashboard/     # Dashboard-specific components
+│   │   └── dashboard/     # Dashboard-specific components (CurrentConditions takes a
+│   │                      # `location` prop so both pages share one implementation)
 │   ├── lib/              # Core utilities
-│   │   ├── api/          # External API clients (NOAA, SFPUC, etc.)
-│   │   ├── algorithms/   # Swim score calculation
+│   │   ├── api/          # External API clients (NOAA, SFPUC, sdbeachinfo, swimguide, etc.)
+│   │   ├── algorithms/   # Swim score calculation, incl. per-location threshold overrides
 │   │   └── db.ts         # Database client
 │   ├── config/           # Configuration files
-│   │   ├── aquatic-park.ts  # Location & station IDs
-│   │   ├── routes.ts        # Swimming route definitions
-│   │   └── thresholds.ts    # Safety thresholds
+│   │   ├── aquatic-park.ts   # Aquatic Park location & station IDs
+│   │   ├── la-jolla-cove.ts  # La Jolla Cove location, station IDs & threshold overrides
+│   │   ├── routes.ts         # Swimming route definitions
+│   │   └── thresholds.ts     # Shared default safety thresholds
 │   └── types/            # TypeScript type definitions
 ├── prisma/
 │   └── schema.prisma     # Database schema
@@ -157,6 +156,8 @@ swimmingly/
 ```
 
 ## API Endpoints
+
+La Jolla Cove has its own conditions endpoint, `GET /api/lajollacove/conditions`, which mirrors `/api/conditions` below (same query parameters, same response shape) but is wired to La Jolla Cove's data sources instead — see [Data Sources](#data-sources). It has no `damReleases` field (not applicable to San Diego) and its `waterQuality`/`waves` sources differ from Aquatic Park's.
 
 ### `GET /api/conditions`
 
@@ -497,23 +498,24 @@ The `/api/conditions` endpoint includes a `details` object on 503 errors showing
 
 ## Swim Score Algorithm
 
-The swim score (0-100) is calculated using weighted factors. The algorithm is implemented in `src/lib/algorithms/swim-score.ts`.
+The swim score (0-100) is calculated using weighted factors. The algorithm is implemented in `src/lib/algorithms/swim-score.ts`. Dam releases are fetched and shown as informational data (Aquatic Park only) but are **not** part of the score — they're not a reliable enough signal on their own to weight into the swim score.
 
 ### Formula
 
 ```
-overallScore = (waterQuality × 0.30) + (tideAndCurrent × 0.25) + (waves × 0.20) + (weather × 0.15) + (damReleases × 0.10)
+overallScore = (waterQuality × 0.30) + (tideAndCurrent × 0.32) + (waves × 0.20) + (weather × 0.18)
 ```
 
 ### Factor Weights
 
 | Factor | Weight | Priority |
 |--------|--------|----------|
-| Water Quality | 30% | Highest - Safety first |
-| Tide & Current | 25% | Affects difficulty and safety |
+| Water Quality | 30% | Highest - Safety first (includes water temperature) |
+| Tide & Current | 32% | Affects difficulty and safety (moon-phase spring/neap signal) |
 | Waves | 20% | Affects comfort and safety |
-| Weather | 15% | Affects comfort |
-| Dam Releases | 10% | Affects bay currents |
+| Weather | 18% | Wind, precipitation, and barometric pressure |
+
+`calculateSwimScore()` also accepts an optional `customThresholds` override (`ThresholdsOverride` type) so a location can recalibrate any threshold category without changing the shared defaults in `src/config/thresholds.ts` — see [Per-location thresholds](#per-location-thresholds) below. With no override, behavior is identical to the shared defaults (used by Aquatic Park).
 
 ---
 
@@ -559,7 +561,7 @@ Rainfall acts as a real-time proxy for water quality degradation, since weekly b
 
 ---
 
-### 2. Tide & Current Score (25%)
+### 2. Tide & Current Score (32%)
 
 Evaluates tide phase and current speed with customizable preferences.
 
@@ -629,7 +631,7 @@ Evaluates wave height conditions.
 
 ---
 
-### 4. Weather Score (15%)
+### 4. Weather Score (18%)
 
 Evaluates wind speed and precipitation.
 
@@ -660,19 +662,9 @@ Evaluates wind speed and precipitation.
 
 ---
 
-### 5. Dam Releases Score (10%)
+### Dam Releases (informational only, Aquatic Park only)
 
-Evaluates upstream dam releases with time-lag modeling.
-
-**Scoring Logic:**
-
-| Weighted Flow (CFS) | Score | Level |
-|---------------------|-------|-------|
-| < 30,000 | 100 | Low |
-| 30,000 - 50,000 | 75 | Moderate |
-| 50,000 - 80,000 | 65 | Elevated |
-| 80,000 - 100,000 | 30 | High |
-| > 100,000 | 10 | Extreme |
+Upstream dam releases are fetched with time-lag modeling and included in the `/api/conditions` response (`damReleases` field), but they are **not** a scored factor — there's no reliable enough correlation to weight them into the swim score directly, so they're surfaced as context instead. Not applicable to La Jolla Cove (`/api/lajollacove/conditions` omits this field entirely — no upstream dam affects the San Diego coast).
 
 **Time-Lag Weighted Flow Calculation:**
 ```
@@ -691,11 +683,10 @@ scoringFlow = max(weightedAvgFlow, peakComponent)
 **Response Fields:**
 ```json
 {
-  "score": 100,
-  "totalFlowCFS": 27505,
-  "releaseLevel": "low | moderate | high | extreme",
-  "topContributor": "Shasta Dam",
-  "issues": []
+  "current": { "totalFlowCFS": 27505, "releaseLevel": "low" },
+  "historical48h": { "averageFlowCFS": 25265.16, "peakFlowCFS": 29632, "trendDirection": "stable" },
+  "dams": [{ "name": "Shasta Dam", "stationId": "SHA", "current": { "flowCFS": 15317, "percentOfTotal": 55.69 } }],
+  "source": "CDEC"
 }
 ```
 
@@ -788,19 +779,30 @@ The app models upstream dam releases and their delayed impact on SF Bay:
 
 ## Safety Thresholds
 
-All thresholds are configured in `src/config/thresholds.ts`:
+Default thresholds (used by Aquatic Park) are configured in `src/config/thresholds.ts`:
 
 | Category | Threshold | Values |
 |----------|-----------|--------|
-| Bacteria (Enterococcus) | Safe / Advisory / Dangerous | < 104 / < 500 / > 1000 MPN/100ml |
-| Bacteria (Coliform) | Safe / Advisory / Dangerous | < 200 / < 1000 / > 2000 MPN/100ml |
-| Waves | Calm / Safe / Moderate / Rough | < 2 / < 3 / < 5 / < 8 ft |
-| Wind | Calm / Light / Moderate / Strong | < 5 / < 10 / < 15 / < 20 mph |
+| Bacteria (Enterococcus) | Safe / Advisory / Dangerous | ≤ 104 / ≤ 500 / > 1000 MPN/100ml |
+| Bacteria (Coliform) | Safe / Advisory / Dangerous | ≤ 10,000 / ≤ 50,000 / > 100,000 MPN/100ml |
+| Waves | Calm / Safe / Moderate / Rough | < 0.5 / < 1.0 / < 1.5 / < 2.5 ft |
+| Wind | Calm / Light / Moderate / Strong | < 10 / < 15 / < 22 / < 30 mph |
 | Current | Slack / Slow / Moderate / Strong | < 0.3 / < 0.5 / < 1.0 / < 1.5 kts |
-| Dam Releases | Low / Moderate / High / Extreme | < 30k / < 50k / < 80k / > 100k CFS |
+| Dam Releases (informational) | Low / Moderate / High / Extreme | < 30k / < 50k / < 80k / > 100k CFS |
 | Rainfall (72h) | Light / Moderate / Heavy / Extreme | < 0.1 / < 0.5 / < 1.0 / > 2.0 in |
 | SSO | Caution / Warning | 3 days / 7 days |
-| Water Temp | Cold / Cool / Moderate / Comfortable | < 55 / < 60 / < 65 / > 70 °F |
+| Water Temp | Cold / Cool / Moderate / Comfortable | < 55 / < 60 / < 65 / ≥ 70 °F |
+| Barometric Pressure | Very Low / Low / Standard / High / Very High | < 1000 / < 1005 / < 1013 / < 1020 / ≥ 1025 mb |
+
+### Per-location thresholds
+
+A location can override any subset of these via `ThresholdsOverride` (`src/lib/algorithms/swim-score.ts`), merged onto the defaults above at score time. La Jolla Cove overrides wave thresholds only (`src/config/la-jolla-cove.ts`) — open-coast groundswell reads very differently to a swimmer than Aquatic Park's sheltered-bay chop at the same buoy height:
+
+| Category | Threshold | Aquatic Park (default) | La Jolla Cove (override) |
+|----------|-----------|--------------------------|---------------------------|
+| Waves | Calm / Safe / Moderate / Rough | < 0.5 / < 1.0 / < 1.5 / < 2.5 ft | < 1.5 / < 2.5 / < 3.5 / < 6.0 ft |
+
+La Jolla Cove's values are backed by 45 days of live buoy history (median wave height 2.0-2.3 ft) and published safety guidance from La Jolla Cove Swim Club (3-4 ft = "potentially dangerous for beginners", 6-8 ft = "dangerous even for good swimmers").
 
 ## Development Roadmap
 
@@ -820,6 +822,10 @@ All thresholds are configured in `src/config/thresholds.ts`:
 - [x] Rainfall-based water quality proxy (72-hour accumulation)
 - [x] Cloudflare Workers deployment (`@opennextjs/cloudflare`)
 - [x] GitHub Pages static snapshot with auto-updates
+- [x] Moon phase (spring/neap tide signal) and barometric pressure scoring
+- [x] La Jolla Cove as a second, independent location at `/lajollacove`
+- [x] Per-location safety threshold overrides (`ThresholdsOverride`)
+- [x] San Diego County ddPCR + Swim Guide water quality integrations
 
 ### Next Steps 🚀
 
@@ -853,7 +859,9 @@ All thresholds are configured in `src/config/thresholds.ts`:
 
 ## Data Sources
 
-All APIs are public and require no authentication. NOAA requests use `time_zone=gmt` with UTC timestamps to ensure consistent behavior across server environments (including Cloudflare Workers).
+All APIs are public and require no authentication, except where noted. NOAA requests use `time_zone=gmt` with UTC timestamps to ensure consistent behavior across server environments (including Cloudflare Workers).
+
+### Aquatic Park
 
 | Source | Data | Station / Endpoint |
 |--------|------|--------------------|
@@ -862,15 +870,31 @@ All APIs are public and require no authentication. NOAA requests use `time_zone=
 | [NOAA NDBC](https://www.ndbc.noaa.gov) | Wave height, swell period (fallback) | Buoy 46237 (SF offshore), Buoy 46026 (backup) |
 | [Open-Meteo](https://open-meteo.com) | Wind speed/direction/gusts, temperature, 72h rainfall | Aquatic Park lat/lon |
 | [OpenWaterLog](https://openwaterlog.com) | Wave data (primary — more accurate for Aquatic Park) | Aquatic Park station |
-| [CDEC](https://cdec.water.ca.gov) | Dam releases (48h hourly) | SHA, ORO, FOL, PAR, CMN |
+| [CDEC](https://cdec.water.ca.gov) | Dam releases (48h hourly, informational only) | SHA, ORO, FOL, PAR, CMN |
 | [SF Gov Open Data](https://data.sfgov.org) | Enterococcus water quality (primary) | BAY#211_SL (Aquatic Park), BAY#210.1_SL (Hyde St Pier) |
 | [CA Water Quality Portal](https://www.waterqualitydata.us) | Water quality (fallback) | Historical monitoring |
 | [SF Open Data](https://data.sfgov.org) | Sewer overflow (SSO) alerts | SF Public Utilities Commission |
 | [SeaTemperature.info](https://www.seatemperature.info) | Water temperature | San Francisco Bay |
 
+### La Jolla Cove
+
+| Source | Data | Station / Endpoint |
+|--------|------|--------------------|
+| [NOAA Tides & Currents](https://tidesandcurrents.noaa.gov) | Tide predictions, water level, water temperature, wind, air temperature | Station 9410230 (La Jolla / Scripps Pier) |
+| [NOAA NDBC](https://www.ndbc.noaa.gov) | Wave height, swell period (primary) | Buoy 46254 (Scripps Nearshore Waverider) |
+| [NOAA NDBC](https://www.ndbc.noaa.gov) | Wave height, swell period (fallback) | LJPC1 (Scripps Pier C-MAN station) |
+| [Open-Meteo](https://open-meteo.com) | Wind speed/direction/gusts, temperature, 72h rainfall | La Jolla Cove lat/lon |
+| [San Diego County DEHQ (sdbeachinfo)](https://cosdapps.sandiegocounty.gov/sdbeachinfo/) | Enterococcus water quality via ddPCR (primary) | Site 105, station FM-070 — undocumented internal API, see `src/lib/api/sdbeachinfo.ts` |
+| [Swim Guide](https://www.theswimguide.org/) | Water quality status (fallback) | Beach 1986 — parses embedded page state, see `src/lib/api/swimguide.ts` |
+| [CA Water Quality Portal](https://www.waterqualitydata.us) | Water quality (last resort) | Historical monitoring |
+
+No current-prediction station or dam-release source applies to La Jolla Cove — current speed is always estimated from the tide change rate, and `damReleases` is omitted from the response entirely.
+
+**Note on undocumented integrations:** `sdbeachinfo.ts` and `swimguide.ts` don't call documented public APIs — they reverse-engineer data that's publicly displayed on each site's own beach-status page (a short session-bootstrap handshake for sdbeachinfo, parsing of embedded server-rendered page state for Swim Guide). Both fail safe (return `null`, never throw) and sit behind a fallback chain, since either could break if the source site changes its frontend. See each file's header comment for details and what to check if they stop working.
+
 ## Contributing
 
-This is a personal project for Aquatic Park swimmers. Contributions, suggestions, and bug reports are welcome!
+This is a personal project for Aquatic Park and La Jolla Cove swimmers. Contributions, suggestions, and bug reports are welcome!
 
 ## Disclaimer
 
@@ -893,7 +917,7 @@ MIT License - See LICENSE file for details
 
 ## Contact
 
-For questions or suggestions about swimming conditions at Aquatic Park, feel free to open an issue.
+For questions or suggestions about swimming conditions at Aquatic Park or La Jolla Cove, feel free to open an issue.
 
 ---
 
