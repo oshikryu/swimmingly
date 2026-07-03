@@ -3,10 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently -n \"server,scheduler\" -c \"blue,green\" \"npm run dev:server\" \"npm run dev:scheduler\"",
+    "dev": "next dev -p 3333",
     "dev:server": "next dev -p 3333",
     "dev:scheduler": "RUN_IMMEDIATELY=true tsx scripts/static-update-scheduler.ts",
-    "dev:no-updates": "ENABLE_STATIC_UPDATES=false npm run dev:server",
+    "dev:no-updates": "npm run dev:server",
+    "dev:with-scheduler": "concurrently -n \"server,scheduler\" -c \"blue,green\" \"npm run dev:server\" \"npm run dev:scheduler\"",
     "build": "next build",
     "build:static": "BUILD_MODE=static NEXT_PUBLIC_BUILD_MODE=static tsx src/lib/static/generateStaticData.ts && next build && tsx scripts/export-static.ts",
     "build:static:isolated": "BUILD_MODE=static NEXT_PUBLIC_BUILD_MODE=static ISOLATED_BUILD=true STATIC_DATA_DIR=.static-build tsx src/lib/static/generateStaticData.ts && ISOLATED_BUILD=true next build && NEXT_DIR=.next-static tsx scripts/export-static.ts",
