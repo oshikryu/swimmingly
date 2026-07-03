@@ -49,6 +49,8 @@ export interface CurrentConditionsLocationConfig {
   tideStationId: string;
   /** Outbound link for the water temperature source */
   waterTempSourceUrl: string;
+  /** San Diego County sdbeachinfo site ID, used for the water quality outbound link (if applicable) */
+  sdBeachInfoSiteId?: string;
 }
 
 const AQUATIC_PARK_LOCATION_CONFIG: CurrentConditionsLocationConfig = {
@@ -587,6 +589,8 @@ export default function CurrentConditions({
                 ? '🔗 https://data.sfgov.org/Energy-and-Environment/Beach-Water-Quality-Monitoring/v3fv-x3ux'
                 : waterQuality?.source?.includes('California Water Quality')
                 ? '🔗 https://data.ca.gov/dataset/surface-water-fecal-indicator-bacteria-results/resource/15a63495-8d9f-4a49-b43a-3092ef3106b9'
+                : waterQuality?.source?.includes('San Diego County')
+                ? `🔗 https://cosdapps.sandiegocounty.gov/sdbeachinfo/SamplesReport?SiteId=${location.sdBeachInfoSiteId ?? ''}`
                 : waterQuality?.source?.includes('Water Quality Portal')
                 ? '🔗 https://www.waterqualitydata.us/'
                 : '',

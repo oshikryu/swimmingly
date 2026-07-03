@@ -29,6 +29,10 @@ export const LA_JOLLA_COVE = {
   // Beach identifier for water quality APIs
   beachId: 'la-jolla-cove-sd',
 
+  // San Diego County Beach & Water Quality (sdbeachinfo) site ID for La Jolla Cove
+  // (station FM-070) — found via https://cosdapps.sandiegocounty.gov/sdbeachinfo/SamplesReport?SiteId=105
+  sdBeachInfoSiteId: '105',
+
   // Human-readable location info
   location: {
     name: 'La Jolla Cove',
@@ -44,3 +48,4 @@ export const LA_JOLLA_COVE_LON = LA_JOLLA_COVE.center.lon;
 export const LA_JOLLA_TIDE_STATION_ID = LA_JOLLA_COVE.noaaStations.tide;
 export const LA_JOLLA_WAVE_BUOY_ID = LA_JOLLA_COVE.noaaStations.buoy;
 export const LA_JOLLA_WAVE_BUOY_FALLBACK_ID = LA_JOLLA_COVE.noaaStations.buoyFallback;
+export const LA_JOLLA_SD_BEACH_INFO_SITE_ID = LA_JOLLA_COVE.sdBeachInfoSiteId;

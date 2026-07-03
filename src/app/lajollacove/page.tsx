@@ -13,6 +13,7 @@ const LA_JOLLA_COVE_UI_CONFIG = {
   cacheKeyPrefix: 'lajollacove',
   tideStationId: '9410230',
   waterTempSourceUrl: 'https://tidesandcurrents.noaa.gov/met.html?id=9410230',
+  sdBeachInfoSiteId: '105',
 };
 
 export default function LaJollaCove() {
@@ -88,7 +89,7 @@ export default function LaJollaCove() {
       <footer className="mt-12 pb-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <p className="text-center text-sm text-gray-500 dark:text-gray-400">
-            Data sources: NOAA (tides, waves, water temp, wind) • Water Quality Portal (bacteria) • Open-Meteo (wind, rainfall)
+            Data sources: NOAA (tides, waves, water temp, wind) • San Diego County DEHQ (bacteria) • Open-Meteo (wind, rainfall)
           </p>
           <p className="text-center text-xs text-gray-400 dark:text-gray-500 mt-1">
             {process.env.NEXT_PUBLIC_BUILD_MODE === 'static'

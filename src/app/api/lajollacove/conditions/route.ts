@@ -7,16 +7,22 @@
  * Waves: LJPC1 (nearshore C-MAN station at Scripps Pier, closer to the actual swim
  * area) is primary, falling back to buoy 46254 (offshore Waverider buoy) if LJPC1
  * has no valid reading.
+ *
+ * Water quality: San Diego County's own ddPCR beach monitoring (sdbeachinfo.ts) is
+ * primary — it's fresher (samples within days) than the federal WQP fallback (which
+ * can lag months for this area), but it's a reverse-engineered internal API, so it
+ * falls back to the WQP integration if it fails.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import type { CurrentConditions, TidePhaseType, TidePhasePreferences, TidePrediction, CurrentData } from '@/types/conditions';
 import { fetchCurrentTidePrediction, fetchWaveData, fetchWaterTemperature } from '@/lib/api/noaa';
 import { fetchWaterQualityWQPOnly } from '@/lib/api/beachwatch';
+import { fetchSanDiegoCountyWaterQuality } from '@/lib/api/sdbeachinfo';
 import { calculateSwimScore } from '@/lib/algorithms/swim-score';
 import { fetchWindData, fetchRecentRainfall } from '@/lib/api/open-meteo';
 import { calculateMoonPhase } from '@/lib/moon-phase';
-import { LA_JOLLA_TIDE_STATION_ID, LA_JOLLA_WAVE_BUOY_ID, LA_JOLLA_WAVE_BUOY_FALLBACK_ID, LA_JOLLA_COVE_LAT, LA_JOLLA_COVE_LON } from '@/config/la-jolla-cove';
+import { LA_JOLLA_TIDE_STATION_ID, LA_JOLLA_WAVE_BUOY_ID, LA_JOLLA_WAVE_BUOY_FALLBACK_ID, LA_JOLLA_COVE_LAT, LA_JOLLA_COVE_LON, LA_JOLLA_SD_BEACH_INFO_SITE_ID } from '@/config/la-jolla-cove';
 
 export const dynamic = 'force-dynamic'; // Always fetch fresh data
 export const revalidate = 300; // Cache for 5 minutes
@@ -46,13 +52,22 @@ export async function GET(request: NextRequest) {
       return fetchWaveData(LA_JOLLA_WAVE_BUOY_FALLBACK_ID);
     };
 
+    // Fetch water quality with fallback strategy: San Diego County's own ddPCR data first
+    // (fresher, but a reverse-engineered internal API), then WQP if it's unavailable
+    const fetchWaterQualityWithFallback = async () => {
+      const primary = await fetchSanDiegoCountyWaterQuality(LA_JOLLA_SD_BEACH_INFO_SITE_ID);
+      if (primary) return primary;
+      console.log('La Jolla Cove: SD County water quality unavailable, falling back to WQP...');
+      return fetchWaterQualityWQPOnly('LA JOLLA COVE', LA_JOLLA_COVE_LAT, LA_JOLLA_COVE_LON, 'US:06:073');
+    };
+
     // Fetch all data sources in parallel
     // No tidal-current-prediction station near La Jolla Cove (open coast) -> current falls
     // back to calculateCurrentFromTide below. No dam-release source applies to San Diego.
     const [tide, waves, waterQuality, windData, waterTemp, rainfall] = await Promise.allSettled([
       fetchCurrentTidePrediction(LA_JOLLA_TIDE_STATION_ID),
       fetchWaveDataWithFallback(),
-      fetchWaterQualityWQPOnly('LA JOLLA COVE', LA_JOLLA_COVE_LAT, LA_JOLLA_COVE_LON, 'US:06:073'),
+      fetchWaterQualityWithFallback(),
       fetchWindData(2, LA_JOLLA_COVE_LAT, LA_JOLLA_COVE_LON),
       fetchWaterTemperature(LA_JOLLA_TIDE_STATION_ID),
       fetchRecentRainfall(2, LA_JOLLA_COVE_LAT, LA_JOLLA_COVE_LON),
