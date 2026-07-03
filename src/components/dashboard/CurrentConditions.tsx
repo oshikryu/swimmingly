@@ -477,8 +477,8 @@ export default function CurrentConditions({
               ...(score?.factors?.waves?.issues ?? []),
               conditions.waves?.source?.toLowerCase().includes('openwaterlog')
                 ? '🔗 https://openwaterlog.com/locations/aquatic-park/'
-                : conditions.waves?.source?.includes('NOAA-NDBC Buoy')
-                ? `🔗 https://www.ndbc.noaa.gov/station_page.php?station=${conditions.waves.source.match(/\d{5}/)?.[0] || '46237'}`
+                : conditions.waves?.source?.match(/NOAA-NDBC Buoy\s+(\S+)/)
+                ? `🔗 https://www.ndbc.noaa.gov/station_page.php?station=${conditions.waves.source.match(/NOAA-NDBC Buoy\s+(\S+)/)![1]}`
                 : '',
             ].filter(Boolean)}
           />

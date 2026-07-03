@@ -3,6 +3,10 @@
  * Mirrors /api/conditions but wired to La Jolla Cove's data sources (see
  * src/config/la-jolla-cove.ts). Dam releases and SF-specific water quality sources
  * don't apply here — see the implementation plan for the full data source mapping.
+ *
+ * Waves: LJPC1 (nearshore C-MAN station at Scripps Pier, closer to the actual swim
+ * area) is primary, falling back to buoy 46254 (offshore Waverider buoy) if LJPC1
+ * has no valid reading.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -12,7 +16,7 @@ import { fetchWaterQualityWQPOnly } from '@/lib/api/beachwatch';
 import { calculateSwimScore } from '@/lib/algorithms/swim-score';
 import { fetchWindData, fetchRecentRainfall } from '@/lib/api/open-meteo';
 import { calculateMoonPhase } from '@/lib/moon-phase';
-import { LA_JOLLA_TIDE_STATION_ID, LA_JOLLA_WAVE_BUOY_ID, LA_JOLLA_COVE_LAT, LA_JOLLA_COVE_LON } from '@/config/la-jolla-cove';
+import { LA_JOLLA_TIDE_STATION_ID, LA_JOLLA_WAVE_BUOY_ID, LA_JOLLA_WAVE_BUOY_FALLBACK_ID, LA_JOLLA_COVE_LAT, LA_JOLLA_COVE_LON } from '@/config/la-jolla-cove';
 
 export const dynamic = 'force-dynamic'; // Always fetch fresh data
 export const revalidate = 300; // Cache for 5 minutes
@@ -33,12 +37,21 @@ export async function GET(request: NextRequest) {
       };
     }
 
+    // Fetch wave data with fallback strategy: LJPC1 (nearshore, closer to the cove) first,
+    // then 46254 (Scripps Waverider Buoy, offshore) if LJPC1 has no valid reading
+    const fetchWaveDataWithFallback = async () => {
+      const primary = await fetchWaveData(LA_JOLLA_WAVE_BUOY_ID);
+      if (primary) return primary;
+      console.log('La Jolla Cove: LJPC1 unavailable, falling back to buoy 46254...');
+      return fetchWaveData(LA_JOLLA_WAVE_BUOY_FALLBACK_ID);
+    };
+
     // Fetch all data sources in parallel
     // No tidal-current-prediction station near La Jolla Cove (open coast) -> current falls
     // back to calculateCurrentFromTide below. No dam-release source applies to San Diego.
     const [tide, waves, waterQuality, windData, waterTemp, rainfall] = await Promise.allSettled([
       fetchCurrentTidePrediction(LA_JOLLA_TIDE_STATION_ID),
-      fetchWaveData(LA_JOLLA_WAVE_BUOY_ID),
+      fetchWaveDataWithFallback(),
       fetchWaterQualityWQPOnly('LA JOLLA COVE', LA_JOLLA_COVE_LAT, LA_JOLLA_COVE_LON, 'US:06:073'),
       fetchWindData(2, LA_JOLLA_COVE_LAT, LA_JOLLA_COVE_LON),
       fetchWaterTemperature(LA_JOLLA_TIDE_STATION_ID),
