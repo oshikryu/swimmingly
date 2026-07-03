@@ -15,6 +15,7 @@ const LA_JOLLA_COVE_UI_CONFIG = {
   tideStationId: '9410230',
   waterTempSourceUrl: 'https://tidesandcurrents.noaa.gov/met.html?id=9410230',
   sdBeachInfoSiteId: '105',
+  swimGuideBeachId: '1986',
   lat: LA_JOLLA_COVE_LAT,
   lon: LA_JOLLA_COVE_LON,
   thresholdsOverride: LA_JOLLA_COVE_THRESHOLDS_OVERRIDE,

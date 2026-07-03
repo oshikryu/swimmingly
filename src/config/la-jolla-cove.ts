@@ -63,6 +63,11 @@ export const LA_JOLLA_COVE = {
   // (station FM-070) — found via https://cosdapps.sandiegocounty.gov/sdbeachinfo/SamplesReport?SiteId=105
   sdBeachInfoSiteId: '105',
 
+  // Swim Guide (theswimguide.org) beach ID — San Diego Coastkeeper posts county DEH
+  // results here, often faster than sdbeachinfo itself (e.g. a same-day posting
+  // showed up here while sdbeachinfo's ddPCR feed was still 2 days stale)
+  swimGuideBeachId: '1986',
+
   // Human-readable location info
   location: {
     name: 'La Jolla Cove',
@@ -79,3 +84,4 @@ export const LA_JOLLA_TIDE_STATION_ID = LA_JOLLA_COVE.noaaStations.tide;
 export const LA_JOLLA_WAVE_BUOY_ID = LA_JOLLA_COVE.noaaStations.buoy;
 export const LA_JOLLA_WAVE_BUOY_FALLBACK_ID = LA_JOLLA_COVE.noaaStations.buoyFallback;
 export const LA_JOLLA_SD_BEACH_INFO_SITE_ID = LA_JOLLA_COVE.sdBeachInfoSiteId;
+export const LA_JOLLA_SWIM_GUIDE_BEACH_ID = LA_JOLLA_COVE.swimGuideBeachId;

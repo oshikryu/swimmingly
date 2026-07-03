@@ -51,6 +51,8 @@ export interface CurrentConditionsLocationConfig {
   waterTempSourceUrl: string;
   /** San Diego County sdbeachinfo site ID, used for the water quality outbound link (if applicable) */
   sdBeachInfoSiteId?: string;
+  /** Swim Guide beach ID, used for the water quality outbound link (if applicable) */
+  swimGuideBeachId?: string;
   /** Location coordinates, used to build location-specific outbound links (e.g. wind source) */
   lat: number;
   lon: number;
@@ -598,6 +600,8 @@ export default function CurrentConditions({
                 ? '🔗 https://data.sfgov.org/Energy-and-Environment/Beach-Water-Quality-Monitoring/v3fv-x3ux'
                 : waterQuality?.source?.includes('California Water Quality')
                 ? '🔗 https://data.ca.gov/dataset/surface-water-fecal-indicator-bacteria-results/resource/15a63495-8d9f-4a49-b43a-3092ef3106b9'
+                : waterQuality?.source?.includes('Swim Guide')
+                ? `🔗 https://www.theswimguide.org/beach/${location.swimGuideBeachId ?? ''}`
                 : waterQuality?.source?.includes('San Diego County')
                 ? `🔗 https://cosdapps.sandiegocounty.gov/sdbeachinfo/SamplesReport?SiteId=${location.sdBeachInfoSiteId ?? ''}`
                 : waterQuality?.source?.includes('Water Quality Portal')
