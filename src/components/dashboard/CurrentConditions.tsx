@@ -40,6 +40,18 @@ function degreesToCardinal(degrees: number): string {
   return directions[index];
 }
 
+/** Format a timestamp for the "Updated:" card detail lines, e.g. "Jul 3, 4:26 PM" */
+function formatUpdatedTimestamp(date: Date): string {
+  return date.toLocaleString('en-US', {
+    timeZone: 'America/Los_Angeles',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
 export interface CurrentConditionsLocationConfig {
   /** API path (or static JSON path in static mode is always /swimmingly/static-data.json) */
   apiPath: string;
@@ -460,7 +472,7 @@ export default function CurrentConditions({
                   `→ ${event.label}: ${event.timestamp.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} (${event.heightFeet.toFixed(1)} ft)`
                 );
               })()),
-              latestTideCurrentTimestamp ? `Updated: ${latestTideCurrentTimestamp.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} PST${isUsingCachedTideData ? ' (cached)' : ''}` : '',
+              latestTideCurrentTimestamp ? `Updated: ${formatUpdatedTimestamp(latestTideCurrentTimestamp)} PST${isUsingCachedTideData ? ' (cached)' : ''}` : '',
               // Moon phase
               moonPhase
                 ? `${moonPhase.phaseEmoji} ${moonPhase.phaseName} (${moonPhase.illuminationPercent}% illuminated)${moonPhase.isSpringTide ? ' — Spring tide' : moonPhase.isNeapTide ? ' — Neap tide' : ''}`
@@ -486,7 +498,7 @@ export default function CurrentConditions({
             details={[
               swellPeriod ? `Period: ${swellPeriod.toFixed(0)}s` : '',
               conditions.waves?.source ? `Source: ${conditions.waves.source}` : '',
-              conditions.waves?.timestamp ? `Updated: ${new Date(conditions.waves.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} PST` : '',
+              conditions.waves?.timestamp ? `Updated: ${formatUpdatedTimestamp(new Date(conditions.waves.timestamp))} PST` : '',
               ...(score?.factors?.waves?.issues ?? []),
               conditions.waves?.source?.toLowerCase().includes('openwaterlog')
                 ? '🔗 https://openwaterlog.com/locations/aquatic-park/'
@@ -521,7 +533,7 @@ export default function CurrentConditions({
                   }`
                 : '',
               windSourceDisplay ? `Source: ${windSourceDisplay}` : '',
-              weather?.timestamp ? `Updated: ${new Date(weather.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} PST` : '',
+              weather?.timestamp ? `Updated: ${formatUpdatedTimestamp(new Date(weather.timestamp))} PST` : '',
               ...(score?.factors?.weather?.issues ?? []),
               isOpenMeteoWind
                 ? `🔗 https://open-meteo.com/en/docs?latitude=${location.lat}&longitude=${location.lon}`
@@ -594,7 +606,7 @@ export default function CurrentConditions({
               waterQuality?.notes || '',
               waterQuality?.source ? `Source: ${waterQuality.source}` : '',
               waterQuality?.stationId ? `Station ID: ${waterQuality.stationId}` : '',
-              waterQuality?.timestamp ? `Updated: ${new Date(waterQuality.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} PST` : '',
+              waterQuality?.timestamp ? `Updated: ${formatUpdatedTimestamp(new Date(waterQuality.timestamp))} PST` : '',
               ...(score?.factors?.waterQuality?.issues?.filter(i => !/^(Very cold|Cold|Cool) water/i.test(i)) ?? []),
               waterQuality?.source?.includes('SF Beach Water Quality')
                 ? '🔗 https://data.sfgov.org/Energy-and-Environment/Beach-Water-Quality-Monitoring/v3fv-x3ux'
