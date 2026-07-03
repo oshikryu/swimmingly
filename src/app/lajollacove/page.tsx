@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import CurrentConditions from '@/components/dashboard/CurrentConditions';
 import HeaderTimestamp from '@/components/HeaderTimestamp';
+import { LA_JOLLA_COVE_LAT, LA_JOLLA_COVE_LON } from '@/config/la-jolla-cove';
 
 export const metadata: Metadata = {
   title: 'Swimmingly - La Jolla Cove Swim Planner',
@@ -14,6 +15,8 @@ const LA_JOLLA_COVE_UI_CONFIG = {
   tideStationId: '9410230',
   waterTempSourceUrl: 'https://tidesandcurrents.noaa.gov/met.html?id=9410230',
   sdBeachInfoSiteId: '105',
+  lat: LA_JOLLA_COVE_LAT,
+  lon: LA_JOLLA_COVE_LON,
 };
 
 export default function LaJollaCove() {

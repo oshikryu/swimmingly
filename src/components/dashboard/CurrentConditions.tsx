@@ -6,6 +6,7 @@ import { useTidePreference } from '@/hooks/useTidePreference';
 import { useScoreWeights } from '@/hooks/useScoreWeights';
 import { useConditionsCache } from '@/hooks/useConditionsCache';
 import { SAFETY_THRESHOLDS } from '@/config/thresholds';
+import { AQUATIC_PARK_LAT, AQUATIC_PARK_LON } from '@/config/aquatic-park';
 import { calculateSwimScore } from '@/lib/algorithms/swim-score';
 import SwimScore from './SwimScore';
 import ConditionsCard, { type ThresholdSegment } from './ConditionsCard';
@@ -51,6 +52,9 @@ export interface CurrentConditionsLocationConfig {
   waterTempSourceUrl: string;
   /** San Diego County sdbeachinfo site ID, used for the water quality outbound link (if applicable) */
   sdBeachInfoSiteId?: string;
+  /** Location coordinates, used to build location-specific outbound links (e.g. wind source) */
+  lat: number;
+  lon: number;
 }
 
 const AQUATIC_PARK_LOCATION_CONFIG: CurrentConditionsLocationConfig = {
@@ -58,6 +62,8 @@ const AQUATIC_PARK_LOCATION_CONFIG: CurrentConditionsLocationConfig = {
   cacheKeyPrefix: '',
   tideStationId: '9414290',
   waterTempSourceUrl: 'https://seatemperature.info/aquatic-park-water-temperature.html',
+  lat: AQUATIC_PARK_LAT,
+  lon: AQUATIC_PARK_LON,
 };
 
 export default function CurrentConditions({
@@ -513,9 +519,9 @@ export default function CurrentConditions({
               weather?.timestamp ? `Updated: ${new Date(weather.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} PST` : '',
               ...(score?.factors?.weather?.issues ?? []),
               isOpenMeteoWind
-                ? '🔗 https://open-meteo.com/'
+                ? `🔗 https://open-meteo.com/en/docs?latitude=${location.lat}&longitude=${location.lon}`
                 : windSource?.includes('NOAA')
-                ? '🔗 https://www.weather.gov/'
+                ? `🔗 https://forecast.weather.gov/MapClick.php?lat=${location.lat}&lon=${location.lon}`
                 : '',
             ].filter(Boolean)}
           />
