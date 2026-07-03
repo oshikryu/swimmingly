@@ -1,0 +1,218 @@
+{
+  "timestamp": "2026-07-03T17:30:08.890Z",
+  "score": {
+    "timestamp": "2026-07-03T17:30:08.891Z",
+    "overallScore": 93,
+    "rating": "calm",
+    "factors": {
+      "waterQuality": {
+        "score": 100,
+        "status": "safe",
+        "bacteriaLevel": "safe",
+        "recentSSO": false,
+        "issues": []
+      },
+      "tideAndCurrent": {
+        "score": 85,
+        "phase": "flood",
+        "currentSpeed": 0.41,
+        "tideHeight": 1.123,
+        "favorable": true,
+        "issues": []
+      },
+      "waves": {
+        "score": 90,
+        "heightFeet": 0.4,
+        "status": "calm",
+        "issues": []
+      },
+      "weather": {
+        "score": 100,
+        "temperature": 61.7,
+        "windSpeed": 7.1,
+        "windCondition": "calm",
+        "issues": []
+      }
+    },
+    "recommendations": [
+      "The cove's reading like a pool right now",
+      "Go. Conditions like this are what you show up for"
+    ],
+    "warnings": []
+  },
+  "tide": {
+    "timestamp": "2026-07-03T17:24:00.000Z",
+    "heightFeet": 1.123,
+    "type": "normal",
+    "source": "NOAA",
+    "nextHigh": {
+      "timestamp": "2026-07-03T22:41:00.000Z",
+      "heightFeet": 4.767,
+      "type": "high",
+      "source": "NOAA"
+    },
+    "nextLow": {
+      "timestamp": "2026-07-04T03:24:00.000Z",
+      "heightFeet": 2.979,
+      "type": "low",
+      "source": "NOAA"
+    },
+    "previousHigh": {
+      "timestamp": "2026-07-03T08:26:00.000Z",
+      "heightFeet": 5.61,
+      "type": "high",
+      "source": "NOAA"
+    },
+    "previousLow": {
+      "timestamp": "2026-07-03T15:18:00.000Z",
+      "heightFeet": -0.516,
+      "type": "low",
+      "source": "NOAA"
+    },
+    "currentPhase": "flood",
+    "changeRateFeetPerHour": 0.703238906634614
+  },
+  "current": {
+    "timestamp": "2026-07-03T17:30:00.000Z",
+    "speedKnots": 0.41,
+    "direction": 69,
+    "source": "NOAA"
+  },
+  "weather": {
+    "timestamp": "2026-07-03T17:30:00.000Z",
+    "temperatureF": 61.7,
+    "windSpeedMph": 7.1,
+    "windDirection": 252,
+    "windGustMph": 9.2,
+    "conditions": "partly cloudy",
+    "source": "open-meteo"
+  },
+  "waves": {
+    "timestamp": "2026-07-03T16:00:00.000Z",
+    "waveHeightFeet": 0.4,
+    "source": "OpenWaterLog"
+  },
+  "waterQuality": {
+    "timestamp": "2026-06-29T07:00:00.000Z",
+    "enterococcusCount": 10,
+    "coliformCount": 10,
+    "status": "safe",
+    "source": "SF Beach Water Quality (Aquatic Park)",
+    "stationId": "BAY#211_SL",
+    "notes": "Sampled 4 days ago"
+  },
+  "waterTemperature": {
+    "timestamp": "2026-07-03T17:30:06.119Z",
+    "temperatureF": 64.8,
+    "source": "seatemperature.info"
+  },
+  "damReleases": {
+    "timestamp": "2026-07-03T17:30:05.772Z",
+    "current": {
+      "totalFlowCFS": 34562,
+      "releaseLevel": "moderate"
+    },
+    "historical48h": {
+      "averageFlowCFS": 25811.73469387755,
+      "peakFlowCFS": 39042,
+      "peakTimestamp": "2026-07-02T04:00:00.000Z",
+      "trendDirection": "increasing",
+      "last24hAverage": 29972.85714285714,
+      "last48hAverage": 25811.73469387755
+    },
+    "dams": [
+      {
+        "name": "Folsom Dam",
+        "stationId": "FOL",
+        "current": {
+          "flowCFS": 6648,
+          "timestamp": "2026-07-03T07:00:00.000Z",
+          "percentOfTotal": 19.234997974654245
+        },
+        "historical48h": {
+          "averageFlowCFS": 4484.265306122449,
+          "peakFlowCFS": 7559
+        }
+      },
+      {
+        "name": "Oroville Dam",
+        "stationId": "ORO",
+        "current": {
+          "flowCFS": 14094,
+          "timestamp": "2026-07-03T07:00:00.000Z",
+          "percentOfTotal": 40.778890110526014
+        },
+        "historical48h": {
+          "averageFlowCFS": 10749.061224489797,
+          "peakFlowCFS": 14258
+        }
+      },
+      {
+        "name": "Shasta Dam",
+        "stationId": "SHA",
+        "current": {
+          "flowCFS": 13820,
+          "timestamp": "2026-07-03T07:00:00.000Z",
+          "percentOfTotal": 39.986111914819745
+        },
+        "historical48h": {
+          "averageFlowCFS": 10578.408163265307,
+          "peakFlowCFS": 17705
+        }
+      },
+      {
+        "name": "Pardee Dam",
+        "stationId": "PAR",
+        "current": {
+          "flowCFS": 0,
+          "percentOfTotal": 0
+        },
+        "historical48h": {
+          "averageFlowCFS": 0,
+          "peakFlowCFS": 0
+        }
+      },
+      {
+        "name": "Camanche Dam",
+        "stationId": "CMN",
+        "current": {
+          "flowCFS": 0,
+          "percentOfTotal": 0
+        },
+        "historical48h": {
+          "averageFlowCFS": 0,
+          "peakFlowCFS": 0
+        }
+      }
+    ],
+    "latestDataTimestamp": "2026-07-03T07:00:00.000Z",
+    "source": "CDEC"
+  },
+  "rainfall": {
+    "timestamp": "2026-07-03T17:30:07.248Z",
+    "last24hInches": 0,
+    "last48hInches": 0,
+    "last72hInches": 0,
+    "source": "open-meteo"
+  },
+  "moonPhase": {
+    "phase": 0.6253630408292737,
+    "phaseName": "Waning Gibbous",
+    "phaseEmoji": "🌖",
+    "isSpringTide": false,
+    "isNeapTide": false,
+    "illuminationPercent": 85
+  },
+  "dataFreshness": {
+    "tide": "2026-07-03T17:24:00.000Z",
+    "weather": "2026-07-03T17:30:00.000Z",
+    "waves": "2026-07-03T16:00:00.000Z",
+    "waterQuality": "2026-06-29T07:00:00.000Z",
+    "waterTemperature": "2026-07-03T17:30:06.119Z",
+    "damReleases": "2026-07-03T17:30:05.772Z",
+    "rainfall": "2026-07-03T17:30:07.248Z",
+    "moonPhase": "2026-07-03T17:30:08.890Z"
+  },
+  "buildTimestamp": "2026-07-03T17:30:08.891Z",
+  "buildMode": "static"
+}
