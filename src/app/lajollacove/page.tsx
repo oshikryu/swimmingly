@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import CurrentConditions from '@/components/dashboard/CurrentConditions';
 import HeaderTimestamp from '@/components/HeaderTimestamp';
-import { LA_JOLLA_COVE_LAT, LA_JOLLA_COVE_LON } from '@/config/la-jolla-cove';
+import { LA_JOLLA_COVE_LAT, LA_JOLLA_COVE_LON, LA_JOLLA_COVE_THRESHOLDS_OVERRIDE } from '@/config/la-jolla-cove';
 
 export const metadata: Metadata = {
   title: 'Swimmingly - La Jolla Cove Swim Planner',
@@ -17,6 +17,7 @@ const LA_JOLLA_COVE_UI_CONFIG = {
   sdBeachInfoSiteId: '105',
   lat: LA_JOLLA_COVE_LAT,
   lon: LA_JOLLA_COVE_LON,
+  thresholdsOverride: LA_JOLLA_COVE_THRESHOLDS_OVERRIDE,
 };
 
 export default function LaJollaCove() {

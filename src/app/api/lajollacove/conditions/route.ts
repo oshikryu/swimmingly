@@ -4,14 +4,18 @@
  * src/config/la-jolla-cove.ts). Dam releases and SF-specific water quality sources
  * don't apply here — see the implementation plan for the full data source mapping.
  *
- * Waves: LJPC1 (nearshore C-MAN station at Scripps Pier, closer to the actual swim
- * area) is primary, falling back to buoy 46254 (offshore Waverider buoy) if LJPC1
- * has no valid reading.
+ * Waves: buoy 46254 (Scripps Nearshore Waverider Buoy) is primary, falling back to
+ * LJPC1 (nearshore C-MAN station at Scripps Pier) if 46254 has no valid reading.
  *
  * Water quality: San Diego County's own ddPCR beach monitoring (sdbeachinfo.ts) is
  * primary — it's fresher (samples within days) than the federal WQP fallback (which
  * can lag months for this area), but it's a reverse-engineered internal API, so it
  * falls back to the WQP integration if it fails.
+ *
+ * Waves are also scored against La Jolla Cove-specific thresholds (see
+ * LA_JOLLA_COVE_THRESHOLDS_OVERRIDE in config/la-jolla-cove.ts) rather than Aquatic
+ * Park's sheltered-bay defaults — La Jolla's open-coast swell reads much higher on
+ * the same instruments for what's actually a normal, comfortable swim day.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -22,7 +26,7 @@ import { fetchSanDiegoCountyWaterQuality } from '@/lib/api/sdbeachinfo';
 import { calculateSwimScore } from '@/lib/algorithms/swim-score';
 import { fetchWindData, fetchRecentRainfall } from '@/lib/api/open-meteo';
 import { calculateMoonPhase } from '@/lib/moon-phase';
-import { LA_JOLLA_TIDE_STATION_ID, LA_JOLLA_WAVE_BUOY_ID, LA_JOLLA_WAVE_BUOY_FALLBACK_ID, LA_JOLLA_COVE_LAT, LA_JOLLA_COVE_LON, LA_JOLLA_SD_BEACH_INFO_SITE_ID } from '@/config/la-jolla-cove';
+import { LA_JOLLA_TIDE_STATION_ID, LA_JOLLA_WAVE_BUOY_ID, LA_JOLLA_WAVE_BUOY_FALLBACK_ID, LA_JOLLA_COVE_LAT, LA_JOLLA_COVE_LON, LA_JOLLA_SD_BEACH_INFO_SITE_ID, LA_JOLLA_COVE_THRESHOLDS_OVERRIDE } from '@/config/la-jolla-cove';
 
 export const dynamic = 'force-dynamic'; // Always fetch fresh data
 export const revalidate = 300; // Cache for 5 minutes
@@ -43,12 +47,12 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    // Fetch wave data with fallback strategy: LJPC1 (nearshore, closer to the cove) first,
-    // then 46254 (Scripps Waverider Buoy, offshore) if LJPC1 has no valid reading
+    // Fetch wave data with fallback strategy: buoy 46254 (Scripps Waverider Buoy) first,
+    // then LJPC1 (nearshore C-MAN station) if 46254 has no valid reading
     const fetchWaveDataWithFallback = async () => {
       const primary = await fetchWaveData(LA_JOLLA_WAVE_BUOY_ID);
       if (primary) return primary;
-      console.log('La Jolla Cove: LJPC1 unavailable, falling back to buoy 46254...');
+      console.log('La Jolla Cove: buoy 46254 unavailable, falling back to LJPC1...');
       return fetchWaveData(LA_JOLLA_WAVE_BUOY_FALLBACK_ID);
     };
 
@@ -146,7 +150,8 @@ export async function GET(request: NextRequest) {
       undefined, // customWeights
       rainfallData,
       moonPhaseData,
-      waterTempData
+      waterTempData,
+      LA_JOLLA_COVE_THRESHOLDS_OVERRIDE
     );
 
     // Construct response with fallbacks for missing data
