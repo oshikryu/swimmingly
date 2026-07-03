@@ -4,7 +4,11 @@ import { useState, useEffect } from 'react';
 import type { ScoreWeights } from '@/types/conditions';
 import { SCORE_WEIGHTS } from '@/config/thresholds';
 
-const STORAGE_KEY = 'swimmingly-score-weights';
+const BASE_STORAGE_KEY = 'swimmingly-score-weights';
+
+function storageKeyFor(prefix: string): string {
+  return prefix ? `${BASE_STORAGE_KEY}-${prefix}` : BASE_STORAGE_KEY;
+}
 
 const DEFAULT_WEIGHTS: ScoreWeights = {
   waterQuality: SCORE_WEIGHTS.waterQuality,
@@ -41,13 +45,18 @@ function areWeightsEqual(a: ScoreWeights, b: ScoreWeights): boolean {
   );
 }
 
-export function useScoreWeights(): UseScoreWeightsReturn {
+/**
+ * @param storageKeyPrefix Distinguishes weights between locations (e.g. 'lajollacove').
+ * Defaults to '' to preserve Aquatic Park's existing storage key.
+ */
+export function useScoreWeights(storageKeyPrefix: string = ''): UseScoreWeightsReturn {
+  const storageKey = storageKeyFor(storageKeyPrefix);
   const [weights, setWeightsState] = useState<ScoreWeights>(DEFAULT_WEIGHTS);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(storageKey);
       if (stored) {
         const parsed = JSON.parse(stored);
         if (isValidWeights(parsed)) {
@@ -59,11 +68,11 @@ export function useScoreWeights(): UseScoreWeightsReturn {
     } finally {
       setIsLoaded(true);
     }
-  }, []);
+  }, [storageKey]);
 
   const setWeights = (newWeights: ScoreWeights) => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newWeights));
+      localStorage.setItem(storageKey, JSON.stringify(newWeights));
       setWeightsState(newWeights);
     } catch {
       console.warn('Failed to save score weights to localStorage');
@@ -73,7 +82,7 @@ export function useScoreWeights(): UseScoreWeightsReturn {
 
   const resetWeights = () => {
     try {
-      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(storageKey);
     } catch {
       // ignore
     }

@@ -8,8 +8,12 @@
 import { useState, useEffect } from 'react';
 import type { WaveData } from '@/types/conditions';
 
-const STORAGE_KEY = 'swimmingly-wave-cache';
+const BASE_STORAGE_KEY = 'swimmingly-wave-cache';
 const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+
+function storageKeyFor(prefix: string): string {
+  return prefix ? `${BASE_STORAGE_KEY}-${prefix}` : BASE_STORAGE_KEY;
+}
 
 interface CachedWaveData {
   data: WaveData;
@@ -27,9 +31,9 @@ interface UseWaveDataCacheReturn {
  * Get wave data from localStorage cache
  * Returns null if cache is expired or invalid
  */
-function getWaveDataFromCache(): WaveData | null {
+function getWaveDataFromCache(storageKey: string): WaveData | null {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(storageKey);
     if (!stored) return null;
 
     const cached: CachedWaveData = JSON.parse(stored);
@@ -38,7 +42,7 @@ function getWaveDataFromCache(): WaveData | null {
     // Check if cache is expired
     if (now >= cached.expiresAt) {
       // Cache expired, remove it
-      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(storageKey);
       return null;
     }
 
@@ -53,7 +57,7 @@ function getWaveDataFromCache(): WaveData | null {
  * Save wave data to localStorage cache
  * Sets expiration time to 5 minutes from now
  */
-function saveWaveDataToCache(data: WaveData): void {
+function saveWaveDataToCache(storageKey: string, data: WaveData): void {
   try {
     const now = Date.now();
     const cached: CachedWaveData = {
@@ -61,7 +65,7 @@ function saveWaveDataToCache(data: WaveData): void {
       cachedAt: now,
       expiresAt: now + CACHE_DURATION_MS,
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(cached));
+    localStorage.setItem(storageKey, JSON.stringify(cached));
   } catch (error) {
     console.warn('Failed to save wave data to cache:', error);
   }
@@ -70,23 +74,27 @@ function saveWaveDataToCache(data: WaveData): void {
 /**
  * Hook to manage wave data caching with localStorage persistence
  * SSR-safe: initializes on client side only
+ *
+ * @param storageKeyPrefix Distinguishes caches between locations (e.g. 'lajollacove').
+ * Defaults to '' to preserve Aquatic Park's existing storage key.
  */
-export function useWaveDataCache(): UseWaveDataCacheReturn {
+export function useWaveDataCache(storageKeyPrefix: string = ''): UseWaveDataCacheReturn {
+  const storageKey = storageKeyFor(storageKeyPrefix);
   const [cachedData, setCachedDataState] = useState<WaveData | null>(null);
   const [isCacheValid, setIsCacheValid] = useState(false);
 
   // Load cached data from localStorage on mount (client-side only)
   useEffect(() => {
-    const cached = getWaveDataFromCache();
+    const cached = getWaveDataFromCache(storageKey);
     if (cached) {
       setCachedDataState(cached);
       setIsCacheValid(true);
     }
-  }, []);
+  }, [storageKey]);
 
   // Update cached data and persist to localStorage
   const setCachedData = (data: WaveData) => {
-    saveWaveDataToCache(data);
+    saveWaveDataToCache(storageKey, data);
     setCachedDataState(data);
     setIsCacheValid(true);
   };

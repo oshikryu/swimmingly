@@ -40,14 +40,35 @@ function degreesToCardinal(degrees: number): string {
   return directions[index];
 }
 
+export interface CurrentConditionsLocationConfig {
+  /** API path (or static JSON path in static mode is always /swimmingly/static-data.json) */
+  apiPath: string;
+  /** Distinguishes localStorage keys between locations, e.g. 'lajollacove' */
+  cacheKeyPrefix: string;
+  /** NOAA tide station ID, used for the outbound tide-predictions link */
+  tideStationId: string;
+  /** Outbound link for the water temperature source */
+  waterTempSourceUrl: string;
+}
 
-export default function CurrentConditions() {
+const AQUATIC_PARK_LOCATION_CONFIG: CurrentConditionsLocationConfig = {
+  apiPath: '/api/conditions',
+  cacheKeyPrefix: '',
+  tideStationId: '9414290',
+  waterTempSourceUrl: 'https://seatemperature.info/aquatic-park-water-temperature.html',
+};
+
+export default function CurrentConditions({
+  location = AQUATIC_PARK_LOCATION_CONFIG,
+}: {
+  location?: CurrentConditionsLocationConfig;
+}) {
   const [conditions, setConditions] = useState<CurrentConditionsType | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { preference, setPreference, isLoaded } = useTidePreference();
-  const { weights, setWeights, resetWeights, isCustom: isWeightsCustom } = useScoreWeights();
-  const { cachedData, setCachedData, isCacheValid } = useConditionsCache();
+  const { preference, setPreference, isLoaded } = useTidePreference(location.cacheKeyPrefix);
+  const { weights, setWeights, resetWeights, isCustom: isWeightsCustom } = useScoreWeights(location.cacheKeyPrefix);
+  const { cachedData, setCachedData, isCacheValid } = useConditionsCache(location.cacheKeyPrefix);
   // Store raw data for client-side recalculation
   const rawDataRef = useRef<RawConditionsData | null>(null);
   // Prevents the cache-init effect from re-firing after the first mount hydration
@@ -150,7 +171,7 @@ export default function CurrentConditions() {
             if (tidePreference) {
               params.append('tidePhasePreference', tidePreference);
             }
-            return `/api/conditions${params.toString() ? `?${params.toString()}` : ''}`;
+            return `${location.apiPath}${params.toString() ? `?${params.toString()}` : ''}`;
           })();
 
       const response = await fetch(url);
@@ -433,7 +454,7 @@ export default function CurrentConditions() {
                 : '',
               ...(score?.factors?.tideAndCurrent?.issues?.filter(issue => !issue.toLowerCase().includes('current')) ?? []),
               // Data source link
-              '🔗 https://tidesandcurrents.noaa.gov/noaatidepredictions.html?id=9414290',
+              `🔗 https://tidesandcurrents.noaa.gov/noaatidepredictions.html?id=${location.tideStationId}`,
             ].filter(Boolean)}
           />
 
@@ -570,7 +591,7 @@ export default function CurrentConditions() {
                 ? '🔗 https://www.waterqualitydata.us/'
                 : '',
               conditions?.waterTemperature
-                ? '🔗 https://seatemperature.info/aquatic-park-water-temperature.html'
+                ? `🔗 ${location.waterTempSourceUrl}`
                 : '',
             ].filter(Boolean)}
           />

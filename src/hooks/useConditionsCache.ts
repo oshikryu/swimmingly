@@ -8,8 +8,12 @@
 import { useState, useEffect } from 'react';
 import type { CurrentConditions, CachedData } from '@/types/conditions';
 
-const STORAGE_KEY = 'swimmingly-conditions-cache';
+const BASE_STORAGE_KEY = 'swimmingly-conditions-cache';
 const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+
+function storageKeyFor(prefix: string): string {
+  return prefix ? `${BASE_STORAGE_KEY}-${prefix}` : BASE_STORAGE_KEY;
+}
 
 interface UseConditionsCacheReturn {
   cachedData: CurrentConditions | null;
@@ -22,11 +26,11 @@ interface UseConditionsCacheReturn {
  * Get conditions data from localStorage cache
  * Returns null if cache is expired or invalid
  */
-function getConditionsFromCache(): CurrentConditions | null {
+function getConditionsFromCache(storageKey: string): CurrentConditions | null {
   if (typeof window === 'undefined') return null;
 
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(storageKey);
     if (!stored) return null;
 
     const cached: CachedData<CurrentConditions> = JSON.parse(stored);
@@ -35,7 +39,7 @@ function getConditionsFromCache(): CurrentConditions | null {
     // Check if cache is expired
     if (now >= cached.expiresAt) {
       // Cache expired, remove it
-      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(storageKey);
       return null;
     }
 
@@ -50,7 +54,7 @@ function getConditionsFromCache(): CurrentConditions | null {
  * Save conditions data to localStorage cache
  * Sets expiration time to 5 minutes from now
  */
-function saveConditionsToCache(data: CurrentConditions): void {
+function saveConditionsToCache(storageKey: string, data: CurrentConditions): void {
   if (typeof window === 'undefined') return;
 
   try {
@@ -60,7 +64,7 @@ function saveConditionsToCache(data: CurrentConditions): void {
       cachedAt: now,
       expiresAt: now + CACHE_DURATION_MS,
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(cached));
+    localStorage.setItem(storageKey, JSON.stringify(cached));
   } catch (error) {
     console.warn('Failed to save conditions to cache:', error);
   }
@@ -69,11 +73,11 @@ function saveConditionsToCache(data: CurrentConditions): void {
 /**
  * Clear conditions cache from localStorage
  */
-function clearConditionsCache(): void {
+function clearConditionsCache(storageKey: string): void {
   if (typeof window === 'undefined') return;
 
   try {
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(storageKey);
   } catch (error) {
     console.warn('Failed to clear conditions cache:', error);
   }
@@ -82,30 +86,34 @@ function clearConditionsCache(): void {
 /**
  * Hook to manage conditions data caching with localStorage persistence
  * SSR-safe: initializes on client side only
+ *
+ * @param storageKeyPrefix Distinguishes caches between locations (e.g. 'lajollacove').
+ * Defaults to '' to preserve Aquatic Park's existing cache key.
  */
-export function useConditionsCache(): UseConditionsCacheReturn {
+export function useConditionsCache(storageKeyPrefix: string = ''): UseConditionsCacheReturn {
+  const storageKey = storageKeyFor(storageKeyPrefix);
   const [cachedData, setCachedDataState] = useState<CurrentConditions | null>(null);
   const [isCacheValid, setIsCacheValid] = useState(false);
 
   // Load cached data from localStorage on mount (client-side only)
   useEffect(() => {
-    const cached = getConditionsFromCache();
+    const cached = getConditionsFromCache(storageKey);
     if (cached) {
       setCachedDataState(cached);
       setIsCacheValid(true);
     }
-  }, []);
+  }, [storageKey]);
 
   // Update cached data and persist to localStorage
   const setCachedData = (data: CurrentConditions) => {
-    saveConditionsToCache(data);
+    saveConditionsToCache(storageKey, data);
     setCachedDataState(data);
     setIsCacheValid(true);
   };
 
   // Clear cache
   const clearCache = () => {
-    clearConditionsCache();
+    clearConditionsCache(storageKey);
     setCachedDataState(null);
     setIsCacheValid(false);
   };

@@ -1,8 +1,21 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import CurrentConditions from '@/components/dashboard/CurrentConditions';
 import HeaderTimestamp from '@/components/HeaderTimestamp';
 
-export default function Home() {
+export const metadata: Metadata = {
+  title: 'Swimmingly - La Jolla Cove Swim Planner',
+  description: 'Determine optimal swimming times at La Jolla Cove in San Diego',
+};
+
+const LA_JOLLA_COVE_UI_CONFIG = {
+  apiPath: '/api/lajollacove/conditions',
+  cacheKeyPrefix: 'lajollacove',
+  tideStationId: '9410230',
+  waterTempSourceUrl: 'https://tidesandcurrents.noaa.gov/met.html?id=9410230',
+};
+
+export default function LaJollaCove() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-gray-900 dark:to-gray-800">
       {/* Header */}
@@ -14,13 +27,13 @@ export default function Home() {
                 Swimmingly
               </h1>
               <p className="text-gray-600 dark:text-gray-400 mt-1">
-                Aquatic Park, San Francisco Bay
+                La Jolla Cove, San Diego
               </p>
               <Link
-                href="/lajollacove"
+                href="/"
                 className="text-sm text-blue-600 dark:text-blue-400 hover:underline mt-1 inline-block"
               >
-                La Jolla Cove, San Diego →
+                ← Aquatic Park, San Francisco Bay
               </Link>
             </div>
             <HeaderTimestamp />
@@ -54,7 +67,7 @@ export default function Home() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <CurrentConditions />
+        <CurrentConditions location={LA_JOLLA_COVE_UI_CONFIG} />
 
         {/* Disclaimer */}
         <div className="mt-8 bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400 p-4 rounded">
@@ -75,7 +88,7 @@ export default function Home() {
       <footer className="mt-12 pb-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <p className="text-center text-sm text-gray-500 dark:text-gray-400">
-            Data sources: NOAA (tides, currents, weather) • CDEC (dam releases) • SF Open Data (water quality, SSO) • Open-Meteo (wind, rainfall) • OpenWaterLog (waves)
+            Data sources: NOAA (tides, waves, water temp, wind) • Water Quality Portal (bacteria) • Open-Meteo (wind, rainfall)
           </p>
           <p className="text-center text-xs text-gray-400 dark:text-gray-500 mt-1">
             {process.env.NEXT_PUBLIC_BUILD_MODE === 'static'
