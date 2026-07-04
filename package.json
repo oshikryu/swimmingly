@@ -20,6 +20,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@date-fns/tz": "^1.5.0",
     "@deck.gl/core": "^9.1.1",
     "@deck.gl/layers": "^9.1.1",
     "@deck.gl/react": "^9.1.1",

@@ -6,9 +6,40 @@
  * No API key required - completely free for non-commercial use
  */
 
+import { TZDate } from '@date-fns/tz';
 import { AQUATIC_PARK_LAT, AQUATIC_PARK_LON } from '@/config/aquatic-park';
 
 const OPEN_METEO_BASE_URL = 'https://api.open-meteo.com/v1/forecast';
+
+const OPEN_METEO_TIMEZONE = 'America/Los_Angeles';
+
+/**
+ * Open-Meteo returns local wall-clock time strings with no UTC offset
+ * (e.g. "2026-07-04T07:30") when a `timezone` param is set. `new Date(...)`
+ * on a string like that is parsed as local time of the *host* running the
+ * code, not the zone the string is actually in - correct only by coincidence
+ * on a host whose system timezone happens to be America/Los_Angeles, wrong
+ * everywhere else (e.g. UTC-based servers/Workers). Parse the components
+ * explicitly against the intended zone instead of trusting the host clock.
+ */
+function parsePacificTime(naiveDateTimeString: string): Date {
+  const match = naiveDateTimeString.match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/
+  );
+  if (!match) return new Date(naiveDateTimeString);
+
+  const [, year, month, day, hour, minute, second] = match;
+  const zoned = new TZDate(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    Number(second ?? 0),
+    OPEN_METEO_TIMEZONE
+  );
+  return new Date(+zoned);
+}
 
 /**
  * Wind data structure returned by Open-Meteo
@@ -39,7 +70,7 @@ export async function fetchWindData(
     current: 'wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m,weather_code',
     wind_speed_unit: 'mph',
     temperature_unit: 'fahrenheit',
-    timezone: 'America/Los_Angeles',
+    timezone: OPEN_METEO_TIMEZONE,
   });
 
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -76,7 +107,7 @@ export async function fetchWindData(
       }
 
       return {
-        timestamp: new Date(current.time),
+        timestamp: parsePacificTime(current.time),
         windSpeedMph: current.wind_speed_10m,
         windDirection: current.wind_direction_10m,
         windGustMph: current.wind_gusts_10m || undefined,
@@ -114,7 +145,7 @@ export async function fetchWindForecast(
       longitude: String(lon),
       hourly: 'wind_speed_10m,wind_direction_10m,wind_gusts_10m',
       wind_speed_unit: 'mph',
-      timezone: 'America/Los_Angeles',
+      timezone: OPEN_METEO_TIMEZONE,
       forecast_days: String(Math.ceil(hours / 24)),
     });
 
@@ -139,7 +170,7 @@ export async function fetchWindForecast(
 
     for (let i = 0; i < Math.min(hours, hourly.time.length); i++) {
       forecasts.push({
-        timestamp: new Date(hourly.time[i]),
+        timestamp: parsePacificTime(hourly.time[i]),
         windSpeedMph: hourly.wind_speed_10m[i],
         windDirection: hourly.wind_direction_10m[i],
         windGustMph: hourly.wind_gusts_10m?.[i],
@@ -184,7 +215,7 @@ export async function fetchRecentRainfall(
     hourly: 'precipitation',
     past_days: '3',
     forecast_days: '0',
-    timezone: 'America/Los_Angeles',
+    timezone: OPEN_METEO_TIMEZONE,
   });
 
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -222,7 +253,7 @@ export async function fetchRecentRainfall(
         const precip = hourly.precipitation[i];
         if (precip == null || isNaN(precip)) continue;
 
-        const hourTime = new Date(hourly.time[i]).getTime();
+        const hourTime = parsePacificTime(hourly.time[i]).getTime();
         const hoursAgo = (now - hourTime) / (1000 * 60 * 60);
 
         if (hoursAgo >= 0 && hoursAgo <= 72) {
