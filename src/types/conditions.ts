@@ -202,51 +202,6 @@ export interface CurrentConditions {
   };
 }
 
-export interface ForecastConditions {
-  timestamp: Date;
-  score: SwimScore;
-  tide: TidePrediction;
-  weather: WeatherData;
-  waves: WaveData;
-}
-
-export interface ForecastPeriod {
-  startTime: Date;
-  endTime: Date;
-  conditions: ForecastConditions[];
-  optimalWindows: OptimalSwimWindow[];
-}
-
-export interface OptimalSwimWindow {
-  startTime: Date;
-  endTime: Date;
-  averageScore: number;
-  peakScore: number;
-  reason: string;
-  tide: {
-    phase: string;
-    heightRange: [number, number];
-  };
-}
-
-export interface HistoricalDataPoint {
-  timestamp: Date;
-  score: number;
-  tide: number;
-  windSpeed: number;
-  waveHeight: number;
-  waterQualityStatus: string;
-}
-
-export interface HistoricalPattern {
-  timeOfDay?: 'morning' | 'afternoon' | 'evening';
-  dayOfWeek?: string;
-  month?: string;
-  averageScore: number;
-  sampleSize: number;
-  bestConditions: string[];
-}
-
 /**
  * User preference types for swim score customization
  */

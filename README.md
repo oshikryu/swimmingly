@@ -34,7 +34,6 @@ A Next.js web application that helps swimmers determine optimal swimming times a
 - **Framework**: Next.js 15 with App Router
 - **Language**: TypeScript
 - **Hosting**: Cloudflare Workers (via `@opennextjs/cloudflare`), GitHub Pages (static snapshot)
-- **Database**: PostgreSQL with Prisma ORM (TimescaleDB ready for time-series data, optional)
 - **Styling**: Tailwind CSS
 - **Data Sources**: NOAA (tides, currents, weather, wave buoys, water temperature), Open-Meteo (wind, rainfall), SF Open Data & CA Water Quality Portal (Aquatic Park water quality, sewer overflows), San Diego County DEHQ & Swim Guide (La Jolla Cove water quality), CDEC (dam releases, Aquatic Park only). Full breakdown in [Data Sources](#data-sources) below.
 
@@ -43,7 +42,6 @@ A Next.js web application that helps swimmers determine optimal swimming times a
 ### Prerequisites
 
 - Node.js 18+ and npm
-- PostgreSQL database (optional for development)
 - Redis (optional, for caching)
 
 ### Installation
@@ -66,8 +64,7 @@ A Next.js web application that helps swimmers determine optimal swimming times a
 
    Edit `.env.local` and add your configuration:
    ```env
-   # Optional for development - the app will work without a database using API calls
-   DATABASE_URL="postgresql://user:password@localhost:5432/swimmingly"
+   # Optional, for caching
    REDIS_URL="redis://localhost:6379"
 
    # Required for map features (get free keys from mapbox.com)
@@ -75,18 +72,12 @@ A Next.js web application that helps swimmers determine optimal swimming times a
    MAPBOX_SECRET_KEY="sk.your_key_here"
    ```
 
-4. **Initialize the database** (optional)
-   ```bash
-   npx prisma generate
-   npx prisma db push
-   ```
-
-5. **Run the development server**
+4. **Run the development server**
    ```bash
    npm run dev
    ```
 
-6. **Open your browser**
+5. **Open your browser**
    Navigate to [http://localhost:3333](http://localhost:3333)
 
 ## Deployment
@@ -141,17 +132,13 @@ swimmingly/
 │   │   └── dashboard/     # Dashboard-specific components (CurrentConditions takes a
 │   │                      # `location` prop so both pages share one implementation)
 │   ├── lib/              # Core utilities
-│   │   ├── api/          # External API clients (NOAA, SFPUC, sdbeachinfo, swimguide, etc.)
-│   │   ├── algorithms/   # Swim score calculation, incl. per-location threshold overrides
-│   │   └── db.ts         # Database client
+│   │   ├── api/          # External API clients (NOAA, sdbeachinfo, swimguide, etc.)
+│   │   └── algorithms/   # Swim score calculation, incl. per-location threshold overrides
 │   ├── config/           # Configuration files
 │   │   ├── aquatic-park.ts   # Aquatic Park location & station IDs
 │   │   ├── la-jolla-cove.ts  # La Jolla Cove location, station IDs & threshold overrides
-│   │   ├── routes.ts         # Swimming route definitions
 │   │   └── thresholds.ts     # Shared default safety thresholds
 │   └── types/            # TypeScript type definitions
-├── prisma/
-│   └── schema.prisma     # Database schema
 └── public/               # Static assets
 ```
 
@@ -845,12 +832,7 @@ La Jolla Cove's values are backed by 45 days of live buoy history (median wave h
    - Seasonal patterns
    - Trend visualization
 
-4. **Database Integration**
-   - Store historical data
-   - TimescaleDB continuous aggregates
-   - Faster historical queries
-
-5. **Enhancements**
+4. **Enhancements**
    - Email/SMS notifications for good conditions
    - User preferences (wetsuit/non-wetsuit swimmer)
    - Custom route creation

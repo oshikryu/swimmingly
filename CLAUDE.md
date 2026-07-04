@@ -20,11 +20,6 @@ npm run generate-static-data  # Fetch data and write to public/static-data.json
 npm run build:static          # Build static version with pre-fetched data
 npx serve out                 # Test static build locally
 
-# Database (optional - app works without database)
-npx prisma generate  # Generate Prisma client
-npx prisma db push   # Sync schema to database
-npx prisma studio    # Open Prisma Studio GUI
-
 # Type checking
 npx tsc --noEmit     # Check TypeScript without emitting files
 ```
@@ -81,7 +76,6 @@ Each external data source has a dedicated client in `src/lib/api/`:
 - **`beachwatch.ts`**: SF Beach Water Quality Monitoring (primary water quality source)
   - Locations: BAY#211_SL (Aquatic Park) and BAY#210.1_SL (Hyde Street Pier)
   - Uses most recent data from either location
-- **`sfpuc.ts`**: Sewer overflow events from SF Open Data
 - **`cdec.ts`**: Dam release data from California Data Exchange Center
   - Monitors: Shasta, Oroville, Folsom, Pardee, Camanche dams
   - Fetches 48 hours of hourly flow data for time-lag modeling
@@ -90,30 +84,17 @@ Each external data source has a dedicated client in `src/lib/api/`:
 
 Station IDs and coordinates are centralized in `src/config/aquatic-park.ts`.
 
-### Database Schema (Optional)
-
-The Prisma schema (`prisma/schema.prisma`) is designed for TimescaleDB time-series optimization. Key models:
-
-- **Time-series data**: `TideData`, `CurrentData`, `WeatherData`, `WaveData`, `WaterQuality`, `SSOEvent`
-- **Calculated scores**: `SwimScore` (stores historical score calculations)
-- **Aggregates**: `HourlyAggregate`, `DailySummary` (for historical analysis)
-- **Routes**: `SwimmingRoute` (predefined swimming routes with GeoJSON)
-
-**Important**: Database is optional for development. The app works entirely via direct API calls without database setup.
-
 ### Client-side Caching Strategy
 
 Custom React hooks in `src/hooks/` implement localStorage-based caching:
 
 - **`useConditionsCache.ts`**: Caches full conditions data (5-minute TTL)
-- **`useWaveDataCache.ts`**: Caches wave-specific data
 
 This reduces API calls and improves UX by showing cached data while fetching updates.
 
 ### Configuration Files
 
 - **`src/config/aquatic-park.ts`**: Location coordinates, NOAA station IDs, buoy IDs
-- **`src/config/routes.ts`**: Predefined swimming routes (GeoJSON LineStrings)
 - **`src/config/thresholds.ts`**: Safety thresholds and score weights
 
 ## Key Implementation Details
@@ -177,8 +158,6 @@ import { TIDE_STATION_ID } from '@/config/aquatic-park';
 Required for full functionality (see `.env.example`):
 
 ```env
-# Optional - app works without database
-DATABASE_URL="postgresql://user:password@localhost:5432/swimmingly"
 REDIS_URL="redis://localhost:6379"
 
 # Required for map features (get free keys from mapbox.com)
@@ -217,13 +196,6 @@ curl "http://localhost:3000/api/waves"
 ### Modifying Safety Thresholds
 
 All thresholds are in `src/config/thresholds.ts`. Update values there rather than hardcoding throughout the codebase.
-
-### Working with Time-Series Data
-
-The Prisma schema uses TimescaleDB-optimized indexes:
-- All time-series models have `@@index([timestamp])`
-- Use `HourlyAggregate` and `DailySummary` for historical analysis
-- Consider implementing TimescaleDB continuous aggregates for production
 
 ## GitHub Pages Deployment
 
@@ -434,7 +406,6 @@ npx serve out
 ## Important Caveats
 
 - **This project was "heavily vibe coded"** (per README) - code may prioritize working functionality over perfect architecture
-- Database is optional for development but recommended for production to reduce API calls and store historical data
 - NOAA APIs are free but rate-limited - implement caching (Redis/localStorage) for production
 - Water quality data sources can be unreliable - always show data freshness timestamps to users
 - Dam release time-lag modeling uses rough estimates (24-48 hours) - actual transit times vary by water flow and dam location

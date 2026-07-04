@@ -12,31 +12,9 @@ Open [http://localhost:3333](http://localhost:3333) in your browser.
 
 ### 2. Testing the Application
 
-The application will work immediately without any database setup. It fetches data directly from:
-- NOAA APIs (tides, weather, waves) - **No API key required**
-- SF PUC Open Data (sewer overflows) - **No API key required**
+The application will work immediately without any database setup. It fetches data directly from NOAA, SF BeachWatch, CDEC, and Open-Meteo APIs - **no API key required**.
 
-**Note**: The water quality API integration uses placeholder data. You'll need to integrate with the actual CA Beach Watch API or SF Bay water quality monitoring API for real bacteria count data.
-
-### 3. Optional: Set Up Database
-
-For storing historical data and improving performance:
-
-```bash
-# Install PostgreSQL locally or use a cloud provider
-# Update DATABASE_URL in .env.local
-
-# Generate Prisma client
-npx prisma generate
-
-# Create database tables
-npx prisma db push
-
-# View database in Prisma Studio
-npx prisma studio
-```
-
-### 4. Optional: Add Mapbox for Maps
+### 3. Optional: Add Mapbox for Maps
 
 For the interactive map feature (future enhancement):
 
@@ -113,14 +91,11 @@ npx tsc --noEmit
 
 ### Configuration
 - `src/config/aquatic-park.ts` - Location coordinates and NOAA station IDs
-- `src/config/routes.ts` - Predefined swimming routes (GeoJSON)
 - `src/config/thresholds.ts` - Safety thresholds for scoring
 
 ### Data Flow
 ```
-NOAA/SFPUC APIs → API Routes → Calculate Score → Cache → UI Components → User
-                      ↓
-                  PostgreSQL (optional)
+NOAA/CDEC/Open-Meteo APIs → API Routes → Calculate Score → Cache → UI Components → User
 ```
 
 ## Deployment
