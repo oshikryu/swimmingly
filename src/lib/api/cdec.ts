@@ -13,12 +13,12 @@ const RAINFALL_STATION_ID = 'ONO';
 const RAIN_SENSOR = '2'; // RAIN - cumulative season-to-date accumulator, inches
 
 // Dam configurations with relative impact weights on SF Bay
+// Pardee (PAR) and Camanche (CMN) are excluded: EBMUD stopped reporting their hourly
+// outflow sensor (23) to CDEC on 2020-11-16, so both permanently return zero data points.
 const MONITORED_DAMS = [
   { name: 'Folsom Dam', stationId: 'FOL', weight: 1.0 },
   { name: 'Oroville Dam', stationId: 'ORO', weight: 1.5 },
   { name: 'Shasta Dam', stationId: 'SHA', weight: 2.0 },  // Highest impact on SF Bay
-  { name: 'Pardee Dam', stationId: 'PAR', weight: 0.3 },
-  { name: 'Camanche Dam', stationId: 'CMN', weight: 0.3 },
 ] as const;
 
 const OUTFLOW_SENSOR = '23'; // Reservoir outflow in CFS
