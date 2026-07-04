@@ -101,7 +101,6 @@ function scoreWith(overrides: {
   waterQuality?: Partial<WaterQuality>;
   ssos?: SSOEvent[];
   rainfall?: Partial<RainfallData> | null;
-  tidePreferences?: { slack: number; flood: number; ebb: number };
   thresholds?: ThresholdsOverride;
 } = {}) {
   return calculateSwimScore(
@@ -111,7 +110,6 @@ function scoreWith(overrides: {
     makeWaves(overrides.waves),
     makeWaterQuality(overrides.waterQuality),
     overrides.ssos ?? [],
-    overrides.tidePreferences,
     undefined,
     overrides.rainfall === undefined ? null : (overrides.rainfall === null ? null : makeRainfall(overrides.rainfall)),
     undefined,
@@ -282,18 +280,18 @@ describe('calculateSwimScore', () => {
       expect(result.factors.tideAndCurrent.favorable).toBe(true);
     });
 
-    it('scores 85 for flood/ebb with low change rate (default preferences)', () => {
+    it('scores 100 for flood/ebb with low change rate (no phase preference)', () => {
       const floodResult = scoreWith({
         tide: { currentPhase: 'flood', changeRateFeetPerHour: 0.5 },
         current: { speedKnots: 0.2 },
       });
-      expect(floodResult.factors.tideAndCurrent.score).toBe(85);
+      expect(floodResult.factors.tideAndCurrent.score).toBe(100);
 
       const ebbResult = scoreWith({
         tide: { currentPhase: 'ebb', changeRateFeetPerHour: 0.5 },
         current: { speedKnots: 0.2 },
       });
-      expect(ebbResult.factors.tideAndCurrent.score).toBe(85);
+      expect(ebbResult.factors.tideAndCurrent.score).toBe(100);
     });
 
     it('reduces score with moderate tide change rate (1.0–2.0 ft/hr)', () => {
@@ -301,7 +299,7 @@ describe('calculateSwimScore', () => {
         tide: { currentPhase: 'flood', changeRateFeetPerHour: 1.5 },
         current: { speedKnots: 0.2 },
       });
-      // flood base=85, moderate multiplier=0.7 → 59.5, capped at 70
+      // base=100, moderate multiplier=0.7 → 70, capped at 70
       expect(result.factors.tideAndCurrent.score).toBeLessThanOrEqual(70);
       expect(result.factors.tideAndCurrent.issues.length).toBeGreaterThan(0);
     });
@@ -311,7 +309,7 @@ describe('calculateSwimScore', () => {
         tide: { currentPhase: 'ebb', changeRateFeetPerHour: 2.5 },
         current: { speedKnots: 0.2 },
       });
-      // ebb base=85, strong multiplier=0.4 → 34, capped at 40
+      // base=100, strong multiplier=0.4 → 40, capped at 40
       expect(result.factors.tideAndCurrent.score).toBeLessThanOrEqual(40);
     });
 
@@ -343,35 +341,6 @@ describe('calculateSwimScore', () => {
       const result = scoreWith({ current: null });
       expect(result.factors.tideAndCurrent.currentSpeed).toBe(0);
       expect(result.overallScore).toBeGreaterThan(0);
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // Custom tide preferences
-  // -------------------------------------------------------------------------
-  describe('custom tide preferences', () => {
-    it('boosts preferred phase to 100', () => {
-      const result = scoreWith({
-        tide: { currentPhase: 'ebb', changeRateFeetPerHour: 0.5 },
-        current: { speedKnots: 0.2 },
-        tidePreferences: { slack: 85, flood: 85, ebb: 100 },
-      });
-      expect(result.factors.tideAndCurrent.score).toBe(100);
-    });
-
-    it('default ebb scores 85, custom ebb-preference scores 100', () => {
-      const defaultResult = scoreWith({
-        tide: { currentPhase: 'ebb', changeRateFeetPerHour: 0.5 },
-        current: { speedKnots: 0.2 },
-      });
-      const customResult = scoreWith({
-        tide: { currentPhase: 'ebb', changeRateFeetPerHour: 0.5 },
-        current: { speedKnots: 0.2 },
-        tidePreferences: { slack: 85, flood: 85, ebb: 100 },
-      });
-      expect(customResult.factors.tideAndCurrent.score).toBeGreaterThan(
-        defaultResult.factors.tideAndCurrent.score
-      );
     });
   });
 
@@ -609,7 +578,7 @@ describe('calculateSwimScore', () => {
   // -------------------------------------------------------------------------
   describe('weighted score formula', () => {
     it('correctly weights: WQ=30%, Tide=32%, Waves=20%, Weather=18%', () => {
-      // WQ: 70 (enterococcus 200), Tide: 85 (ebb low rate), Waves: 57 (1.2ft lerp), Weather: 95 (12mph→light)
+      // WQ: 70 (enterococcus 200), Tide: 100 (ebb low rate, no phase preference), Waves: 57 (1.2ft lerp), Weather: 95 (12mph→light)
       const result = scoreWith({
         waterQuality: { enterococcusCount: 200 },
         tide: { currentPhase: 'ebb', changeRateFeetPerHour: 0.5 },
@@ -619,7 +588,7 @@ describe('calculateSwimScore', () => {
       });
 
       const expected = Math.round(
-        (70 * 30 + 85 * 32 + 57 * 20 + 95 * 18) / 100
+        (70 * 30 + 100 * 32 + 57 * 20 + 95 * 18) / 100
       );
       expect(result.overallScore).toBe(expected);
     });

@@ -14,7 +14,6 @@ import type {
   RainfallData,
   SwimScore,
   SwimScoreFactors,
-  TidePhasePreferences,
   ScoreWeights,
   MoonPhaseData,
 } from '@/types/conditions';
@@ -59,7 +58,6 @@ export function calculateSwimScore(
   waves: WaveData,
   waterQuality: WaterQuality,
   recentSSOs: SSOEvent[],
-  customTidePreferences?: TidePhasePreferences,
   customWeights?: ScoreWeights,
   rainfall?: RainfallData | null,
   moonPhase?: MoonPhaseData | null,
@@ -70,7 +68,7 @@ export function calculateSwimScore(
 
   // Calculate individual factor scores
   const waterQualityFactor = scoreWaterQuality(waterQuality, recentSSOs, rainfall, waterTemp?.temperatureF, thresholds);
-  const tideCurrentFactor = scoreTideAndCurrent(tide, current, customTidePreferences, moonPhase, thresholds);
+  const tideCurrentFactor = scoreTideAndCurrent(tide, current, moonPhase, thresholds);
   const waveFactor = scoreWaves(waves, thresholds);
   const weatherFactor = scoreWeather(weather, waves?.barometricPressureMb, waterTemp?.temperatureF, thresholds);
 
@@ -279,7 +277,6 @@ function scoreWaterQuality(
 function scoreTideAndCurrent(
   tide: TidePrediction,
   current: CurrentData | null,
-  customTidePreferences: TidePhasePreferences | undefined,
   moonPhase: MoonPhaseData | null | undefined,
   thresholds: SafetyThresholds
 ): SwimScoreFactors['tideAndCurrent'] {
@@ -295,9 +292,9 @@ function scoreTideAndCurrent(
     score = 50;
     issues.push('No tide data available');
   } else {
-    // Score based on tide phase using custom or default preferences
-    const preferences = customTidePreferences || thresholds.tide.phasePreference;
-    const basePhaseScore = preferences[phase];
+    // All phases score equally; safety comes from measured current speed and
+    // tide-height change rate below, not an assumption that slack is inherently safer.
+    const basePhaseScore = 100;
 
     // Adjust score based on actual tide change rate
     if (Math.abs(changeRate) < thresholds.tide.lowCurrent) {

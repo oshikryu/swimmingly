@@ -4,7 +4,7 @@
  * without HTTP overhead
  */
 
-import type { CurrentConditions, CurrentData, TidePrediction, TidePhaseType, TidePhasePreferences } from '@/types/conditions';
+import type { CurrentConditions, CurrentData, TidePrediction } from '@/types/conditions';
 import { fetchCurrentTidePrediction, fetchWaveData, fetchCurrents } from '@/lib/api/noaa';
 import { fetchWaterQuality } from '@/lib/api/beachwatch';
 import { calculateSwimScore } from '@/lib/algorithms/swim-score';
@@ -18,19 +18,9 @@ import { fetchWaterTemperature } from '@/lib/api/seatemperature';
  * Fetch all data sources and calculate swim score
  * Returns serializable JSON (all Dates converted to ISO strings)
  */
-export async function fetchStaticData(tidePhasePreference?: TidePhaseType): Promise<CurrentConditions> {
+export async function fetchStaticData(): Promise<CurrentConditions> {
   try {
     console.log('Fetching static data for build...');
-
-    // Build custom tide preferences if specified
-    let customTidePreferences: TidePhasePreferences | undefined;
-    if (tidePhasePreference && ['slack', 'flood', 'ebb'].includes(tidePhasePreference)) {
-      customTidePreferences = {
-        slack: tidePhasePreference === 'slack' ? 100 : 85,
-        flood: tidePhasePreference === 'flood' ? 100 : 85,
-        ebb: tidePhasePreference === 'ebb' ? 100 : 85,
-      };
-    }
 
     // Fetch wave data with fallback strategy: OpenWaterLog first, then NOAA buoy
     const fetchWaveDataWithFallback = async () => {
@@ -116,7 +106,7 @@ export async function fetchStaticData(tidePhasePreference?: TidePhaseType): Prom
     // Calculate moon phase (pure math, no API needed)
     const moonPhaseData = calculateMoonPhase(now);
 
-    // Calculate swim score with custom preferences if provided
+    // Calculate swim score
     const score = calculateSwimScore(
       tideData,
       currentWithFallback,
@@ -124,7 +114,6 @@ export async function fetchStaticData(tidePhasePreference?: TidePhaseType): Prom
       wavesWithFallback,
       waterQualityWithFallback,
       [],
-      customTidePreferences,
       undefined, // customWeights
       rainfallData,
       moonPhaseData

@@ -1,15 +1,11 @@
 'use client';
 
-import type { SwimScore as SwimScoreType, TidePhaseType, ScoreWeights } from '@/types/conditions';
+import type { SwimScore as SwimScoreType, ScoreWeights } from '@/types/conditions';
 import { SCORE_RANGES } from '@/config/thresholds';
-import TidePreferenceSlider from './TidePreferenceSlider';
 import ScoreWeightSliders from './ScoreWeightSliders';
 
 interface SwimScoreProps {
   score: SwimScoreType;
-  tidePreference: TidePhaseType;
-  onTidePreferenceChange: (preference: TidePhaseType) => void;
-  isPreferenceLoaded: boolean;
   weights: ScoreWeights;
   onWeightsChange: (weights: ScoreWeights) => void;
   onWeightsReset: () => void;
@@ -18,9 +14,6 @@ interface SwimScoreProps {
 
 export default function SwimScore({
   score,
-  tidePreference,
-  onTidePreferenceChange,
-  isPreferenceLoaded,
   weights,
   onWeightsChange,
   onWeightsReset,
@@ -99,17 +92,8 @@ export default function SwimScore({
         </div>
       )}
 
-      {/* Tide Phase Preference Slider */}
-      <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-        <TidePreferenceSlider
-          preference={tidePreference}
-          onChange={onTidePreferenceChange}
-          isLoading={!isPreferenceLoaded}
-        />
-      </div>
-
       {/* Score Weight Sliders */}
-      <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+      <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
         <ScoreWeightSliders
           weights={weights}
           onChange={onWeightsChange}

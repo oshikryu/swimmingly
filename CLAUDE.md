@@ -49,7 +49,6 @@ The `/api/conditions` endpoint (`src/app/api/conditions/route.ts`) is the centra
 - Implements fallback strategies for missing data sources (e.g., OpenWaterLog → NOAA for waves)
 - Gracefully handles failures with fallback values
 - Requires tide data (critical), but other data sources are optional
-- Supports customizable tide preferences via query parameter: `?tidePhasePreference=slack|flood|ebb`
 - Returns comprehensive `CurrentConditions` object with all environmental factors
 
 ### Swim Score Algorithm
@@ -69,8 +68,6 @@ Located in `src/lib/algorithms/swim-score.ts`, this is the core scoring logic:
 - 40-59: Fair (experienced swimmers)
 - 20-39: Poor (not recommended)
 - 0-19: Dangerous (do not swim)
-
-**Customizable Tide Preferences**: Users can prefer slack, flood, or ebb tides. The algorithm adjusts scoring to favor the preferred tide phase while still penalizing strong currents.
 
 **Dam Release Time-Lag Modeling**: Uses 48-hour historical flow data with weighted averaging (60% last 24h, 40% older 24h) to account for the 24-48 hour transit time from upstream dams to SF Bay.
 
@@ -110,7 +107,6 @@ Custom React hooks in `src/hooks/` implement localStorage-based caching:
 
 - **`useConditionsCache.ts`**: Caches full conditions data (5-minute TTL)
 - **`useWaveDataCache.ts`**: Caches wave-specific data
-- **`useTidePreference.ts`**: Persists user's tide phase preference
 
 This reduces API calls and improves UX by showing cached data while fetching updates.
 
@@ -195,8 +191,8 @@ MAPBOX_SECRET_KEY="sk.your_key_here"
 ## Testing API Endpoints
 
 ```bash
-# Current conditions (with custom tide preference)
-curl "http://localhost:3000/api/conditions?tidePhasePreference=slack"
+# Current conditions
+curl "http://localhost:3000/api/conditions"
 
 # Tide predictions for next 48 hours
 curl "http://localhost:3000/api/tides?hours=48"

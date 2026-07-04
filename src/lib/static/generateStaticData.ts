@@ -19,8 +19,8 @@ async function generateStaticData() {
     console.log('⏰ Started at:', new Date().toISOString());
     console.log('');
 
-    // Fetch data (default tide preference: slack)
-    const data = await fetchStaticData('slack');
+    // Fetch data
+    const data = await fetchStaticData();
 
     // Add build metadata
     const staticData = {

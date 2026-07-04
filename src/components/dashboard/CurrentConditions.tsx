@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import type { CurrentConditions as CurrentConditionsType, TidePhasePreferences, ScoreWeights } from '@/types/conditions';
-import { useTidePreference } from '@/hooks/useTidePreference';
+import type { CurrentConditions as CurrentConditionsType, ScoreWeights } from '@/types/conditions';
 import { useScoreWeights } from '@/hooks/useScoreWeights';
 import { useConditionsCache } from '@/hooks/useConditionsCache';
 import { AQUATIC_PARK_LAT, AQUATIC_PARK_LON } from '@/config/aquatic-park';
@@ -89,7 +88,6 @@ export default function CurrentConditions({
   const [conditions, setConditions] = useState<CurrentConditionsType | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { preference, setPreference, isLoaded } = useTidePreference(location.cacheKeyPrefix);
   const { weights, setWeights, resetWeights, isCustom: isWeightsCustom } = useScoreWeights(location.cacheKeyPrefix);
   const { cachedData, setCachedData, isCacheValid } = useConditionsCache(location.cacheKeyPrefix);
   // Store raw data for client-side recalculation
@@ -103,19 +101,8 @@ export default function CurrentConditions({
     process.env.NEXT_PUBLIC_BUILD_MODE === 'static'
   );
 
-  // Build tide preferences object from preference string
-  const buildTidePreferences = (pref: string | null): TidePhasePreferences | undefined => {
-    if (!pref) return undefined;
-    return {
-      slack: pref === 'slack' ? 100 : 85,
-      flood: pref === 'flood' ? 100 : 85,
-      ebb: pref === 'ebb' ? 100 : 85,
-    };
-  };
-
   // Recalculate score client-side using raw data
-  const recalculateScore = (rawData: RawConditionsData, tidePreference: string | null, customWeights?: ScoreWeights): CurrentConditionsType => {
-    const customTidePreferences = buildTidePreferences(tidePreference);
+  const recalculateScore = (rawData: RawConditionsData, customWeights?: ScoreWeights): CurrentConditionsType => {
     const newScore = calculateSwimScore(
       rawData.tide,
       rawData.current,
@@ -123,7 +110,6 @@ export default function CurrentConditions({
       rawData.waves,
       rawData.waterQuality,
       [],
-      customTidePreferences,
       customWeights,
       rawData.rainfall ?? null,
       rawData.moonPhase ?? null,
@@ -150,36 +136,33 @@ export default function CurrentConditions({
     }
   }, [isCacheValid, cachedData]);
 
-  // Fetch conditions when component mounts or preference changes
+  // Fetch conditions when component mounts
   useEffect(() => {
-    // Only fetch when preference is loaded to avoid double-fetching
-    if (isLoaded) {
-      // When raw data is available, recalculate client-side instead of refetching
-      if (rawDataRef.current) {
-        const recalculated = recalculateScore(rawDataRef.current, preference, isWeightsCustom ? weights : undefined);
-        setConditions(recalculated);
-        return;
-      }
-      // If we have valid cache, fetch in background
-      if (isCacheValid && cachedData) {
-        fetchConditions(preference, true); // background fetch
-      } else {
-        fetchConditions(preference, false); // foreground fetch
-      }
+    // When raw data is available, recalculate client-side instead of refetching
+    if (rawDataRef.current) {
+      const recalculated = recalculateScore(rawDataRef.current, isWeightsCustom ? weights : undefined);
+      setConditions(recalculated);
+      return;
     }
-  }, [isLoaded, preference]);
+    // If we have valid cache, fetch in background
+    if (isCacheValid && cachedData) {
+      fetchConditions(true); // background fetch
+    } else {
+      fetchConditions(false); // foreground fetch
+    }
+  }, []);
 
   // Setup auto-refresh interval (disabled on GitHub Pages static site)
   useEffect(() => {
     // Only set up auto-refresh in dynamic mode (not on GitHub Pages)
     if (!isStaticMode) {
       // Refresh every 5 minutes
-      const interval = setInterval(() => fetchConditions(preference, true), 5 * 60 * 1000);
+      const interval = setInterval(() => fetchConditions(true), 5 * 60 * 1000);
       return () => clearInterval(interval);
     }
-  }, [preference, isStaticMode]);
+  }, [isStaticMode]);
 
-  async function fetchConditions(tidePreference: typeof preference, isBackgroundFetch = false) {
+  async function fetchConditions(isBackgroundFetch = false) {
     try {
       // Only show loading state if not a background fetch
       if (!isBackgroundFetch) {
@@ -187,16 +170,7 @@ export default function CurrentConditions({
       }
 
       // Build the URL based on environment
-      const url = isStaticMode
-        ? '/swimmingly/static-data.json'
-        : (() => {
-            // Include tide preference in API call for dynamic mode
-            const params = new URLSearchParams();
-            if (tidePreference) {
-              params.append('tidePhasePreference', tidePreference);
-            }
-            return `${location.apiPath}${params.toString() ? `?${params.toString()}` : ''}`;
-          })();
+      const url = isStaticMode ? '/swimmingly/static-data.json' : location.apiPath;
 
       const response = await fetch(url);
 
@@ -233,12 +207,7 @@ export default function CurrentConditions({
 
         // Re-apply custom weights if set
         if (isWeightsCustom) {
-          const recalculated = recalculateScore(rawDataRef.current, tidePreference, weights);
-          setCachedData(recalculated);
-          setConditions(recalculated);
-        } else if (isStaticMode) {
-          // Static mode: recalculate with tide preference
-          const recalculated = recalculateScore(rawDataRef.current, tidePreference);
+          const recalculated = recalculateScore(rawDataRef.current, weights);
           setCachedData(recalculated);
           setConditions(recalculated);
         } else {
@@ -266,28 +235,12 @@ export default function CurrentConditions({
     }
   }
 
-  // Handle tide preference change - always recalculate client-side when raw data available
-  const handleTidePreferenceChange = (newPreference: typeof preference) => {
-    setPreference(newPreference);
-
-    if (rawDataRef.current) {
-      const recalculated = recalculateScore(rawDataRef.current, newPreference, isWeightsCustom ? weights : undefined);
-      setCachedData(recalculated);
-      setConditions(recalculated);
-      return;
-    }
-
-    // Fallback: refetch from API
-    setLoading(true);
-    fetchConditions(newPreference);
-  };
-
   // Handle weight changes - always recalculate client-side
   const handleWeightsChange = (newWeights: ScoreWeights) => {
     setWeights(newWeights);
 
     if (rawDataRef.current) {
-      const recalculated = recalculateScore(rawDataRef.current, preference, newWeights);
+      const recalculated = recalculateScore(rawDataRef.current, newWeights);
       setCachedData(recalculated);
       setConditions(recalculated);
     }
@@ -298,7 +251,7 @@ export default function CurrentConditions({
     resetWeights();
 
     if (rawDataRef.current) {
-      const recalculated = recalculateScore(rawDataRef.current, preference);
+      const recalculated = recalculateScore(rawDataRef.current);
       setCachedData(recalculated);
       setConditions(recalculated);
     }
@@ -323,7 +276,7 @@ export default function CurrentConditions({
         </h3>
         <p className="text-red-700 dark:text-red-300">{error}</p>
         <button
-          onClick={() => fetchConditions(preference)}
+          onClick={() => fetchConditions()}
           className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition"
         >
           Retry
@@ -408,9 +361,6 @@ export default function CurrentConditions({
         <div className="lg:col-span-1">
           <SwimScore
             score={score}
-            tidePreference={preference}
-            onTidePreferenceChange={handleTidePreferenceChange}
-            isPreferenceLoaded={isLoaded}
             weights={weights}
             onWeightsChange={handleWeightsChange}
             onWeightsReset={handleWeightsReset}

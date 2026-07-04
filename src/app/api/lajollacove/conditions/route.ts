@@ -20,8 +20,8 @@
  * the same instruments for what's actually a normal, comfortable swim day.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import type { CurrentConditions, TidePhaseType, TidePhasePreferences, TidePrediction, CurrentData } from '@/types/conditions';
+import { NextResponse } from 'next/server';
+import type { CurrentConditions, TidePrediction, CurrentData } from '@/types/conditions';
 import { fetchCurrentTidePrediction, fetchWaveData, fetchWaterTemperature } from '@/lib/api/noaa';
 import { fetchWaterQualityWQPOnly } from '@/lib/api/beachwatch';
 import { fetchSanDiegoCountyWaterQuality } from '@/lib/api/sdbeachinfo';
@@ -34,22 +34,8 @@ import { LA_JOLLA_TIDE_STATION_ID, LA_JOLLA_WAVE_BUOY_ID, LA_JOLLA_WAVE_BUOY_FAL
 export const dynamic = 'force-dynamic'; // Always fetch fresh data
 export const revalidate = 300; // Cache for 5 minutes
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    // Extract tide phase preference from query parameters
-    const searchParams = request.nextUrl.searchParams;
-    const tidePhasePreference = searchParams.get('tidePhasePreference') as TidePhaseType | null;
-
-    // Build custom tide preferences if a valid preference is provided
-    let customTidePreferences: TidePhasePreferences | undefined;
-    if (tidePhasePreference && isValidTidePhase(tidePhasePreference)) {
-      customTidePreferences = {
-        slack: tidePhasePreference === 'slack' ? 100 : 85,
-        flood: tidePhasePreference === 'flood' ? 100 : 85,
-        ebb: tidePhasePreference === 'ebb' ? 100 : 85,
-      };
-    }
-
     // Fetch wave data with fallback strategy: buoy 46254 (Scripps Waverider Buoy) first,
     // then LJPC1 (nearshore C-MAN station) if 46254 has no valid reading
     const fetchWaveDataWithFallback = async () => {
@@ -144,7 +130,7 @@ export async function GET(request: NextRequest) {
     // Calculate moon phase (pure math, no API needed)
     const moonPhaseData = calculateMoonPhase(now);
 
-    // Calculate swim score with custom preferences if provided
+    // Calculate swim score
     const score = calculateSwimScore(
       tideData,
       currentWithFallback,
@@ -152,7 +138,6 @@ export async function GET(request: NextRequest) {
       wavesWithFallback,
       waterQualityWithFallback,
       [],
-      customTidePreferences,
       undefined, // customWeights
       rainfallData,
       moonPhaseData,
@@ -198,13 +183,6 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-/**
- * Type guard to validate tide phase values
- */
-function isValidTidePhase(value: string): value is TidePhaseType {
-  return ['slack', 'flood', 'ebb'].includes(value);
 }
 
 /**

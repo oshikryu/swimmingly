@@ -250,17 +250,9 @@ export interface HistoricalPattern {
 /**
  * User preference types for swim score customization
  */
-export type TidePhaseType = 'slack' | 'flood' | 'ebb';
-
 export interface ScoreWeights {
   waterQuality: number;
   tideAndCurrent: number;
   waves: number;
   weather: number;
-}
-
-export interface TidePhasePreferences {
-  slack: number;   // Preference score 0-100
-  flood: number;   // Preference score 0-100
-  ebb: number;     // Preference score 0-100
 }
