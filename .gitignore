@@ -16,6 +16,7 @@
 
 # cloudflare
 /.open-next/
+/.wrangler/
 
 # isolated static build artifacts
 /.static-build/
@@ -44,6 +45,4 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# prisma
-prisma/migrations/
 .aider*
