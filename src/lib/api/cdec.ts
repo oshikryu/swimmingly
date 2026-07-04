@@ -4,9 +4,13 @@
  * Now with 48-hour historical data for time-lag modeling
  */
 
-import type { DamReleaseData } from '@/types/conditions';
+import type { DamReleaseData, RainfallData } from '@/types/conditions';
 
 const CDEC_BASE_URL = 'https://cdec.water.ca.gov/dynamicapp/req/CSVDataServlet';
+
+// Oakland North (ONO) - closest active CDEC rain gauge to Aquatic Park (~12mi across the bay)
+const RAINFALL_STATION_ID = 'ONO';
+const RAIN_SENSOR = '2'; // RAIN - cumulative season-to-date accumulator, inches
 
 // Dam configurations with relative impact weights on SF Bay
 const MONITORED_DAMS = [
@@ -98,6 +102,91 @@ export async function fetchDamReleases(): Promise<DamReleaseData | null> {
     };
   } catch (error) {
     console.error('Error fetching dam releases:', error);
+    return null;
+  }
+}
+
+/**
+ * Fetch recent rainfall totals from CDEC as a fallback when Open-Meteo is unavailable.
+ *
+ * The RAIN sensor (2) is a cumulative season-to-date accumulator, not an hourly delta,
+ * so 24h/48h/72h totals are derived by diffing the latest reading against the closest
+ * reading at or before each window's start.
+ */
+export async function fetchCDECRainfall(): Promise<RainfallData | null> {
+  try {
+    const now = new Date();
+    const startDate = new Date(now.getTime() - 76 * 60 * 60 * 1000); // 72h + buffer for sparse reporting
+
+    const url = new URL(CDEC_BASE_URL);
+    url.searchParams.append('Stations', RAINFALL_STATION_ID);
+    url.searchParams.append('SensorNums', RAIN_SENSOR);
+    url.searchParams.append('dur_code', DURATION_CODE);
+    url.searchParams.append('Start', formatDate(startDate));
+    url.searchParams.append('End', formatDate(now));
+
+    const response = await fetch(url.toString(), {
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!response.ok) {
+      console.warn(`CDEC rainfall fetch failed for ${RAINFALL_STATION_ID}: ${response.status}`);
+      return null;
+    }
+
+    const text = await response.text();
+    const lines = text.split('\n');
+    const points: { timestamp: Date; cumulativeInches: number }[] = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      const parts = line.split(',');
+      if (parts.length >= 7) {
+        const value = parseFloat(parts[6].trim());
+        const dateTimeStr = parts[4].trim();
+
+        if (!isNaN(value)) {
+          const timestamp = parseCDECTimestamp(dateTimeStr);
+          if (timestamp) points.push({ timestamp, cumulativeInches: value });
+        }
+      }
+    }
+
+    if (points.length === 0) {
+      console.warn('CDEC rainfall: no data points returned');
+      return null;
+    }
+
+    points.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    const latest = points[points.length - 1];
+
+    // Find the closest reading at or before a target time (falls back to earliest point)
+    const findValueAtOrBefore = (targetMs: number) => {
+      let candidate = points[0];
+      for (const p of points) {
+        if (p.timestamp.getTime() <= targetMs) candidate = p;
+        else break;
+      }
+      return candidate;
+    };
+
+    // Clamp to 0 in case of an accumulator reset (e.g. start of new water year) within the window
+    const deltaInches = (hoursBack: number) => {
+      const target = findValueAtOrBefore(latest.timestamp.getTime() - hoursBack * 60 * 60 * 1000);
+      return Math.max(0, Math.round((latest.cumulativeInches - target.cumulativeInches) * 100) / 100);
+    };
+
+    return {
+      timestamp: latest.timestamp,
+      last24hInches: deltaInches(24),
+      last48hInches: deltaInches(48),
+      last72hInches: deltaInches(72),
+      source: `CDEC-${RAINFALL_STATION_ID}`,
+    };
+  } catch (error) {
+    console.error('Error fetching CDEC rainfall:', error);
     return null;
   }
 }

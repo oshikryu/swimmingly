@@ -5,11 +5,11 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import type { CurrentConditions, TidePhaseType, TidePhasePreferences, TidePrediction, CurrentData } from '@/types/conditions';
-import { fetchCurrentTidePrediction, fetchWaveData, fetchCurrents } from '@/lib/api/noaa';
+import { fetchCurrentTidePrediction, fetchWaveData, fetchCurrents, fetchCurrentWeather } from '@/lib/api/noaa';
 import { fetchWaterQuality } from '@/lib/api/beachwatch';
 import { calculateSwimScore } from '@/lib/algorithms/swim-score';
-import { fetchWindData, fetchRecentRainfall } from '@/lib/api/open-meteo';
-import { fetchDamReleases } from '@/lib/api/cdec';
+import { fetchWindData, fetchRecentRainfall, type OpenMeteoWindData, type RecentRainfallData } from '@/lib/api/open-meteo';
+import { fetchDamReleases, fetchCDECRainfall } from '@/lib/api/cdec';
 import { calculateMoonPhase } from '@/lib/moon-phase';
 import { fetchOpenWaterLogWaveData } from '@/lib/api/openwaterlog';
 import { fetchWaterTemperature } from '@/lib/api/seatemperature';
@@ -52,16 +52,53 @@ export async function GET(request: NextRequest) {
       return fetchWaveData();
     };
 
+    // Fetch wind data with fallback strategy: Open-Meteo first, then NOAA NWS observations
+    const fetchWindDataWithFallback = async (): Promise<OpenMeteoWindData | null> => {
+      try {
+        const omData = await fetchWindData();
+        if (omData) return omData;
+        console.log('Open-Meteo wind returned null, falling back to NOAA NWS...');
+      } catch (error) {
+        console.warn('Open-Meteo wind fetch failed, falling back to NOAA NWS:', error);
+      }
+
+      const nwsWeather = await fetchCurrentWeather();
+      if (!nwsWeather) return null;
+
+      return {
+        timestamp: nwsWeather.timestamp,
+        windSpeedMph: nwsWeather.windSpeedMph,
+        windDirection: nwsWeather.windDirection,
+        windGustMph: nwsWeather.windGustMph,
+        temperatureF: nwsWeather.temperatureF,
+        conditions: nwsWeather.conditions,
+        source: 'NOAA-NWS-fallback',
+      };
+    };
+
+    // Fetch rainfall data with fallback strategy: Open-Meteo first, then CDEC rain gauge
+    const fetchRainfallWithFallback = async (): Promise<RecentRainfallData | null> => {
+      try {
+        const omData = await fetchRecentRainfall();
+        if (omData) return omData;
+        console.log('Open-Meteo rainfall returned null, falling back to CDEC...');
+      } catch (error) {
+        console.warn('Open-Meteo rainfall fetch failed, falling back to CDEC:', error);
+      }
+
+      return fetchCDECRainfall();
+    };
+
     // Fetch all data sources in parallel
     const [tide, current, waves, waterQuality, windData, damReleases, waterTemp, rainfall] = await Promise.allSettled([
       fetchCurrentTidePrediction(),
       fetchCurrents(),
       fetchWaveDataWithFallback(),
       fetchWaterQuality(),
-      fetchWindData(),
+      fetchWindDataWithFallback(),
       fetchDamReleases(),
       fetchWaterTemperature(),
-      fetchRecentRainfall(),
+      fetchRainfallWithFallback(),
     ]);
 
     // Extract successful results or use fallbacks
@@ -93,12 +130,12 @@ export async function GET(request: NextRequest) {
     // Log warnings for missing non-critical data
     if (!waveData) console.warn('Wave data unavailable - using defaults');
     if (!waterQualityData) console.warn('Water quality data unavailable - using defaults');
-    if (!windDataResult) console.warn('Wind data unavailable from Open-Meteo');
-    if (!rainfallData) console.warn('Rainfall data unavailable from Open-Meteo');
+    if (!windDataResult) console.warn('Wind data unavailable from Open-Meteo and NOAA NWS fallback');
+    if (!rainfallData) console.warn('Rainfall data unavailable from Open-Meteo and CDEC fallback');
 
     const now = new Date();
 
-    // Weather data from Open-Meteo (wind, temperature, conditions)
+    // Weather data from Open-Meteo, falling back to NOAA NWS (wind, temperature, conditions)
     const weatherWithFallback = {
       timestamp: windDataResult?.timestamp || now,
       temperatureF: windDataResult?.temperatureF ?? 60,
@@ -106,7 +143,7 @@ export async function GET(request: NextRequest) {
       windDirection: windDataResult?.windDirection ?? 0,
       windGustMph: windDataResult?.windGustMph,
       conditions: windDataResult?.conditions ?? 'unavailable',
-      source: windDataResult ? 'open-meteo' : 'unavailable',
+      source: windDataResult?.source ?? 'unavailable',
     };
 
     const wavesWithFallback = waveData || {
