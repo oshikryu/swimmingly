@@ -5,11 +5,6 @@ import { useEffect, useState } from 'react';
 export default function HeaderTimestamp() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const isStaticMode = typeof window !== 'undefined' && (
-    window.location.hostname.includes('github.io') ||
-    process.env.NEXT_PUBLIC_BUILD_MODE === 'static'
-  );
-
   useEffect(() => {
     const handleConditionsUpdated = (e: Event) => {
       const detail = (e as CustomEvent).detail;

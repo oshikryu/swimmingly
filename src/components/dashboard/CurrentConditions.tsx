@@ -154,6 +154,9 @@ export default function CurrentConditions({
     } else {
       fetchConditions(false); // foreground fetch
     }
+    // Intentionally mount-only: re-running this on every dep change would refetch/
+    // recalculate on each render instead of once at mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Setup auto-refresh interval (disabled on GitHub Pages static site)
@@ -164,6 +167,9 @@ export default function CurrentConditions({
       const interval = setInterval(() => fetchConditions(true), 5 * 60 * 1000);
       return () => clearInterval(interval);
     }
+    // fetchConditions intentionally omitted: it's recreated every render, and this
+    // effect should only reset the interval when isStaticMode changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isStaticMode]);
 
   async function fetchConditions(isBackgroundFetch = false) {
