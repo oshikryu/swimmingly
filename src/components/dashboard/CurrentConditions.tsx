@@ -89,11 +89,14 @@ export default function CurrentConditions({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { weights, setWeights, resetWeights, isCustom: isWeightsCustom } = useScoreWeights(location.cacheKeyPrefix);
-  const { cachedData, setCachedData, isCacheValid } = useConditionsCache(location.cacheKeyPrefix);
+  const { cachedData, setCachedData, isCacheValid, cachedAt } = useConditionsCache(location.cacheKeyPrefix);
   // Store raw data for client-side recalculation
   const rawDataRef = useRef<RawConditionsData | null>(null);
   // Prevents the cache-init effect from re-firing after the first mount hydration
   const cacheInitialized = useRef(false);
+  // True while the currently-rendered `conditions` is the localStorage snapshot,
+  // not yet replaced by a real network response
+  const [isShowingCachedSnapshot, setIsShowingCachedSnapshot] = useState(false);
 
   // Helper to check if we're using static data (GitHub Pages or static build mode)
   const isStaticMode = typeof window !== 'undefined' && (
@@ -129,6 +132,7 @@ export default function CurrentConditions({
     if (!cacheInitialized.current && isCacheValid && cachedData) {
       cacheInitialized.current = true;
       setConditions(cachedData);
+      setIsShowingCachedSnapshot(true);
       setLoading(false);
       window.dispatchEvent(new CustomEvent('conditions-updated', {
         detail: { timestamp: cachedData.timestamp || new Date().toISOString() }
@@ -214,6 +218,7 @@ export default function CurrentConditions({
           setCachedData(data);
           setConditions(data);
         }
+        setIsShowingCachedSnapshot(false);
         setError(null);
         // Notify header of the data timestamp (prefer buildTimestamp for static builds)
         window.dispatchEvent(new CustomEvent('conditions-updated', {
@@ -318,11 +323,10 @@ export default function CurrentConditions({
     ? (tideTimestamp > currentTimestamp ? tideTimestamp : currentTimestamp)
     : (tideTimestamp || currentTimestamp);
 
-  // Check if using cached data (comparing with conditions.dataFreshness)
-  const tideDataAge = conditions.dataFreshness?.tide
-    ? Math.floor((Date.now() - new Date(conditions.dataFreshness.tide).getTime()) / (1000 * 60))
-    : null;
-  const isUsingCachedTideData = tideDataAge && tideDataAge > 5; // More than 5 minutes old = likely cached
+  // Accurate, shared cache indicator: all four cards come from one cached payload,
+  // so one flag/age applies to all of them rather than a per-card heuristic.
+  const cacheAgeMinutes = cachedAt ? Math.floor((Date.now() - cachedAt) / (1000 * 60)) : null;
+  const cachedSuffix = isShowingCachedSnapshot && cacheAgeMinutes !== null ? ` (cached ${cacheAgeMinutes}m ago)` : '';
 
   // Use statuses from score factors with safe defaults (ensures sync with score calculation)
   const tideStatus = mapTideCurrentStatus(
@@ -422,7 +426,7 @@ export default function CurrentConditions({
                   `→ ${event.label}: ${event.timestamp.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit', hour12: true })} (${event.heightFeet.toFixed(1)} ft)`
                 );
               })()),
-              latestTideCurrentTimestamp ? `Updated: ${formatUpdatedTimestamp(latestTideCurrentTimestamp)} PST${isUsingCachedTideData ? ' (cached)' : ''}` : '',
+              latestTideCurrentTimestamp ? `Updated: ${formatUpdatedTimestamp(latestTideCurrentTimestamp)} PST${cachedSuffix}` : '',
               // Moon phase
               moonPhase
                 ? `${moonPhase.phaseEmoji} ${moonPhase.phaseName} (${moonPhase.illuminationPercent}% illuminated)${moonPhase.isSpringTide ? ' — Spring tide' : moonPhase.isNeapTide ? ' — Neap tide' : ''}`
@@ -448,7 +452,7 @@ export default function CurrentConditions({
             details={[
               swellPeriod ? `Period: ${swellPeriod.toFixed(0)}s` : '',
               conditions.waves?.source ? `Source: ${conditions.waves.source}` : '',
-              conditions.waves?.timestamp ? `Updated: ${formatUpdatedTimestamp(new Date(conditions.waves.timestamp))} PST` : '',
+              conditions.waves?.timestamp ? `Updated: ${formatUpdatedTimestamp(new Date(conditions.waves.timestamp))} PST${cachedSuffix}` : '',
               ...(score?.factors?.waves?.issues ?? []),
               conditions.waves?.source?.toLowerCase().includes('openwaterlog')
                 ? '🔗 https://openwaterlog.com/locations/aquatic-park/'
@@ -483,7 +487,7 @@ export default function CurrentConditions({
                   }`
                 : '',
               windSourceDisplay ? `Source: ${windSourceDisplay}` : '',
-              weather?.timestamp ? `Updated: ${formatUpdatedTimestamp(new Date(weather.timestamp))} PST` : '',
+              weather?.timestamp ? `Updated: ${formatUpdatedTimestamp(new Date(weather.timestamp))} PST${cachedSuffix}` : '',
               ...(score?.factors?.weather?.issues ?? []),
               isOpenMeteoWind
                 ? `🔗 https://open-meteo.com/en/docs?latitude=${location.lat}&longitude=${location.lon}`
@@ -556,7 +560,7 @@ export default function CurrentConditions({
               waterQuality?.notes || '',
               waterQuality?.source ? `Source: ${waterQuality.source}` : '',
               waterQuality?.stationId ? `Station ID: ${waterQuality.stationId}` : '',
-              waterQuality?.timestamp ? `Updated: ${formatUpdatedTimestamp(new Date(waterQuality.timestamp))} PST` : '',
+              waterQuality?.timestamp ? `Updated: ${formatUpdatedTimestamp(new Date(waterQuality.timestamp))} PST${cachedSuffix}` : '',
               ...(score?.factors?.waterQuality?.issues?.filter(i => !/^(Very cold|Cold|Cool) water/i.test(i)) ?? []),
               waterQuality?.source?.includes('SF Beach Water Quality')
                 ? '🔗 https://data.sfgov.org/Energy-and-Environment/Beach-Water-Quality-Monitoring/v3fv-x3ux'

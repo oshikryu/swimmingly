@@ -19,6 +19,7 @@ interface UseConditionsCacheReturn {
   cachedData: CurrentConditions | null;
   setCachedData: (data: CurrentConditions) => void;
   isCacheValid: boolean;
+  cachedAt: number | null;
   clearCache: () => void;
 }
 
@@ -26,7 +27,9 @@ interface UseConditionsCacheReturn {
  * Get conditions data from localStorage cache
  * Returns null if cache is expired or invalid
  */
-function getConditionsFromCache(storageKey: string): CurrentConditions | null {
+function getConditionsFromCache(
+  storageKey: string
+): { data: CurrentConditions; cachedAt: number } | null {
   if (typeof window === 'undefined') return null;
 
   try {
@@ -43,7 +46,7 @@ function getConditionsFromCache(storageKey: string): CurrentConditions | null {
       return null;
     }
 
-    return cached.data;
+    return { data: cached.data, cachedAt: cached.cachedAt };
   } catch (error) {
     console.warn('Failed to load conditions from cache:', error);
     return null;
@@ -94,13 +97,15 @@ export function useConditionsCache(storageKeyPrefix: string = ''): UseConditions
   const storageKey = storageKeyFor(storageKeyPrefix);
   const [cachedData, setCachedDataState] = useState<CurrentConditions | null>(null);
   const [isCacheValid, setIsCacheValid] = useState(false);
+  const [cachedAt, setCachedAt] = useState<number | null>(null);
 
   // Load cached data from localStorage on mount (client-side only)
   useEffect(() => {
     const cached = getConditionsFromCache(storageKey);
     if (cached) {
-      setCachedDataState(cached);
+      setCachedDataState(cached.data);
       setIsCacheValid(true);
+      setCachedAt(cached.cachedAt);
     }
   }, [storageKey]);
 
@@ -109,6 +114,7 @@ export function useConditionsCache(storageKeyPrefix: string = ''): UseConditions
     saveConditionsToCache(storageKey, data);
     setCachedDataState(data);
     setIsCacheValid(true);
+    setCachedAt(Date.now());
   };
 
   // Clear cache
@@ -116,12 +122,14 @@ export function useConditionsCache(storageKeyPrefix: string = ''): UseConditions
     clearConditionsCache(storageKey);
     setCachedDataState(null);
     setIsCacheValid(false);
+    setCachedAt(null);
   };
 
   return {
     cachedData,
     setCachedData,
     isCacheValid,
+    cachedAt,
     clearCache,
   };
 }
