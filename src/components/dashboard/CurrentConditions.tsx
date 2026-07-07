@@ -32,6 +32,7 @@ interface RawConditionsData {
   damReleases: CurrentConditionsType['damReleases'];
   rainfall: CurrentConditionsType['rainfall'];
   moonPhase: CurrentConditionsType['moonPhase'];
+  sunriseSunset: CurrentConditionsType['sunriseSunset'];
   dataFreshness: CurrentConditionsType['dataFreshness'];
   timestamp?: CurrentConditionsType['timestamp'];
 }
@@ -51,6 +52,16 @@ function formatUpdatedTimestamp(date: Date): string {
     timeZone: 'America/Los_Angeles',
     month: 'short',
     day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
+/** Format a timestamp as a bare time-of-day, e.g. "6:32 AM" */
+function formatTimeOfDay(date: Date): string {
+  return date.toLocaleString('en-US', {
+    timeZone: 'America/Los_Angeles',
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
@@ -217,6 +228,7 @@ export default function CurrentConditions({
           damReleases: data.damReleases,
           rainfall: data.rainfall,
           moonPhase: data.moonPhase,
+          sunriseSunset: data.sunriseSunset,
           dataFreshness: data.dataFreshness,
           timestamp: data.buildTimestamp || data.timestamp,
         };
@@ -306,7 +318,7 @@ export default function CurrentConditions({
     return null;
   }
 
-  const { score, tide, current, weather, waves, waterQuality, rainfall, moonPhase } = conditions;
+  const { score, tide, current, weather, waves, waterQuality, rainfall, moonPhase, sunriseSunset } = conditions;
   const barometricPressureMb = waves?.barometricPressureMb ?? null;
   const thresholds = mergeThresholds(location.thresholdsOverride);
 
@@ -513,6 +525,8 @@ export default function CurrentConditions({
                     status: mapBarometricPressureStatus(barometricPressureMb),
                   }
                 : '',
+              sunriseSunset?.sunrise ? `🌅 Sunrise: ${formatTimeOfDay(new Date(sunriseSunset.sunrise))}` : '',
+              sunriseSunset?.sunset ? `🌇 Sunset: ${formatTimeOfDay(new Date(sunriseSunset.sunset))}` : '',
               windSourceDisplay ? `Source: ${windSourceDisplay}` : '',
               weather?.timestamp ? `Updated: ${formatUpdatedTimestamp(new Date(weather.timestamp))} PST${cachedSuffix}` : '',
               ...(score?.factors?.weather?.issues ?? []),

@@ -62,6 +62,14 @@ export interface MoonPhaseData {
   illuminationPercent: number;
 }
 
+export interface SunriseSunsetData {
+  sunrise?: Date;            // undefined during polar day/night
+  sunset?: Date;              // undefined during polar day/night
+  daylightHours: number;
+  isDaytime: boolean;
+  source: string;
+}
+
 export interface WaterQuality {
   timestamp: Date;
   coliformCount?: number; // Total Coliform MPN/100ml
@@ -190,6 +198,7 @@ export interface CurrentConditions {
   damReleases?: DamReleaseData;
   rainfall?: RainfallData;
   moonPhase?: MoonPhaseData;
+  sunriseSunset?: SunriseSunsetData;
   dataFreshness: {
     tide: Date;
     weather: Date;
@@ -199,6 +208,7 @@ export interface CurrentConditions {
     damReleases?: Date;
     rainfall?: Date;
     moonPhase?: Date;
+    sunriseSunset?: Date;
   };
 }
 

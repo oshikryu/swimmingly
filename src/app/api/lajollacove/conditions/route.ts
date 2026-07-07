@@ -30,6 +30,7 @@ import { fetchSwimGuideWaterQuality } from '@/lib/api/swimguide';
 import { calculateSwimScore } from '@/lib/algorithms/swim-score';
 import { fetchWindData, fetchRecentRainfall } from '@/lib/api/open-meteo';
 import { calculateMoonPhase } from '@/lib/moon-phase';
+import { calculateSunriseSunset } from '@/lib/sunrise-sunset';
 import { LA_JOLLA_TIDE_STATION_ID, LA_JOLLA_WAVE_BUOY_ID, LA_JOLLA_WAVE_BUOY_FALLBACK_ID, LA_JOLLA_COVE_LAT, LA_JOLLA_COVE_LON, LA_JOLLA_SD_BEACH_INFO_SITE_ID, LA_JOLLA_SWIM_GUIDE_BEACH_ID, LA_JOLLA_COVE_THRESHOLDS_OVERRIDE } from '@/config/la-jolla-cove';
 
 export const dynamic = 'force-dynamic'; // Always fetch fresh data
@@ -128,6 +129,9 @@ export async function GET() {
     // Calculate moon phase (pure math, no API needed)
     const moonPhaseData = calculateMoonPhase(now);
 
+    // Calculate sunrise/sunset (pure math, no API needed)
+    const sunriseSunsetData = calculateSunriseSunset(now, LA_JOLLA_COVE_LAT, LA_JOLLA_COVE_LON);
+
     // Calculate swim score
     const score = calculateSwimScore(
       tideData,
@@ -155,6 +159,7 @@ export async function GET() {
       waterTemperature: waterTempData || undefined,
       rainfall: rainfallData || undefined,
       moonPhase: moonPhaseData,
+      sunriseSunset: sunriseSunsetData,
       dataFreshness: {
         tide: tideData.timestamp,
         weather: windDataResult?.timestamp || now,
@@ -163,6 +168,7 @@ export async function GET() {
         waterTemperature: waterTempData?.timestamp || undefined,
         rainfall: rainfallData?.timestamp || undefined,
         moonPhase: now,
+        sunriseSunset: now,
       },
     };
 

@@ -11,8 +11,10 @@ import { calculateSwimScore } from '@/lib/algorithms/swim-score';
 import { fetchWindData, fetchRecentRainfall, type OpenMeteoWindData, type RecentRainfallData } from '@/lib/api/open-meteo';
 import { fetchDamReleases, fetchCDECRainfall } from '@/lib/api/cdec';
 import { calculateMoonPhase } from '@/lib/moon-phase';
+import { calculateSunriseSunset } from '@/lib/sunrise-sunset';
 import { fetchOpenWaterLogWaveData } from '@/lib/api/openwaterlog';
 import { fetchWaterTemperature } from '@/lib/api/seatemperature';
+import { AQUATIC_PARK_LAT, AQUATIC_PARK_LON } from '@/config/aquatic-park';
 
 export const dynamic = 'force-dynamic'; // Always fetch fresh data
 export const revalidate = 300; // Cache for 5 minutes
@@ -150,6 +152,9 @@ export async function GET() {
     // Calculate moon phase (pure math, no API needed)
     const moonPhaseData = calculateMoonPhase(now);
 
+    // Calculate sunrise/sunset (pure math, no API needed)
+    const sunriseSunsetData = calculateSunriseSunset(now, AQUATIC_PARK_LAT, AQUATIC_PARK_LON);
+
     // Calculate swim score
     const score = calculateSwimScore(
       tideData,
@@ -177,6 +182,7 @@ export async function GET() {
       damReleases: damReleasesData || undefined,
       rainfall: rainfallData || undefined,
       moonPhase: moonPhaseData,
+      sunriseSunset: sunriseSunsetData,
       dataFreshness: {
         tide: tideData.timestamp,
         weather: windDataResult?.timestamp || now,
@@ -186,6 +192,7 @@ export async function GET() {
         damReleases: damReleasesData?.timestamp || undefined,
         rainfall: rainfallData?.timestamp || undefined,
         moonPhase: now,
+        sunriseSunset: now,
       },
     };
 

@@ -11,8 +11,10 @@ import { calculateSwimScore } from '@/lib/algorithms/swim-score';
 import { fetchWindData, fetchRecentRainfall } from '@/lib/api/open-meteo';
 import { fetchDamReleases } from '@/lib/api/cdec';
 import { calculateMoonPhase } from '@/lib/moon-phase';
+import { calculateSunriseSunset } from '@/lib/sunrise-sunset';
 import { fetchOpenWaterLogWaveData } from '@/lib/api/openwaterlog';
 import { fetchWaterTemperature } from '@/lib/api/seatemperature';
+import { AQUATIC_PARK_LAT, AQUATIC_PARK_LON } from '@/config/aquatic-park';
 
 /**
  * Fetch all data sources and calculate swim score
@@ -106,6 +108,9 @@ export async function fetchStaticData(): Promise<CurrentConditions> {
     // Calculate moon phase (pure math, no API needed)
     const moonPhaseData = calculateMoonPhase(now);
 
+    // Calculate sunrise/sunset (pure math, no API needed)
+    const sunriseSunsetData = calculateSunriseSunset(now, AQUATIC_PARK_LAT, AQUATIC_PARK_LON);
+
     // Calculate swim score
     const score = calculateSwimScore(
       tideData,
@@ -132,6 +137,7 @@ export async function fetchStaticData(): Promise<CurrentConditions> {
       damReleases: damReleasesData || undefined,
       rainfall: rainfallData || undefined,
       moonPhase: moonPhaseData,
+      sunriseSunset: sunriseSunsetData,
       dataFreshness: {
         tide: tideData.timestamp,
         weather: windDataResult?.timestamp || now,
@@ -141,6 +147,7 @@ export async function fetchStaticData(): Promise<CurrentConditions> {
         damReleases: damReleasesData?.timestamp || undefined,
         rainfall: rainfallData?.timestamp || undefined,
         moonPhase: now,
+        sunriseSunset: now,
       },
     };
 
