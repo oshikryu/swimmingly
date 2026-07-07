@@ -307,6 +307,12 @@ export default function CurrentConditions({
   // Get values from score factors with safe defaults (ensures sync with score calculation)
   const waveHeight = score?.factors?.waves?.heightFeet ?? 0;
   const swellPeriod = waves?.swellPeriodSeconds ?? null;
+  // Period, not just height, determines how choppy/steep waves feel (short period = jarring, long period = smooth rollers)
+  const swellPeriodDescription = swellPeriod === null ? ''
+    : swellPeriod < 6 ? 'rough, jarring'
+    : swellPeriod < 8 ? 'choppy but manageable'
+    : swellPeriod < 10 ? 'moderate, organized'
+    : 'smooth, rolling';
   const tideHeight = score?.factors?.tideAndCurrent?.tideHeight ?? 0;
   const currentSpeedRaw = score?.factors?.tideAndCurrent?.currentSpeed ?? 0;
   const tidePhase = score?.factors?.tideAndCurrent?.phase ?? 'slack';
@@ -456,7 +462,9 @@ export default function CurrentConditions({
             status={waveStatus}
             icon="🌊"
             details={[
-              swellPeriod ? `Period: ${swellPeriod.toFixed(0)}s` : '',
+              swellPeriod ? `Period: ${swellPeriod.toFixed(0)}s (${swellPeriodDescription})` : '',
+              'ℹ️ Height shown is "significant" (avg of tallest ⅓ of waves) — expect occasional peaks 30-70% higher',
+              'ℹ️ Period matters more than height: short periods (<6s) feel steep and jarring, long periods (10s+) feel smooth even at the same height',
               conditions.waves?.source ? `Source: ${conditions.waves.source}` : '',
               conditions.waves?.timestamp ? `Updated: ${formatUpdatedTimestamp(new Date(conditions.waves.timestamp))} PST${cachedSuffix}` : '',
               ...(score?.factors?.waves?.issues ?? []),
