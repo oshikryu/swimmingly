@@ -3,6 +3,8 @@
  * These values determine what constitutes safe, caution, and dangerous conditions
  */
 
+import { STATUS_PALETTE } from '@/lib/status-colors';
+
 export const SAFETY_THRESHOLDS = {
   // Water quality thresholds (MPN/100ml - Most Probable Number per 100 milliliters)
   // EPA standards for marine recreational water quality
@@ -133,9 +135,9 @@ export const SCORE_WEIGHTS = {
  * Swim score interpretations
  */
 export const SCORE_RANGES = {
-  calm: { min: 80, max: 100, label: 'Excellent', color: '#22c55e' },
-  mild: { min: 60, max: 79, label: 'Good', color: '#3b82f6' },
-  active: { min: 40, max: 59, label: 'Fair', color: '#f59e0b' },
-  exciting: { min: 20, max: 39, label: 'Poor', color: '#ef4444' },
-  challenging: { min: 0, max: 19, label: 'Dangerous', color: '#991b1b' },
+  calm: { min: 80, max: 100, label: 'Excellent', color: STATUS_PALETTE.good.hex },
+  mild: { min: 60, max: 79, label: 'Good', color: STATUS_PALETTE.info.hex },
+  active: { min: 40, max: 59, label: 'Fair', color: STATUS_PALETTE.warning.hex },
+  exciting: { min: 20, max: 39, label: 'Poor', color: STATUS_PALETTE.danger.hex },
+  challenging: { min: 0, max: 19, label: 'Dangerous', color: STATUS_PALETTE.critical.hex },
 } as const;
