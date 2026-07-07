@@ -77,12 +77,23 @@ export async function fetchOpenWaterLogWaveData(): Promise<WaveData | null> {
     const timestamp = new Date(relevantPoint.iso);
     const waveHeightFeet = relevantPoint.y;
 
+    // Wave period isn't in the waveData JS array; it's only rendered in the
+    // current-conditions table, e.g. "Wave Period: 1.8 sec"
+    const periodMatch = html.match(
+      /Wave Period:<\/span>\s*<span class="c-table-row-el c-table-row-el--value">\s*([\d.]+)\s*sec/i
+    );
+    const swellPeriodSeconds = periodMatch ? parseFloat(periodMatch[1]) : undefined;
+
     console.log(`OpenWaterLog - Using data from ${timestamp.toISOString()}`);
     console.log(`OpenWaterLog - Wave height: ${waveHeightFeet} ft`);
+    if (swellPeriodSeconds !== undefined) {
+      console.log(`OpenWaterLog - Wave period: ${swellPeriodSeconds} sec`);
+    }
 
     return {
       timestamp,
       waveHeightFeet,
+      swellPeriodSeconds,
       source: 'OpenWaterLog',
     };
   } catch (error) {

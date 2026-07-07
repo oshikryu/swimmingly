@@ -8,8 +8,9 @@
  */
 
 import { SAFETY_THRESHOLDS } from '@/config/thresholds';
+import type { CardStatus } from './status-colors';
 
-export type CardStatus = 'good' | 'warning' | 'danger' | 'info';
+export type { CardStatus };
 
 export function mapTideCurrentStatus(
   speedKnots: number,
@@ -51,4 +52,49 @@ export function mapDamReleasesStatus(level: string): CardStatus {
   if (level === 'high') return 'warning';
   if (level === 'extreme') return 'danger';
   return 'info';
+}
+
+export function mapWaterTempStatus(tempF: number): CardStatus {
+  const wt = SAFETY_THRESHOLDS.waterTemp;
+  if (tempF < wt.cold) return 'danger';
+  if (tempF < wt.cool) return 'warning';
+  if (tempF < wt.comfortable) return 'info';
+  return 'good';
+}
+
+export function mapBarometricPressureStatus(mb: number): CardStatus {
+  const bp = SAFETY_THRESHOLDS.barometricPressure;
+  if (mb >= bp.veryHigh) return 'good';
+  if (mb >= bp.standard) return 'info';
+  if (mb >= bp.low) return 'warning';
+  return 'danger';
+}
+
+export function mapWindSpeedStatus(speedMph: number): CardStatus {
+  const w = SAFETY_THRESHOLDS.wind;
+  if (speedMph < w.calm) return 'good';
+  if (speedMph < w.light) return 'info';
+  if (speedMph < w.moderate) return 'warning';
+  return 'danger';
+}
+
+export function mapSsoStatus(daysSinceSSO: number | undefined): CardStatus {
+  if (daysSinceSSO === undefined) return 'info';
+  const sso = SAFETY_THRESHOLDS.sso;
+  if (daysSinceSSO <= sso.cautionDays) return 'danger';
+  if (daysSinceSSO <= sso.warningDays) return 'warning';
+  return 'info';
+}
+
+export function mapBacteriaStatus(count: number, safeLimit: number, dangerousLimit: number): CardStatus {
+  if (count > dangerousLimit) return 'danger';
+  if (count > safeLimit) return 'warning';
+  return 'good';
+}
+
+export function mapRainfallStatus(inches: number): CardStatus {
+  const r = SAFETY_THRESHOLDS.rainfall;
+  if (inches >= r.heavy) return 'danger';
+  if (inches >= r.moderate) return 'warning';
+  return 'good';
 }

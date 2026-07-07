@@ -13,6 +13,12 @@ import {
   mapWaveStatus,
   mapWeatherStatus,
   mapWaterQualityStatus,
+  mapWaterTempStatus,
+  mapBarometricPressureStatus,
+  mapWindSpeedStatus,
+  mapSsoStatus,
+  mapBacteriaStatus,
+  mapRainfallStatus,
 } from '@/lib/card-status';
 
 // Raw data type for client-side recalculation
@@ -307,6 +313,12 @@ export default function CurrentConditions({
   // Get values from score factors with safe defaults (ensures sync with score calculation)
   const waveHeight = score?.factors?.waves?.heightFeet ?? 0;
   const swellPeriod = waves?.swellPeriodSeconds ?? null;
+  // Period, not just height, determines how choppy/steep waves feel (short period = jarring, long period = smooth rollers)
+  const swellPeriodDescription = swellPeriod === null ? ''
+    : swellPeriod < 6 ? 'rough, jarring'
+    : swellPeriod < 8 ? 'choppy but manageable'
+    : swellPeriod < 10 ? 'moderate, organized'
+    : 'smooth, rolling';
   const tideHeight = score?.factors?.tideAndCurrent?.tideHeight ?? 0;
   const currentSpeedRaw = score?.factors?.tideAndCurrent?.currentSpeed ?? 0;
   const tidePhase = score?.factors?.tideAndCurrent?.phase ?? 'slack';
@@ -435,7 +447,10 @@ export default function CurrentConditions({
               latestTideCurrentTimestamp ? `Updated: ${formatUpdatedTimestamp(latestTideCurrentTimestamp)} PST${cachedSuffix}` : '',
               // Moon phase
               moonPhase
-                ? `${moonPhase.phaseEmoji} ${moonPhase.phaseName} (${moonPhase.illuminationPercent}% illuminated)${moonPhase.isSpringTide ? ' — Spring tide' : moonPhase.isNeapTide ? ' — Neap tide' : ''}`
+                ? {
+                    text: `${moonPhase.phaseEmoji} ${moonPhase.phaseName} (${moonPhase.illuminationPercent}% illuminated)${moonPhase.isSpringTide ? ' — Spring tide' : moonPhase.isNeapTide ? ' — Neap tide' : ''}`,
+                    status: 'info' as const,
+                  }
                 : '',
               ...(score?.factors?.tideAndCurrent?.issues?.filter(issue => !issue.toLowerCase().includes('current')) ?? []),
               // Data source link
@@ -456,7 +471,9 @@ export default function CurrentConditions({
             status={waveStatus}
             icon="🌊"
             details={[
-              swellPeriod ? `Period: ${swellPeriod.toFixed(0)}s` : '',
+              swellPeriod ? `Period: ${swellPeriod.toFixed(0)}s (${swellPeriodDescription})` : '',
+              'ℹ️ Height shown is "significant" (avg of tallest ⅓ of waves) — expect occasional peaks 30-70% higher',
+              'ℹ️ Period matters more than height: short periods (<6s) feel steep and jarring, long periods (10s+) feel smooth even at the same height',
               conditions.waves?.source ? `Source: ${conditions.waves.source}` : '',
               conditions.waves?.timestamp ? `Updated: ${formatUpdatedTimestamp(new Date(conditions.waves.timestamp))} PST${cachedSuffix}` : '',
               ...(score?.factors?.waves?.issues ?? []),
@@ -481,16 +498,21 @@ export default function CurrentConditions({
             status={weatherStatus}
             icon="💨"
             details={[
-              windGust ? `Gusts: ${windGust.toFixed(0)} mph` : '',
+              windGust
+                ? { text: `Gusts: ${windGust.toFixed(0)} mph`, status: mapWindSpeedStatus(windGust) }
+                : '',
               windDirection !== undefined ? `Direction: ${windDirection}° ${degreesToCardinal(windDirection)}` : '',
               `Air Temp: ${temperature.toFixed(0)}°F`,
               barometricPressureMb !== null
-                ? `Pressure: ${barometricPressureMb.toFixed(0)} mb${
-                    barometricPressureMb >= thresholds.barometricPressure.veryHigh ? ' (High — stable)' :
-                    barometricPressureMb >= thresholds.barometricPressure.standard ? ' (Normal)' :
-                    barometricPressureMb >= thresholds.barometricPressure.low ? ' (Low — watch conditions)' :
-                    ' (Very low — storm risk)'
-                  }`
+                ? {
+                    text: `Pressure: ${barometricPressureMb.toFixed(0)} mb${
+                      barometricPressureMb >= thresholds.barometricPressure.veryHigh ? ' (High — stable)' :
+                      barometricPressureMb >= thresholds.barometricPressure.standard ? ' (Normal)' :
+                      barometricPressureMb >= thresholds.barometricPressure.low ? ' (Low — watch conditions)' :
+                      ' (Very low — storm risk)'
+                    }`,
+                    status: mapBarometricPressureStatus(barometricPressureMb),
+                  }
                 : '',
               windSourceDisplay ? `Source: ${windSourceDisplay}` : '',
               weather?.timestamp ? `Updated: ${formatUpdatedTimestamp(new Date(weather.timestamp))} PST${cachedSuffix}` : '',
@@ -510,58 +532,67 @@ export default function CurrentConditions({
               ...(waterQuality?.enterococcusCount !== undefined ? [{
                 label: 'Entero',
                 value: `${waterQuality.enterococcusCount.toFixed(0)}/${thresholds.waterQuality.enterococcus.safe}`,
-                status: (waterQuality.enterococcusCount > thresholds.waterQuality.enterococcus.dangerous ? 'danger'
-                  : waterQuality.enterococcusCount > thresholds.waterQuality.enterococcus.safe ? 'warning' : 'good') as ThresholdSegment['status'],
+                status: mapBacteriaStatus(waterQuality.enterococcusCount, thresholds.waterQuality.enterococcus.safe, thresholds.waterQuality.enterococcus.dangerous),
               }] : []),
               ...(waterQuality?.eColiCount !== undefined ? [{
                 label: 'E.coli',
                 value: `${waterQuality.eColiCount.toFixed(0)}/${thresholds.waterQuality.eColi.safe}`,
-                status: (waterQuality.eColiCount > thresholds.waterQuality.eColi.dangerous ? 'danger'
-                  : waterQuality.eColiCount > thresholds.waterQuality.eColi.safe ? 'warning' : 'good') as ThresholdSegment['status'],
+                status: mapBacteriaStatus(waterQuality.eColiCount, thresholds.waterQuality.eColi.safe, thresholds.waterQuality.eColi.dangerous),
               }] : []),
               ...(waterQuality?.coliformCount !== undefined ? [{
                 label: 'Coliform',
                 value: `${waterQuality.coliformCount >= 1000 ? Math.round(waterQuality.coliformCount / 1000) + 'k' : waterQuality.coliformCount.toFixed(0)}/${thresholds.waterQuality.coliform.safe / 1000}k`,
-                status: (waterQuality.coliformCount > thresholds.waterQuality.coliform.dangerous ? 'danger'
-                  : waterQuality.coliformCount > thresholds.waterQuality.coliform.safe ? 'warning' : 'good') as ThresholdSegment['status'],
+                status: mapBacteriaStatus(waterQuality.coliformCount, thresholds.waterQuality.coliform.safe, thresholds.waterQuality.coliform.dangerous),
               }] : []),
             ] as ThresholdSegment[]}
             status={waterQualityStatus}
             icon="💧"
             details={[
               waterQuality?.enterococcusCount !== undefined
-                ? `Enterococcus: ${waterQuality.enterococcusCount.toFixed(0)} MPN/100ml (limit: ${thresholds.waterQuality.enterococcus.safe})`
+                ? {
+                    text: `Enterococcus: ${waterQuality.enterococcusCount.toFixed(0)} MPN/100ml (limit: ${thresholds.waterQuality.enterococcus.safe})`,
+                    status: mapBacteriaStatus(waterQuality.enterococcusCount, thresholds.waterQuality.enterococcus.safe, thresholds.waterQuality.enterococcus.dangerous),
+                  }
                 : '',
               waterQuality?.eColiCount !== undefined
-                ? `E.coli: ${waterQuality.eColiCount.toFixed(0)} MPN/100ml (limit: ${thresholds.waterQuality.eColi.safe})`
+                ? {
+                    text: `E.coli: ${waterQuality.eColiCount.toFixed(0)} MPN/100ml (limit: ${thresholds.waterQuality.eColi.safe})`,
+                    status: mapBacteriaStatus(waterQuality.eColiCount, thresholds.waterQuality.eColi.safe, thresholds.waterQuality.eColi.dangerous),
+                  }
                 : '',
               waterQuality?.coliformCount !== undefined
-                ? `Total Coliform: ${waterQuality.coliformCount.toLocaleString()} MPN/100ml (limit: ${thresholds.waterQuality.coliform.safe.toLocaleString()})`
+                ? {
+                    text: `Total Coliform: ${waterQuality.coliformCount.toLocaleString()} MPN/100ml (limit: ${thresholds.waterQuality.coliform.safe.toLocaleString()})`,
+                    status: mapBacteriaStatus(waterQuality.coliformCount, thresholds.waterQuality.coliform.safe, thresholds.waterQuality.coliform.dangerous),
+                  }
                 : '',
               conditions?.waterTemperature
                 ? (() => {
                     const t = conditions.waterTemperature.temperatureF;
                     const wt = thresholds.waterTemp;
-                    const label = t < wt.cold ? ' — very cold' : t < wt.cool ? ' — cold' : t < wt.moderate ? ' — cool' : t >= wt.comfortable ? ' — comfortable' : '';
-                    return `Water Temp: ${t.toFixed(1)}°F${label}`;
+                    const label = t < wt.cold ? ' — very cold' : t < wt.cool ? ' — cold' : t < wt.comfortable ? ' — cool' : ' — comfortable';
+                    return { text: `Water Temp: ${t.toFixed(1)}°F${label}`, status: mapWaterTempStatus(t) };
                   })()
                 : '',
               score?.factors?.waterQuality?.recentSSO
-                ? `SSO ${score?.factors?.waterQuality?.daysSinceSSO ?? '?'} days ago`
+                ? {
+                    text: `SSO ${score?.factors?.waterQuality?.daysSinceSSO ?? '?'} days ago`,
+                    status: mapSsoStatus(score?.factors?.waterQuality?.daysSinceSSO),
+                  }
                 : '',
               rainfall?.last72hInches !== undefined && rainfall.last72hInches >= thresholds.rainfall.moderate
-                ? `🌧️ Recent rainfall: ${rainfall.last72hInches.toFixed(1)}" (72h) — runoff may affect water quality`
+                ? { text: `🌧️ Recent rainfall: ${rainfall.last72hInches.toFixed(1)}" (72h) — runoff may affect water quality`, status: mapRainfallStatus(rainfall.last72hInches) }
                 : rainfall?.last72hInches !== undefined && rainfall.last72hInches > 0
-                ? `🌧️ Recent rainfall: ${rainfall.last72hInches.toFixed(2)}" (72h)`
+                ? { text: `🌧️ Recent rainfall: ${rainfall.last72hInches.toFixed(2)}" (72h)`, status: mapRainfallStatus(rainfall.last72hInches) }
                 : rainfall?.last72hInches !== undefined
-                ? '☀️ No recent rainfall — good water clarity expected'
+                ? { text: '☀️ No recent rainfall — good water clarity expected', status: mapRainfallStatus(rainfall.last72hInches) }
                 : '',
               rainfall?.last48hInches !== undefined && rainfall.last48hInches >= thresholds.rainfall.heavy
-                ? '👁️ Water clarity: Poor (heavy rain runoff)'
+                ? { text: '👁️ Water clarity: Poor (heavy rain runoff)', status: mapRainfallStatus(rainfall.last48hInches) }
                 : rainfall?.last48hInches !== undefined && rainfall.last48hInches >= thresholds.rainfall.moderate
-                ? '👁️ Water clarity: Reduced (rain runoff)'
+                ? { text: '👁️ Water clarity: Reduced (rain runoff)', status: mapRainfallStatus(rainfall.last48hInches) }
                 : rainfall?.last48hInches !== undefined
-                ? '👁️ Water clarity: Clear'
+                ? { text: '👁️ Water clarity: Clear', status: mapRainfallStatus(rainfall.last48hInches) }
                 : '',
               waterQuality?.notes || '',
               waterQuality?.source ? `Source: ${waterQuality.source}` : '',

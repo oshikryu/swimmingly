@@ -2,6 +2,7 @@
 
 import type { SwimScore as SwimScoreType, ScoreWeights } from '@/types/conditions';
 import { SCORE_RANGES } from '@/config/thresholds';
+import { STATUS_PALETTE } from '@/lib/status-colors';
 import ScoreWeightSliders from './ScoreWeightSliders';
 
 interface SwimScoreProps {
@@ -41,18 +42,20 @@ export default function SwimScore({
 
       {/* Score Circle */}
       <div className="flex items-center justify-center mb-6">
-        <div
-          className="relative w-48 h-48 rounded-full flex items-center justify-center"
-          style={{
-            background: `conic-gradient(${color} ${overallScore}%, #e5e7eb ${overallScore}%)`,
-          }}
-        >
-          <div className="absolute w-40 h-40 bg-white dark:bg-gray-800 rounded-full flex flex-col items-center justify-center">
-            <div className="text-5xl font-bold" style={{ color }}>
-              {overallScore}
-            </div>
-            <div className="text-lg font-semibold mt-1 text-gray-600 dark:text-gray-400 uppercase">
-              {rating}
+        <div className="relative w-48 h-48 rounded-full bg-gray-200 dark:bg-gray-700">
+          <div
+            className="absolute inset-0 rounded-full flex items-center justify-center"
+            style={{
+              background: `conic-gradient(${color} ${overallScore}%, transparent ${overallScore}%)`,
+            }}
+          >
+            <div className="absolute w-40 h-40 bg-white dark:bg-gray-800 rounded-full flex flex-col items-center justify-center">
+              <div className="text-5xl font-bold" style={{ color }}>
+                {overallScore}
+              </div>
+              <div className="text-lg font-semibold mt-1 text-gray-600 dark:text-gray-400 uppercase">
+                {rating}
+              </div>
             </div>
           </div>
         </div>
@@ -66,7 +69,7 @@ export default function SwimScore({
           </h3>
           <ul className="space-y-1">
             {recommendations.map((rec, idx) => (
-              <li key={idx} className="text-sm text-green-700 dark:text-green-400 flex items-start">
+              <li key={idx} className={`text-sm ${STATUS_PALETTE.good.badge} flex items-start`}>
                 <span className="mr-2">✓</span>
                 <span>{rec}</span>
               </li>
@@ -83,7 +86,7 @@ export default function SwimScore({
           </h3>
           <ul className="space-y-1">
             {warnings.map((warning, idx) => (
-              <li key={idx} className="text-sm text-red-700 dark:text-red-400 flex items-start">
+              <li key={idx} className={`text-sm ${STATUS_PALETTE.danger.badge} font-semibold flex items-start`}>
                 <span className="mr-2">⚠</span>
                 <span>{warning}</span>
               </li>

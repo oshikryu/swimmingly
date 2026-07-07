@@ -1,10 +1,14 @@
 'use client';
 
+import { STATUS_PALETTE, isEmphasized, type CardStatus } from '@/lib/status-colors';
+
 export interface ThresholdSegment {
   label: string;
   value: string;
-  status: 'good' | 'warning' | 'danger' | 'info';
+  status: CardStatus;
 }
+
+export type DetailItem = string | { text: string; status?: CardStatus };
 
 interface ConditionsCardProps {
   title: string;
@@ -14,8 +18,8 @@ interface ConditionsCardProps {
   secondaryUnit?: string;
   threshold?: string;
   thresholds?: ThresholdSegment[];
-  status?: 'good' | 'warning' | 'danger' | 'info';
-  details?: string[];
+  status?: CardStatus;
+  details?: DetailItem[];
   icon?: string;
 }
 
@@ -31,29 +35,8 @@ export default function ConditionsCard({
   details,
   icon,
 }: ConditionsCardProps) {
-  const statusColors = {
-    good: 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800',
-    warning: 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800',
-    danger: 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800',
-    info: 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800',
-  };
-
-  const textColors = {
-    good: 'text-green-800 dark:text-green-200',
-    warning: 'text-yellow-800 dark:text-yellow-200',
-    danger: 'text-red-800 dark:text-red-200',
-    info: 'text-blue-800 dark:text-blue-200',
-  };
-
-  const thresholdTextColors = {
-    good: 'text-green-600 dark:text-green-400',
-    warning: 'text-yellow-600 dark:text-yellow-400',
-    danger: 'text-red-600 dark:text-red-400',
-    info: 'text-blue-600 dark:text-blue-400',
-  };
-
   return (
-    <div className={`rounded-lg border-2 p-4 ${statusColors[status]}`}>
+    <div className={`rounded-lg border-2 p-4 ${STATUS_PALETTE[status].card}`}>
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
           {title}
@@ -61,7 +44,7 @@ export default function ConditionsCard({
         {icon && <span className="text-2xl">{icon}</span>}
       </div>
 
-      <div className={`text-3xl font-bold ${textColors[status]}`}>
+      <div className={`text-3xl font-bold ${STATUS_PALETTE[status].text}`}>
         {value}
         {unit && <span className="text-xl ml-1">{unit}</span>}
         {secondaryValue !== undefined && (
@@ -76,7 +59,10 @@ export default function ConditionsCard({
       {thresholds && thresholds.length > 0 && (
         <div className="mt-1 text-xs flex flex-wrap gap-x-1">
           {thresholds.map((t, idx) => (
-            <span key={idx} className={thresholdTextColors[t.status]}>
+            <span
+              key={idx}
+              className={`${STATUS_PALETTE[t.status].badge}${isEmphasized(t.status) ? ' font-semibold' : ''}`}
+            >
               {t.label} {t.value}{idx < thresholds.length - 1 ? ',' : ''}
             </span>
           ))}
@@ -90,7 +76,10 @@ export default function ConditionsCard({
 
       {details && details.length > 0 && (
         <ul className="mt-3 space-y-1">
-          {details.map((detail, idx) => {
+          {details.map((item, idx) => {
+            const detail = typeof item === 'string' ? item : item.text;
+            const itemStatus = typeof item === 'string' ? undefined : item.status;
+
             // Check if detail contains a URL (starts with 🔗 and has https://)
             const urlMatch = detail.match(/🔗\s*(https?:\/\/[^\s]+)/);
 
@@ -111,8 +100,11 @@ export default function ConditionsCard({
               );
             }
 
+            const colorClass = itemStatus ? STATUS_PALETTE[itemStatus].badge : 'text-gray-600 dark:text-gray-400';
+            const weightClass = isEmphasized(itemStatus) ? ' font-semibold' : '';
+
             return (
-              <li key={idx} className="text-xs text-gray-600 dark:text-gray-400">
+              <li key={idx} className={`text-xs ${colorClass}${weightClass}`}>
                 {detail}
               </li>
             );
