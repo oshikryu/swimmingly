@@ -10,9 +10,11 @@
  * Water quality: San Diego County's own ddPCR beach monitoring (sdbeachinfo.ts) is
  * primary. Falls back to Swim Guide (San Diego Coastkeeper's posting of county DEH
  * results — occasionally fresher than sdbeachinfo itself) if ddPCR data is
- * unavailable, then federal WQP (which can lag months for this area) as a last
- * resort. Both sdbeachinfo and Swim Guide are reverse-engineered, undocumented
- * integrations — see their file headers.
+ * unavailable. No federal WQP fallback — its station-discovery picks a defunct
+ * SCCWRP station (last reading 2010) over the actively-reporting FM-070 station,
+ * so it always resolves to nothing for this beach; see swimmingly memory for details.
+ * Both sdbeachinfo and Swim Guide are reverse-engineered, undocumented integrations
+ * — see their file headers.
  *
  * Waves are also scored against La Jolla Cove-specific thresholds (see
  * LA_JOLLA_COVE_THRESHOLDS_OVERRIDE in config/la-jolla-cove.ts) rather than Aquatic
@@ -23,7 +25,6 @@
 import { NextResponse } from 'next/server';
 import type { CurrentConditions, TidePrediction, CurrentData } from '@/types/conditions';
 import { fetchCurrentTidePrediction, fetchWaveData, fetchWaterTemperature } from '@/lib/api/noaa';
-import { fetchWaterQualityWQPOnly } from '@/lib/api/beachwatch';
 import { fetchSanDiegoCountyWaterQuality } from '@/lib/api/sdbeachinfo';
 import { fetchSwimGuideWaterQuality } from '@/lib/api/swimguide';
 import { calculateSwimScore } from '@/lib/algorithms/swim-score';
@@ -46,15 +47,12 @@ export async function GET() {
     };
 
     // Fetch water quality with fallback strategy: San Diego County's own ddPCR data
-    // first, then Swim Guide, then WQP as a last resort
+    // first, then Swim Guide. No WQP fallback — see file header.
     const fetchWaterQualityWithFallback = async () => {
       const sdCounty = await fetchSanDiegoCountyWaterQuality(LA_JOLLA_SD_BEACH_INFO_SITE_ID);
       if (sdCounty) return sdCounty;
       console.log('La Jolla Cove: SD County ddPCR unavailable, falling back to Swim Guide...');
-      const swimGuide = await fetchSwimGuideWaterQuality(LA_JOLLA_SWIM_GUIDE_BEACH_ID);
-      if (swimGuide) return swimGuide;
-      console.log('La Jolla Cove: Swim Guide unavailable, falling back to WQP...');
-      return fetchWaterQualityWQPOnly('LA JOLLA COVE', LA_JOLLA_COVE_LAT, LA_JOLLA_COVE_LON, 'US:06:073');
+      return fetchSwimGuideWaterQuality(LA_JOLLA_SWIM_GUIDE_BEACH_ID);
     };
 
     // Fetch all data sources in parallel

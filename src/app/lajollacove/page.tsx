@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import CurrentConditions from '@/components/dashboard/CurrentConditions';
+import DataNotes from '@/components/dashboard/DataNotes';
 import HeaderTimestamp from '@/components/HeaderTimestamp';
 import { LA_JOLLA_COVE_LAT, LA_JOLLA_COVE_LON, LA_JOLLA_COVE_THRESHOLDS_OVERRIDE } from '@/config/la-jolla-cove';
 
@@ -74,6 +75,9 @@ export default function LaJollaCove() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <CurrentConditions location={LA_JOLLA_COVE_UI_CONFIG} />
+
+        {/* Data Notes */}
+        <DataNotes />
 
         {/* Disclaimer */}
         <div className="mt-8 bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400 p-4 rounded">
