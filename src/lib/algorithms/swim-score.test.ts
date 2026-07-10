@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { calculateSwimScore, mergeThresholds, type ThresholdsOverride } from './swim-score';
-import { SAFETY_THRESHOLDS } from '@/config/thresholds';
+import { SAFETY_THRESHOLDS, SCORE_WEIGHTS } from '@/config/thresholds';
 import type {
   TidePrediction,
   CurrentData,
@@ -251,9 +251,9 @@ describe('calculateSwimScore', () => {
     it('does not trigger overall safety cap for heavy rainfall alone', () => {
       // With 1.0" rain: WQ score = 35, but status stays safe so no overall safety cap
       const result = scoreWith({ rainfall: { last72hInches: 1.0 } });
-      // (35*30 + 100*32 + 93*20 + 100*18) / 100 = 79.1 → 79
+      // (35*27 + 100*27 + 93*20 + 100*26) / 100 = 81.05 → 81
       expect(result.overallScore).toBeGreaterThanOrEqual(70);
-      expect(result.rating).toBe('mild');
+      expect(result.rating).toBe('calm');
     });
 
     it('rainfall adds issues but bacteria status takes precedence', () => {
@@ -264,6 +264,28 @@ describe('calculateSwimScore', () => {
       });
       expect(result.factors.waterQuality.status).toBe('dangerous');
       expect(result.factors.waterQuality.score).toBe(0); // bacteria score (0) already < rain cap (35)
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Water quality — live precipitation (score-only, no status change)
+  // -------------------------------------------------------------------------
+  describe('water quality — live precipitation', () => {
+    it('caps WQ score at 40 with rain in current conditions', () => {
+      const result = scoreWith({ weather: { conditions: 'light rain' } });
+      expect(result.factors.waterQuality.score).toBe(40);
+      expect(result.factors.waterQuality.status).toBe('safe');
+    });
+
+    it('caps WQ score at 40 with storm in current conditions', () => {
+      const result = scoreWith({ weather: { conditions: 'thunderstorm' } });
+      expect(result.factors.waterQuality.score).toBe(40);
+      expect(result.factors.waterQuality.status).toBe('safe');
+    });
+
+    it('does not penalize weather factor for rain/storm conditions', () => {
+      const result = scoreWith({ weather: { windSpeedMph: 3, conditions: 'thunderstorm' } });
+      expect(result.factors.weather.score).toBe(100);
     });
   });
 
@@ -313,28 +335,28 @@ describe('calculateSwimScore', () => {
       expect(result.factors.tideAndCurrent.score).toBeLessThanOrEqual(40);
     });
 
-    it('caps at 65 for moderate current speed (> 1.0 knots)', () => {
+    it('caps at 75 for moderate current speed (> 1.0 knots)', () => {
       const result = scoreWith({
         tide: { currentPhase: 'slack', changeRateFeetPerHour: 0.3 },
         current: { speedKnots: 1.3 },
       });
-      expect(result.factors.tideAndCurrent.score).toBeLessThanOrEqual(65);
+      expect(result.factors.tideAndCurrent.score).toBeLessThanOrEqual(75);
     });
 
-    it('caps at 40 for strong current speed (> 1.5 knots)', () => {
+    it('caps at 50 for strong current speed (> 1.5 knots)', () => {
       const result = scoreWith({
         tide: { currentPhase: 'slack', changeRateFeetPerHour: 0.3 },
         current: { speedKnots: 1.7 },
       });
-      expect(result.factors.tideAndCurrent.score).toBeLessThanOrEqual(40);
+      expect(result.factors.tideAndCurrent.score).toBeLessThanOrEqual(50);
     });
 
-    it('caps at 20 for very strong current speed (> 2.0 knots)', () => {
+    it('caps at 30 for very strong current speed (> 2.0 knots)', () => {
       const result = scoreWith({
         tide: { currentPhase: 'slack', changeRateFeetPerHour: 0.3 },
         current: { speedKnots: 2.5 },
       });
-      expect(result.factors.tideAndCurrent.score).toBeLessThanOrEqual(20);
+      expect(result.factors.tideAndCurrent.score).toBeLessThanOrEqual(30);
     });
 
     it('handles null current data gracefully', () => {
@@ -435,16 +457,6 @@ describe('calculateSwimScore', () => {
       expect(result.factors.weather.windCondition).toBe('strong');
     });
 
-    it('caps score at 40 with rain', () => {
-      const result = scoreWith({ weather: { windSpeedMph: 3, conditions: 'light rain' } });
-      expect(result.factors.weather.score).toBe(40);
-    });
-
-    it('caps score at 40 with storm', () => {
-      const result = scoreWith({ weather: { windSpeedMph: 3, conditions: 'thunderstorm' } });
-      expect(result.factors.weather.score).toBe(40);
-    });
-
     it('scores 50 when weather source is unavailable', () => {
       const result = scoreWith({ weather: { source: 'unavailable' } });
       expect(result.factors.weather.score).toBe(50);
@@ -452,7 +464,7 @@ describe('calculateSwimScore', () => {
     });
 
     it('factors in wind gusts to effective wind calculation', () => {
-      // 8 mph sustained + 20 mph gusts → effective = 8*0.7 + 20*0.3 = 11.6 → light (score 95)
+      // 8 mph sustained + 20 mph gusts → effective = 8*0.55 + 20*0.45 = 13.4 → light (score 95)
       const result = scoreWith({ weather: { windSpeedMph: 8, windGustMph: 20 } });
       expect(result.factors.weather.score).toBe(95);
       expect(result.factors.weather.windCondition).toBe('light');
@@ -466,7 +478,7 @@ describe('calculateSwimScore', () => {
     });
 
     it('gusts push calm into light band when high enough', () => {
-      // 8 mph sustained + 22 mph gusts → effective = 8*0.7 + 22*0.3 = 12.2 → light (score 95)
+      // 8 mph sustained + 22 mph gusts → effective = 8*0.55 + 22*0.45 = 14.3 → light (score 95)
       // Without gusts: 8 mph < 10 → calm (score 100). Gusts matter.
       const result = scoreWith({ weather: { windSpeedMph: 8, windGustMph: 22 } });
       expect(result.factors.weather.score).toBe(95);
@@ -577,7 +589,7 @@ describe('calculateSwimScore', () => {
   // Weighted formula correctness
   // -------------------------------------------------------------------------
   describe('weighted score formula', () => {
-    it('correctly weights: WQ=30%, Tide=32%, Waves=20%, Weather=18%', () => {
+    it('correctly applies SCORE_WEIGHTS to each factor', () => {
       // WQ: 70 (enterococcus 200), Tide: 100 (ebb low rate, no phase preference), Waves: 57 (1.2ft lerp), Weather: 95 (12mph→light)
       const result = scoreWith({
         waterQuality: { enterococcusCount: 200 },
@@ -588,7 +600,11 @@ describe('calculateSwimScore', () => {
       });
 
       const expected = Math.round(
-        (70 * 30 + 100 * 32 + 57 * 20 + 95 * 18) / 100
+        (70 * SCORE_WEIGHTS.waterQuality +
+          100 * SCORE_WEIGHTS.tideAndCurrent +
+          57 * SCORE_WEIGHTS.waves +
+          95 * SCORE_WEIGHTS.weather) /
+          100
       );
       expect(result.overallScore).toBe(expected);
     });
@@ -756,8 +772,8 @@ describe('calculateSwimScore', () => {
         weather: { windSpeedMph: 14 },
       });
       // Rain 0.8" caps WQ at 60, wind 14mph → light (score 95), waves 93, tide 100
-      // (60*30 + 100*32 + 93*20 + 95*18) / 100 = 85.7 → 86
-      expect(result.overallScore).toBe(86);
+      // (60*27 + 100*27 + 93*20 + 95*26) / 100 = 86.5 → 87
+      expect(result.overallScore).toBe(87);
       expect(result.rating).toBe('calm');
     });
 
@@ -794,7 +810,7 @@ describe('calculateSwimScore', () => {
         waves: { waveHeightFeet: 1.2 },
       });
       // WQ=100, Tide=100, Waves=57 (lerp), Weather=100
-      // (100*30 + 100*32 + 57*20 + 100*18) / 100 = 91.4 → 91
+      // (100*27 + 100*27 + 57*20 + 100*26) / 100 = 91.4 → 91
       expect(result.overallScore).toBe(91);
       expect(result.rating).toBe('calm');
     });

@@ -22,7 +22,7 @@ const FACTOR_LABELS: Record<keyof ScoreWeights, string> = {
   waterQuality: 'Water Quality',
   tideAndCurrent: 'Tide & Current',
   waves: 'Waves',
-  weather: 'Weather',
+  weather: 'Wind',
 };
 
 const FACTOR_ORDER: (keyof ScoreWeights)[] = [

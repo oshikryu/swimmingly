@@ -172,7 +172,6 @@ export interface SwimScoreFactors {
     temperature: number;
     windSpeed: number;
     windCondition: 'calm' | 'light' | 'moderate' | 'strong';
-    waterTemperatureF?: number;
     issues: string[];
   };
 }

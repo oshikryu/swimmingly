@@ -17,7 +17,14 @@ import type {
   ScoreWeights,
   MoonPhaseData,
 } from '@/types/conditions';
-import { SAFETY_THRESHOLDS, SCORE_WEIGHTS, SCORE_RANGES } from '@/config/thresholds';
+import {
+  SAFETY_THRESHOLDS,
+  SCORE_WEIGHTS,
+  SCORE_RANGES,
+  WIND_GUST_BLEND,
+  CURRENT_SPEED_SCORE_CAPS,
+  WATER_TEMP_SCORE_DELTAS,
+} from '@/config/thresholds';
 
 type SafetyThresholds = typeof SAFETY_THRESHOLDS;
 
@@ -67,10 +74,10 @@ export function calculateSwimScore(
   const thresholds = mergeThresholds(customThresholds);
 
   // Calculate individual factor scores
-  const waterQualityFactor = scoreWaterQuality(waterQuality, recentSSOs, rainfall, waterTemp?.temperatureF, thresholds);
+  const waterQualityFactor = scoreWaterQuality(waterQuality, recentSSOs, rainfall, waterTemp?.temperatureF, thresholds, weather?.conditions);
   const tideCurrentFactor = scoreTideAndCurrent(tide, current, moonPhase, thresholds);
   const waveFactor = scoreWaves(waves, thresholds);
-  const weatherFactor = scoreWeather(weather, waves?.barometricPressureMb, waterTemp?.temperatureF, thresholds);
+  const weatherFactor = scoreWeather(weather, thresholds);
 
   // Calculate weighted overall score
   const weights = customWeights || SCORE_WEIGHTS;
@@ -87,27 +94,27 @@ export function calculateSwimScore(
   // These conditions are dangerous enough to override the weighted average
   const currentSpeed = tideCurrentFactor.currentSpeed;
 
-  // Very strong current (>2.0 knots) caps score at 39 (Poor)
+  // Very strong current (>2.0 knots) caps score at Poor
   if (currentSpeed >= thresholds.current.veryStrong) {
-    overallScore = Math.min(overallScore, 39);
+    overallScore = Math.min(overallScore, SCORE_RANGES.exciting.max);
   }
-  // Strong current (>1.5 knots) caps score at 59 (Fair)
+  // Strong current (>1.5 knots) caps score at Fair
   else if (currentSpeed >= thresholds.current.strong) {
-    overallScore = Math.min(overallScore, 59);
+    overallScore = Math.min(overallScore, SCORE_RANGES.active.max);
   }
 
   // Dangerous water quality caps score
   if (waterQualityFactor.status === 'dangerous') {
-    overallScore = Math.min(overallScore, 19);
+    overallScore = Math.min(overallScore, SCORE_RANGES.challenging.max);
   } else if (waterQualityFactor.status === 'warning') {
-    overallScore = Math.min(overallScore, 39);
+    overallScore = Math.min(overallScore, SCORE_RANGES.exciting.max);
   }
 
   // Dangerous waves cap score
   if (waveFactor.status === 'dangerous') {
-    overallScore = Math.min(overallScore, 19);
+    overallScore = Math.min(overallScore, SCORE_RANGES.challenging.max);
   } else if (waveFactor.status === 'rough') {
-    overallScore = Math.min(overallScore, 39);
+    overallScore = Math.min(overallScore, SCORE_RANGES.exciting.max);
   }
 
   // Determine rating
@@ -122,7 +129,7 @@ export function calculateSwimScore(
   };
 
   // Generate recommendations and warnings
-  const { recommendations, warnings } = generateAdvice(factors, overallScore, thresholds);
+  const { recommendations, warnings } = generateAdvice(factors, overallScore, thresholds, waterTemp?.temperatureF);
 
   return {
     timestamp: new Date(),
@@ -135,14 +142,15 @@ export function calculateSwimScore(
 }
 
 /**
- * Score water quality (30% weight - highest priority)
+ * Score water quality (see SCORE_WEIGHTS.waterQuality - highest priority)
  */
 function scoreWaterQuality(
   waterQuality: WaterQuality,
   recentSSOs: SSOEvent[],
   rainfall: RainfallData | null | undefined,
   waterTempF: number | undefined,
-  thresholds: SafetyThresholds
+  thresholds: SafetyThresholds,
+  weatherConditions: string | undefined
 ): SwimScoreFactors['waterQuality'] {
   let score = 100;
   const issues: string[] = [];
@@ -241,21 +249,30 @@ function scoreWaterQuality(
     // light rainfall (<0.1") — no penalty
   }
 
+  // Live precipitation flag: current rain/storm conditions are a faster-moving
+  // proxy than the 72h rainfall total above — catches active runoff risk before
+  // it shows up in the accumulation. Same rule as rainfall: reduces score only,
+  // does not escalate status.
+  if (weatherConditions?.includes('rain') || weatherConditions?.includes('storm')) {
+    score = Math.min(score, 40);
+    issues.push('Active precipitation — bacteria and runoff risk elevated');
+  }
+
   // Water temperature — cold water is a direct safety risk (cold shock, hypothermia)
   if (waterTempF !== undefined) {
     const wt = thresholds.waterTemp;
 
     if (waterTempF < wt.cold) {
-      score = Math.max(0, score - 15);
+      score = Math.max(0, score + WATER_TEMP_SCORE_DELTAS.cold);
       issues.push(`Very cold water (${waterTempF.toFixed(0)}°F) — fuel up, pre-warm, limit swim time`);
     } else if (waterTempF < wt.cool) {
-      score = Math.max(0, score - 8);
+      score = Math.max(0, score + WATER_TEMP_SCORE_DELTAS.cool);
       issues.push(`Cold water (${waterTempF.toFixed(0)}°F) — eat before going in, keep it short`);
     } else if (waterTempF < wt.moderate) {
-      score = Math.max(0, score - 3);
+      score = Math.max(0, score + WATER_TEMP_SCORE_DELTAS.moderate);
       issues.push(`Cool water (${waterTempF.toFixed(0)}°F)`);
     } else if (waterTempF >= wt.comfortable) {
-      score = Math.min(100, score + 5);
+      score = Math.min(100, score + WATER_TEMP_SCORE_DELTAS.comfortable);
     }
   }
 
@@ -272,7 +289,7 @@ function scoreWaterQuality(
 }
 
 /**
- * Score tide and current conditions (27% weight)
+ * Score tide and current conditions (see SCORE_WEIGHTS.tideAndCurrent)
  */
 function scoreTideAndCurrent(
   tide: TidePrediction,
@@ -312,13 +329,13 @@ function scoreTideAndCurrent(
 
     // Factor in current speed
     if (currentSpeed > thresholds.current.veryStrong) {
-      score = Math.min(score, 20);
+      score = Math.min(score, CURRENT_SPEED_SCORE_CAPS.veryStrong);
       issues.push(`Very strong current (${currentSpeed.toFixed(1)} knots)`);
     } else if (currentSpeed > thresholds.current.strong) {
-      score = Math.min(score, 40);
+      score = Math.min(score, CURRENT_SPEED_SCORE_CAPS.strong);
       issues.push(`Strong current (${currentSpeed.toFixed(1)} knots)`);
     } else if (currentSpeed > thresholds.current.moderate) {
-      score = Math.min(score, 65);
+      score = Math.min(score, CURRENT_SPEED_SCORE_CAPS.moderate);
       issues.push(`Moderate current (${currentSpeed.toFixed(1)} knots)`);
     }
   }
@@ -352,7 +369,7 @@ function lerpScore(value: number, x0: number, x1: number, y0: number, y1: number
 }
 
 /**
- * Score wave conditions (20% weight)
+ * Score wave conditions (see SCORE_WEIGHTS.waves)
  */
 function scoreWaves(waves: WaveData, thresholds: SafetyThresholds): SwimScoreFactors['waves'] {
   let score = 100;
@@ -398,9 +415,9 @@ function scoreWaves(waves: WaveData, thresholds: SafetyThresholds): SwimScoreFac
 }
 
 /**
- * Score weather conditions (18% weight)
+ * Score weather conditions (see SCORE_WEIGHTS.weather)
  */
-function scoreWeather(weather: WeatherData, barometricPressureMb: number | undefined, waterTempF: number | undefined, thresholds: SafetyThresholds): SwimScoreFactors['weather'] {
+function scoreWeather(weather: WeatherData, thresholds: SafetyThresholds): SwimScoreFactors['weather'] {
   let score = 100;
   const issues: string[] = [];
   let windCondition: 'calm' | 'light' | 'moderate' | 'strong' = 'calm';
@@ -408,10 +425,10 @@ function scoreWeather(weather: WeatherData, barometricPressureMb: number | undef
   const windGust = weather?.windGustMph ?? 0;
   const temperature = weather?.temperatureF ?? 0;
 
-  // Use effective wind: blend sustained speed with gusts (70/30 weighting)
+  // Use effective wind: blend sustained speed with gusts (see WIND_GUST_BLEND)
   // This accounts for gusts making conditions worse than sustained speed alone
   const effectiveWind = windGust > windSpeed
-    ? windSpeed * 0.7 + windGust * 0.3
+    ? windSpeed * WIND_GUST_BLEND.sustainedWeight + windGust * WIND_GUST_BLEND.gustWeight
     : windSpeed;
 
   // Handle missing wind data (check source rather than value, since 0 mph is a valid reading)
@@ -441,43 +458,11 @@ function scoreWeather(weather: WeatherData, barometricPressureMb: number | undef
     issues.push(`Very strong winds (${windSpeed.toFixed(0)} mph, gusts ${windGust.toFixed(0)} mph)`);
   }
 
-  // Check for precipitation
-  if (weather?.conditions?.includes('rain') || weather?.conditions?.includes('storm')) {
-    score = Math.min(score, 40);
-    issues.push('Precipitation present');
-  }
-
-  // Barometric pressure modifier
-  if (barometricPressureMb !== undefined) {
-    const pressureThresholds = thresholds.barometricPressure;
-    let pressureAdjustment = 0;
-
-    if (barometricPressureMb >= pressureThresholds.veryHigh) {
-      pressureAdjustment = 8;
-    } else if (barometricPressureMb >= pressureThresholds.high) {
-      pressureAdjustment = 5;
-    } else if (barometricPressureMb >= pressureThresholds.standard) {
-      pressureAdjustment = 0; // neutral
-    } else if (barometricPressureMb >= pressureThresholds.low) {
-      pressureAdjustment = -5;
-      issues.push(`Low pressure (${barometricPressureMb.toFixed(0)} mb) — possible deteriorating conditions`);
-    } else if (barometricPressureMb >= pressureThresholds.veryLow) {
-      pressureAdjustment = -10;
-      issues.push(`Very low pressure (${barometricPressureMb.toFixed(0)} mb) — storm risk`);
-    } else {
-      pressureAdjustment = -15;
-      issues.push(`Storm pressure (${barometricPressureMb.toFixed(0)} mb) — dangerous conditions likely`);
-    }
-
-    score = Math.max(0, Math.min(100, score + pressureAdjustment));
-  }
-
   return {
     score,
     temperature,
     windSpeed,
     windCondition,
-    waterTemperatureF: waterTempF,
     issues,
   };
 }
@@ -504,7 +489,8 @@ function pick<T>(items: T[]): T {
 function generateAdvice(
   factors: SwimScoreFactors,
   overallScore: number,
-  thresholds: SafetyThresholds
+  thresholds: SafetyThresholds,
+  waterTempF: number | undefined
 ): { recommendations: string[]; warnings: string[] } {
   const recommendations: string[] = [];
   const warnings: string[] = [];
@@ -593,9 +579,9 @@ function generateAdvice(
   }
 
   // Water temperature advisories
-  if (factors.weather.waterTemperatureF !== undefined) {
+  if (waterTempF !== undefined) {
     const wt = thresholds.waterTemp;
-    const wtF = factors.weather.waterTemperatureF;
+    const wtF = waterTempF;
     if (wtF < wt.cold) {
       warnings.push(pick([
         `${wtF.toFixed(0)}°F — fuel up, pre-warm, and keep it short`,

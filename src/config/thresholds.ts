@@ -125,10 +125,43 @@ export const SAFETY_THRESHOLDS = {
  * All weights should sum to 100
  */
 export const SCORE_WEIGHTS = {
-  waterQuality: 30,      // Highest priority - safety first (includes water temp)
-  tideAndCurrent: 32,    // Affects difficulty and safety (moon phase adds signal)
+  waterQuality: 27,      // Safety first — bacteria/SSO dominant, water temp/precip smaller modifiers
+  tideAndCurrent: 27,    // Affects difficulty and safety (moon phase adds signal)
   waves: 20,             // Affects comfort and safety
-  weather: 18,           // Wind and barometric pressure
+  weather: 26,           // Wind + gusts only (weighted more heavily); no pressure/precip
+} as const;
+
+/**
+ * How much sustained wind vs. gust speed contributes to the "effective wind"
+ * used for scoring. Weighting gusts higher makes gusty conditions pull the
+ * weather score down harder.
+ */
+export const WIND_GUST_BLEND = {
+  sustainedWeight: 0.55,
+  gustWeight: 0.45,
+} as const;
+
+/**
+ * Score ceilings applied inside the tideAndCurrent factor as current speed
+ * crosses each threshold band (before the separate, unchanged top-level
+ * hard safety caps in calculateSwimScore).
+ */
+export const CURRENT_SPEED_SCORE_CAPS = {
+  moderate: 75,    // currentSpeed > thresholds.current.moderate
+  strong: 50,      // currentSpeed > thresholds.current.strong
+  veryStrong: 30,  // currentSpeed > thresholds.current.veryStrong
+} as const;
+
+/**
+ * Additive score deltas applied inside the waterQuality factor for each
+ * water-temperature band. Kept small relative to the bacteria/SSO penalties
+ * above them so temperature stays a modifier, not a dominant signal.
+ */
+export const WATER_TEMP_SCORE_DELTAS = {
+  cold: -8,
+  cool: -4,
+  moderate: -1,
+  comfortable: 3,
 } as const;
 
 /**
