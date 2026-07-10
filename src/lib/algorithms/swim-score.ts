@@ -24,6 +24,9 @@ import {
   WIND_GUST_BLEND,
   CURRENT_SPEED_SCORE_CAPS,
   WATER_TEMP_SCORE_DELTAS,
+  WIND_SCORE_ANCHORS,
+  GUST_SPREAD_THRESHOLDS,
+  GUST_SPREAD_PENALTY_MAX,
 } from '@/config/thresholds';
 
 type SafetyThresholds = typeof SAFETY_THRESHOLDS;
@@ -424,6 +427,8 @@ function scoreWeather(weather: WeatherData, thresholds: SafetyThresholds): SwimS
   const windSpeed = weather?.windSpeedMph ?? 0;
   const windGust = weather?.windGustMph ?? 0;
   const temperature = weather?.temperatureF ?? 0;
+  const w = thresholds.wind;
+  const a = WIND_SCORE_ANCHORS;
 
   // Use effective wind: blend sustained speed with gusts (see WIND_GUST_BLEND)
   // This accounts for gusts making conditions worse than sustained speed alone
@@ -436,26 +441,47 @@ function scoreWeather(weather: WeatherData, thresholds: SafetyThresholds): SwimS
     score = 50;
     windCondition = 'moderate';
     issues.push('No wind data available');
-  } else if (effectiveWind < thresholds.wind.calm) {
+  } else if (effectiveWind < w.calm) {
+    // Continuous score: interpolate between anchor points instead of flat
+    // bands, so score responds to every mph rather than jumping at boundaries
+    // (same lerpScore pattern as scoreWaves).
+    score = lerpScore(effectiveWind, 0, w.calm, a.atZeroMph, a.atCalmMph);
     windCondition = 'calm';
-  } else if (effectiveWind < thresholds.wind.light) {
-    score = 95;
+  } else if (effectiveWind < w.light) {
+    score = lerpScore(effectiveWind, w.calm, w.light, a.atCalmMph, a.atLightMph);
     windCondition = 'light';
-  } else if (effectiveWind < thresholds.wind.moderate) {
-    score = 82;
+  } else if (effectiveWind < w.moderate) {
+    score = lerpScore(effectiveWind, w.light, w.moderate, a.atLightMph, a.atModerateMph);
     windCondition = 'moderate';
-  } else if (effectiveWind < thresholds.wind.strong) {
-    score = 62;
+  } else if (effectiveWind < w.strong) {
+    score = lerpScore(effectiveWind, w.moderate, w.strong, a.atModerateMph, a.atStrongMph);
     windCondition = 'moderate';
     issues.push(`Moderate winds (${windSpeed.toFixed(0)} mph, gusts ${windGust.toFixed(0)} mph)`);
-  } else if (effectiveWind < thresholds.wind.veryStrong) {
-    score = 35;
+  } else if (effectiveWind < w.veryStrong) {
+    score = lerpScore(effectiveWind, w.strong, w.veryStrong, a.atStrongMph, a.atVeryStrongMph);
     windCondition = 'strong';
     issues.push(`Strong winds (${windSpeed.toFixed(0)} mph, gusts ${windGust.toFixed(0)} mph)`);
   } else {
-    score = 15;
+    score = a.floor;
     windCondition = 'strong';
     issues.push(`Very strong winds (${windSpeed.toFixed(0)} mph, gusts ${windGust.toFixed(0)} mph)`);
+  }
+
+  // Gustiness penalty — separate, continuous reduction for the raw spread
+  // between sustained wind and gust, independent of the effectiveWind blend
+  // above. Two profiles with the same blended wind can have very different
+  // real gustiness (e.g. 5/25 vs 12/14 mph sustained/gust).
+  const gustSpread = windGust - windSpeed;
+  if (gustSpread > GUST_SPREAD_THRESHOLDS.mild) {
+    const penalty = lerpScore(
+      gustSpread,
+      GUST_SPREAD_THRESHOLDS.mild,
+      GUST_SPREAD_THRESHOLDS.extreme,
+      0,
+      -GUST_SPREAD_PENALTY_MAX
+    );
+    score = Math.max(0, score + penalty);
+    issues.push(`Gusty winds (${windSpeed.toFixed(0)} mph sustained, ${windGust.toFixed(0)} mph gusts)`);
   }
 
   return {

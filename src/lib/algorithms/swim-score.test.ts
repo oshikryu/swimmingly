@@ -130,7 +130,7 @@ describe('calculateSwimScore', () => {
   describe('ideal conditions', () => {
     it('returns near-perfect score with ideal conditions', () => {
       const result = scoreWith();
-      expect(result.overallScore).toBe(99); // wave interpolation at 0.3 ft gives 93, not 100
+      expect(result.overallScore).toBe(98); // wave interp (0.3ft) gives 93, wind interp (3mph) gives 97, not 100
       expect(result.rating).toBe('calm');
     });
 
@@ -285,7 +285,7 @@ describe('calculateSwimScore', () => {
 
     it('does not penalize weather factor for rain/storm conditions', () => {
       const result = scoreWith({ weather: { windSpeedMph: 3, conditions: 'thunderstorm' } });
-      expect(result.factors.weather.score).toBe(100);
+      expect(result.factors.weather.score).toBe(97); // wind-only interpolation at 3mph, no precip penalty
     });
   });
 
@@ -421,39 +421,44 @@ describe('calculateSwimScore', () => {
   // Weather scoring
   // -------------------------------------------------------------------------
   describe('weather', () => {
-    it('scores 100 for calm wind (< 10 mph)', () => {
+    it('interpolates a near-100 score for calm wind (< 10 mph)', () => {
+      // Continuous curve: lerpScore(3, 0, 10, 100, 90) = 97, not a flat 100
       const result = scoreWith({ weather: { windSpeedMph: 3 } });
-      expect(result.factors.weather.score).toBe(100);
+      expect(result.factors.weather.score).toBe(97);
       expect(result.factors.weather.windCondition).toBe('calm');
     });
 
-    it('scores 95 for light wind (10–15 mph)', () => {
+    it('interpolates for light wind (10–15 mph)', () => {
+      // lerpScore(12, 10, 15, 90, 75) = 84
       const result = scoreWith({ weather: { windSpeedMph: 12 } });
-      expect(result.factors.weather.score).toBe(95);
+      expect(result.factors.weather.score).toBe(84);
       expect(result.factors.weather.windCondition).toBe('light');
     });
 
-    it('scores 82 for moderate wind (15–22 mph)', () => {
+    it('interpolates for moderate wind (15–22 mph)', () => {
+      // lerpScore(18, 15, 22, 75, 50) = 64
       const result = scoreWith({ weather: { windSpeedMph: 18 } });
-      expect(result.factors.weather.score).toBe(82);
+      expect(result.factors.weather.score).toBe(64);
       expect(result.factors.weather.windCondition).toBe('moderate');
     });
 
-    it('scores 62 for strong wind (22–30 mph)', () => {
+    it('interpolates for strong wind (22–30 mph)', () => {
+      // lerpScore(25, 22, 30, 50, 25) = 41
       const result = scoreWith({ weather: { windSpeedMph: 25 } });
-      expect(result.factors.weather.score).toBe(62);
+      expect(result.factors.weather.score).toBe(41);
       expect(result.factors.weather.windCondition).toBe('moderate');
     });
 
-    it('scores 35 for very strong wind (30–38 mph)', () => {
+    it('interpolates for very strong wind (30–38 mph)', () => {
+      // lerpScore(33, 30, 38, 25, 10) = 19
       const result = scoreWith({ weather: { windSpeedMph: 33 } });
-      expect(result.factors.weather.score).toBe(35);
+      expect(result.factors.weather.score).toBe(19);
       expect(result.factors.weather.windCondition).toBe('strong');
     });
 
-    it('scores 15 for extreme wind (> 38 mph)', () => {
+    it('floors at 8 for extreme wind (> 38 mph)', () => {
       const result = scoreWith({ weather: { windSpeedMph: 40 } });
-      expect(result.factors.weather.score).toBe(15);
+      expect(result.factors.weather.score).toBe(8);
       expect(result.factors.weather.windCondition).toBe('strong');
     });
 
@@ -464,25 +469,42 @@ describe('calculateSwimScore', () => {
     });
 
     it('factors in wind gusts to effective wind calculation', () => {
-      // 8 mph sustained + 20 mph gusts → effective = 8*0.55 + 20*0.45 = 13.4 → light (score 95)
+      // 8 mph sustained + 20 mph gusts → effective = 8*0.55 + 20*0.45 = 13.4
+      // base = lerpScore(13.4, 10, 15, 90, 75) = 80; gustSpread = 12 > mild(5)
+      // → penalty = lerpScore(12, 5, 20, 0, -15) = -7 → 80 - 7 = 73
       const result = scoreWith({ weather: { windSpeedMph: 8, windGustMph: 20 } });
-      expect(result.factors.weather.score).toBe(95);
+      expect(result.factors.weather.score).toBe(73);
       expect(result.factors.weather.windCondition).toBe('light');
     });
 
     it('ignores gusts when lower than sustained speed', () => {
-      // 7 mph sustained, 5 mph gust → effective = 7 (gust not higher, so no blend) → calm
+      // 7 mph sustained, 5 mph gust → effective = 7 (gust not higher, so no blend)
+      // base = lerpScore(7, 0, 10, 100, 90) = 93; gustSpread = 5 - 7 = -2, not > mild → no penalty
       const result = scoreWith({ weather: { windSpeedMph: 7, windGustMph: 5 } });
-      expect(result.factors.weather.score).toBe(100);
+      expect(result.factors.weather.score).toBe(93);
       expect(result.factors.weather.windCondition).toBe('calm');
     });
 
     it('gusts push calm into light band when high enough', () => {
-      // 8 mph sustained + 22 mph gusts → effective = 8*0.55 + 22*0.45 = 14.3 → light (score 95)
-      // Without gusts: 8 mph < 10 → calm (score 100). Gusts matter.
+      // 8 mph sustained + 22 mph gusts → effective = 8*0.55 + 22*0.45 = 14.3
+      // base = lerpScore(14.3, 10, 15, 90, 75) = 77; gustSpread = 14 > mild(5)
+      // → penalty = lerpScore(14, 5, 20, 0, -15) = -9 → 77 - 9 = 68
+      // Without gusts: 8 mph < 10 → calm band entirely. Gusts matter.
       const result = scoreWith({ weather: { windSpeedMph: 8, windGustMph: 22 } });
-      expect(result.factors.weather.score).toBe(95);
+      expect(result.factors.weather.score).toBe(68);
       expect(result.factors.weather.windCondition).toBe('light');
+    });
+
+    it('applies a separate gustiness penalty independent of the effective-wind blend', () => {
+      // Both scenarios blend to the same effectiveWind (11 mph → base score 87),
+      // but the second has a 20 mph sustained/gust spread — the "extreme"
+      // gustiness threshold — which subtracts the full 15-point penalty on
+      // top of the identical blended base score.
+      const steady = scoreWith({ weather: { windSpeedMph: 11, windGustMph: 11 } });
+      const gusty = scoreWith({ weather: { windSpeedMph: 2, windGustMph: 22 } });
+      expect(steady.factors.weather.score).toBe(87);
+      expect(gusty.factors.weather.score).toBe(72);
+      expect(steady.factors.weather.windCondition).toBe(gusty.factors.weather.windCondition);
     });
   });
 
@@ -551,7 +573,7 @@ describe('calculateSwimScore', () => {
       // Heavy rain reduces WQ to 35, overall ~81 weighted. Add moderate wind to drop below 80.
       const result = scoreWith({
         rainfall: { last72hInches: 1.0 },
-        weather: { windSpeedMph: 17 }, // score 60
+        weather: { windSpeedMph: 17 }, // lerpScore(17,15,22,75,50)=68
       });
       expect(result.overallScore).toBeGreaterThanOrEqual(60);
       expect(result.overallScore).toBeLessThanOrEqual(79);
@@ -590,7 +612,7 @@ describe('calculateSwimScore', () => {
   // -------------------------------------------------------------------------
   describe('weighted score formula', () => {
     it('correctly applies SCORE_WEIGHTS to each factor', () => {
-      // WQ: 70 (enterococcus 200), Tide: 100 (ebb low rate, no phase preference), Waves: 57 (1.2ft lerp), Weather: 95 (12mph→light)
+      // WQ: 70 (enterococcus 200), Tide: 100 (ebb low rate, no phase preference), Waves: 57 (1.2ft lerp), Weather: 84 (12mph→light, lerpScore(12,10,15,90,75))
       const result = scoreWith({
         waterQuality: { enterococcusCount: 200 },
         tide: { currentPhase: 'ebb', changeRateFeetPerHour: 0.5 },
@@ -603,7 +625,7 @@ describe('calculateSwimScore', () => {
         (70 * SCORE_WEIGHTS.waterQuality +
           100 * SCORE_WEIGHTS.tideAndCurrent +
           57 * SCORE_WEIGHTS.waves +
-          95 * SCORE_WEIGHTS.weather) /
+          84 * SCORE_WEIGHTS.weather) /
           100
       );
       expect(result.overallScore).toBe(expected);
@@ -771,9 +793,9 @@ describe('calculateSwimScore', () => {
         rainfall: { last72hInches: 0.8 },
         weather: { windSpeedMph: 14 },
       });
-      // Rain 0.8" caps WQ at 60, wind 14mph → light (score 95), waves 93, tide 100
-      // (60*27 + 100*27 + 93*20 + 95*26) / 100 = 86.5 → 87
-      expect(result.overallScore).toBe(87);
+      // Rain 0.8" caps WQ at 60, wind 14mph → lerpScore(14,10,15,90,75)=78, waves 93, tide 100
+      // (60*25 + 100*25 + 93*20 + 78*30) / 100 = 82
+      expect(result.overallScore).toBe(82);
       expect(result.rating).toBe('calm');
     });
 
@@ -809,8 +831,8 @@ describe('calculateSwimScore', () => {
       const result = scoreWith({
         waves: { waveHeightFeet: 1.2 },
       });
-      // WQ=100, Tide=100, Waves=57 (lerp), Weather=100
-      // (100*27 + 100*27 + 57*20 + 100*26) / 100 = 91.4 → 91
+      // WQ=100, Tide=100, Waves=57 (lerp), Weather=97 (3mph, lerpScore(3,0,10,100,90))
+      // (100*25 + 100*25 + 57*20 + 97*30) / 100 = 90.5 → 91
       expect(result.overallScore).toBe(91);
       expect(result.rating).toBe('calm');
     });

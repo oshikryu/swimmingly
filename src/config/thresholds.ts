@@ -125,10 +125,10 @@ export const SAFETY_THRESHOLDS = {
  * All weights should sum to 100
  */
 export const SCORE_WEIGHTS = {
-  waterQuality: 27,      // Safety first — bacteria/SSO dominant, water temp/precip smaller modifiers
-  tideAndCurrent: 27,    // Affects difficulty and safety (moon phase adds signal)
+  waterQuality: 25,      // Safety first — bacteria/SSO dominant, water temp/precip smaller modifiers
+  tideAndCurrent: 25,    // Affects difficulty and safety (moon phase adds signal)
   waves: 20,             // Affects comfort and safety
-  weather: 26,           // Wind + gusts only (weighted more heavily); no pressure/precip
+  weather: 30,           // Wind, gusts, and gustiness penalty — weighted most heavily; no pressure/precip
 } as const;
 
 /**
@@ -140,6 +140,36 @@ export const WIND_GUST_BLEND = {
   sustainedWeight: 0.55,
   gustWeight: 0.45,
 } as const;
+
+/**
+ * Score anchor points for continuous wind interpolation (used by scoreWeather).
+ * lerpScore() interpolates effectiveWind between these anchors and the mph
+ * breakpoints in SAFETY_THRESHOLDS.wind, so score responds to every mph
+ * instead of jumping at band edges (same pattern as scoreWaves).
+ */
+export const WIND_SCORE_ANCHORS = {
+  atZeroMph: 100,
+  atCalmMph: 90,        // score at thresholds.wind.calm (10 mph)
+  atLightMph: 75,       // score at thresholds.wind.light (15 mph)
+  atModerateMph: 50,    // score at thresholds.wind.moderate (22 mph)
+  atStrongMph: 25,       // score at thresholds.wind.strong (30 mph)
+  atVeryStrongMph: 10,  // score at thresholds.wind.veryStrong (38 mph)
+  floor: 8,              // flat score beyond thresholds.wind.veryStrong
+} as const;
+
+/**
+ * Gustiness penalty thresholds (mph spread between windGustMph and
+ * windSpeedMph). Independent of the sustained/gust blend used for
+ * effectiveWind — distinguishes "steady wind" from "gusty/unpredictable
+ * wind" at the same blended effective speed.
+ */
+export const GUST_SPREAD_THRESHOLDS = {
+  mild: 5,      // spread <= this: no penalty
+  extreme: 20,  // spread >= this: full penalty applied
+} as const;
+
+/** Max points subtracted from the weather score for extreme gustiness. */
+export const GUST_SPREAD_PENALTY_MAX = 15;
 
 /**
  * Score ceilings applied inside the tideAndCurrent factor as current speed
